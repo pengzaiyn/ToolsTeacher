@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Search, UserCheck } from 'lucide-react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { isValidSchoolEmail, normalizeTeacherEmail, SCHOOL_DOMAIN } from '@/lib/email';
 import { manageUsers, supabase } from '@/lib/supabase';
 import type { Profile } from '@/types/database';
@@ -34,27 +35,38 @@ export function AdminTeachers() {
   const [editName, setEditName] = useState('');
   const [editSubject, setEditSubject] = useState('');
 
-  const loadTeachers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('role', 'teacher')
-        .order('created_at', { ascending: false })
-        .returns<Profile[]>();
-      if (error) throw new Error(error.message);
-      setTeachers(data ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được danh sách giáo viên');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const loadTeachers = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'teacher')
+          .order('created_at', { ascending: false })
+          .returns<Profile[]>();
+        if (error) throw new Error(error.message);
+        setTeachers(data ?? []);
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách giáo viên');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [toast]
+  );
 
   useEffect(() => {
     void loadTeachers();
   }, [loadTeachers]);
+
+  useRealtimeRefresh({
+    channelName: 'admin-teachers-realtime',
+    tables: [{ table: 'profiles' }],
+    onRefresh: () => loadTeachers(true),
+  });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

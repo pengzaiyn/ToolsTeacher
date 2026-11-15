@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Calendar } from 'lucide-react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
@@ -20,10 +21,9 @@ export function AdminClasses() {
   const [timetableCounts, setTimetableCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoading(true);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
       try {
         const [{ data, error }, { data: enrRows }, { data: ttRows }] = await Promise.all([
           supabase
@@ -35,7 +35,6 @@ export function AdminClasses() {
           supabase.rpc('timetable_classes'),
         ]);
         if (error) throw new Error(error.message);
-        if (!active) return;
 
         setClasses(data ?? []);
 
@@ -51,16 +50,25 @@ export function AdminClasses() {
         });
         setTimetableCounts(tMap);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp học');
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp học');
+        }
       } finally {
-        if (active) setLoading(false);
+        if (!silent) setLoading(false);
       }
-    }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
     void load();
-    return () => {
-      active = false;
-    };
-  }, [toast]);
+  }, [load]);
+
+  useRealtimeRefresh({
+    channelName: 'admin-classes-realtime',
+    tables: [{ table: 'classes' }, { table: 'enrollments' }, { table: 'timetable_entries' }],
+    onRefresh: () => load(true),
+  });
 
   const columns: TableColumn<CollegeClass>[] = [
     {

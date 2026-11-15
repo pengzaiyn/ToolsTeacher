@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Calendar, Megaphone } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { ROLE_LABELS } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { TOOLS, type ToolItem } from '@/lib/toolsCatalog';
@@ -19,30 +20,31 @@ export function Tools() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    async function loadAnnouncements() {
-      setLoadingAnnouncements(true);
-      try {
-        const { data } = await supabase
-          .from('announcements')
-          .select('*')
-          .is('class_id', null)
-          .order('created_at', { ascending: false })
-          .limit(3)
-          .returns<Announcement[]>();
-        if (active) {
-          setAnnouncements(data ?? []);
-        }
-      } finally {
-        if (active) setLoadingAnnouncements(false);
-      }
+  const loadAnnouncements = useCallback(async (silent = false) => {
+    if (!silent) setLoadingAnnouncements(true);
+    try {
+      const { data } = await supabase
+        .from('announcements')
+        .select('*')
+        .is('class_id', null)
+        .order('created_at', { ascending: false })
+        .limit(3)
+        .returns<Announcement[]>();
+      setAnnouncements(data ?? []);
+    } finally {
+      if (!silent) setLoadingAnnouncements(false);
     }
-    void loadAnnouncements();
-    return () => {
-      active = false;
-    };
   }, []);
+
+  useEffect(() => {
+    void loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  useRealtimeRefresh({
+    channelName: 'tools-announcements',
+    tables: [{ table: 'announcements' }],
+    onRefresh: () => loadAnnouncements(true),
+  });
 
   const visibleTools = TOOLS.filter(
     (tool) => tool.category !== 'teaching' && (profile ? tool.roles.includes(profile.role) : false)

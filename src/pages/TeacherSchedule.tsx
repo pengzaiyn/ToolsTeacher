@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { isAdmin } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import {
@@ -66,44 +67,55 @@ export function TeacherSchedule() {
   const [weekMonday, setWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
   const [viewMode, setViewMode] = useState<'week' | 'list'>('week');
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [
-        { data: ttData, error: ttErr },
-        { data: clsData, error: clsErr },
-        { data: accData, error: accErr },
-      ] = await Promise.all([
-        supabase
-          .from('timetable_entries')
-          .select('*')
-          .order('weekday', { ascending: true })
-          .order('period_start', { ascending: true })
-          .returns<TimetableEntry[]>(),
-        supabase
-          .from('classes')
-          .select('id, name, class_key')
-          .returns<Pick<CollegeClass, 'id' | 'name' | 'class_key'>[]>(),
-        supabase.rpc('timetable_teacher_accounts'),
-      ]);
+  const loadData = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const [
+          { data: ttData, error: ttErr },
+          { data: clsData, error: clsErr },
+          { data: accData, error: accErr },
+        ] = await Promise.all([
+          supabase
+            .from('timetable_entries')
+            .select('*')
+            .order('weekday', { ascending: true })
+            .order('period_start', { ascending: true })
+            .returns<TimetableEntry[]>(),
+          supabase
+            .from('classes')
+            .select('id, name, class_key')
+            .returns<Pick<CollegeClass, 'id' | 'name' | 'class_key'>[]>(),
+          supabase.rpc('timetable_teacher_accounts'),
+        ]);
 
-      if (ttErr) throw new Error(ttErr.message);
-      if (clsErr) throw new Error(clsErr.message);
-      if (accErr) throw new Error(accErr.message);
+        if (ttErr) throw new Error(ttErr.message);
+        if (clsErr) throw new Error(clsErr.message);
+        if (accErr) throw new Error(accErr.message);
 
-      setAllEntries(ttData ?? []);
-      setClasses(clsData ?? []);
-      setTeacherAccounts((accData as TimetableTeacherAccount[] | null) ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được lịch giảng dạy');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+        setAllEntries(ttData ?? []);
+        setClasses(clsData ?? []);
+        setTeacherAccounts((accData as TimetableTeacherAccount[] | null) ?? []);
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được lịch giảng dạy');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [toast]
+  );
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useRealtimeRefresh({
+    channelName: 'teacher-schedule-realtime',
+    tables: [{ table: 'timetable_entries' }, { table: 'classes' }, { table: 'profiles' }],
+    onRefresh: () => loadData(true),
+  });
 
   const teacherGroups = useMemo(
     () => buildTeacherScheduleGroups(allEntries, teacherAccounts),

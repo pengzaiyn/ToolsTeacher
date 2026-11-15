@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Megaphone, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { Announcement } from '@/types/database';
@@ -27,28 +28,39 @@ export function AdminAnnouncements() {
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .is('class_id', null)
-        .order('created_at', { ascending: false })
-        .returns<Announcement[]>();
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .is('class_id', null)
+          .order('created_at', { ascending: false })
+          .returns<Announcement[]>();
 
-      if (error) throw new Error(error.message);
-      setItems(data ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được thông báo');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+        if (error) throw new Error(error.message);
+        setItems(data ?? []);
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được thông báo');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [toast]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeRefresh({
+    channelName: 'admin-announcements-realtime',
+    tables: [{ table: 'announcements' }],
+    onRefresh: () => load(true),
+  });
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();

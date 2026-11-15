@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { FileSpreadsheet, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { normalizeStudentCode, studentEmail } from '@/lib/email';
 import { manageUsers, supabase } from '@/lib/supabase';
@@ -58,35 +59,46 @@ export function AdminStudents() {
   const [deleting, setDeleting] = useState<Profile | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [{ data: stuRes, error: stuErr }, { data: ttData }, { data: clsData }] =
-        await Promise.all([
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('role', 'student')
-            .order('created_at', { ascending: false })
-            .returns<Profile[]>(),
-          supabase.rpc('timetable_classes'),
-          supabase.from('classes').select('name').order('name', { ascending: true }),
-        ]);
-      if (stuErr) throw new Error(stuErr.message);
-      setStudents(stuRes ?? []);
-      const ttRows = (ttData as TimetableClassSummary[] | null) ?? [];
-      setTimetableClasses(ttRows.map((r) => r.class_name));
-      setSystemClasses(((clsData as { name: string }[] | null) ?? []).map((r) => r.name));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được danh sách sinh viên');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const loadData = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const [{ data: stuRes, error: stuErr }, { data: ttData }, { data: clsData }] =
+          await Promise.all([
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('role', 'student')
+              .order('created_at', { ascending: false })
+              .returns<Profile[]>(),
+            supabase.rpc('timetable_classes'),
+            supabase.from('classes').select('name').order('name', { ascending: true }),
+          ]);
+        if (stuErr) throw new Error(stuErr.message);
+        setStudents(stuRes ?? []);
+        const ttRows = (ttData as TimetableClassSummary[] | null) ?? [];
+        setTimetableClasses(ttRows.map((r) => r.class_name));
+        setSystemClasses(((clsData as { name: string }[] | null) ?? []).map((r) => r.name));
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách sinh viên');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [toast]
+  );
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useRealtimeRefresh({
+    channelName: 'admin-students-realtime',
+    tables: [{ table: 'profiles' }, { table: 'classes' }],
+    onRefresh: () => loadData(true),
+  });
 
   const classSuggestions = useMemo(() => {
     const map = new Map<string, string>();

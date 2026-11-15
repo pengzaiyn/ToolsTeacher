@@ -13,6 +13,7 @@ import {
   type Session,
   type User,
 } from '@supabase/supabase-js';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { mapRecoveryAuthError, normalizeRecoveryEmail } from '@/lib/passwordRecovery';
 import {
   AUTH_SESSION_INVALIDATED_EVENT,
@@ -488,6 +489,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await loadProfile(userId);
     }
   }, [userId, loadProfile]);
+
+  useRealtimeRefresh({
+    channelName: `profile-self-${userId ?? 'anon'}`,
+    tables: userId ? [{ table: 'profiles', filter: `id=eq.${userId}` }] : [],
+    enabled: Boolean(userId),
+    debounceMs: 300,
+    onRefresh: refreshProfile,
+  });
 
   const loading = !sessionReady || (Boolean(userId) && profileLoading && !profile);
 

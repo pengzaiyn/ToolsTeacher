@@ -61,6 +61,7 @@ import { HopeStarCardBoard, UnoSixCardBoard } from '@/components/classroom-kit/U
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
 interface RandomPickerTabProps {
@@ -134,6 +135,7 @@ export function RandomPickerTab({
     recordId: string;
     type: 'uno' | 'hope-star';
   } | null>(null);
+  const [winnerModalRecordId, setWinnerModalRecordId] = useState<string | null>(null);
   const unoIntervalRef = useRef<number | null>(null);
   const unoTimeoutRef = useRef<number | null>(null);
   const unoNoticeTimeoutRef = useRef<number | null>(null);
@@ -183,13 +185,13 @@ export function RandomPickerTab({
   useEffect(() => clearAllAnimations, [clearAllAnimations]);
 
   useEffect(() => {
-    if (!projectorOpen || noticeState) return;
+    if (!projectorOpen || noticeState || winnerModalRecordId) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setProjectorOpen(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [projectorOpen, noticeState]);
+  }, [projectorOpen, noticeState, winnerModalRecordId]);
 
   // Khởi tạo lại phiên khi đổi danh sách lớp/sinh viên
   useEffect(() => {
@@ -202,6 +204,7 @@ export function RandomPickerTab({
     setPickingHopeStar(false);
     setScanningHopeStarIdx(null);
     setNoticeState(null);
+    setWinnerModalRecordId(null);
     setHighlightedCardIdx(null);
     setRecords([]);
     setActiveRecordId(null);
@@ -354,6 +357,7 @@ export function RandomPickerTab({
     setRecords((prev) => [newRecord, ...prev]);
     setActiveRecordId(newRecord.id);
     setNoticeState(null);
+    setWinnerModalRecordId(newRecord.id);
     setPickingUno(false);
     setScanningUnoIdx(null);
     setPickingHopeStar(false);
@@ -647,6 +651,7 @@ export function RandomPickerTab({
     setPickingHopeStar(false);
     setScanningHopeStarIdx(null);
     setNoticeState(null);
+    setWinnerModalRecordId(null);
     setHighlightedCardIdx(null);
     setRecords([]);
     setActiveRecordId(null);
@@ -1755,6 +1760,69 @@ export function RandomPickerTab({
         onPickNextStudent={handlePickNextStudent}
         onActivateHopeStar={handleActivateHopeStar}
       />
+
+      {(() => {
+        const winnerRecord = winnerModalRecordId
+          ? records.find((r) => r.id === winnerModalRecordId) ?? null
+          : null;
+        return (
+          <Modal
+            open={Boolean(winnerRecord)}
+            onClose={() => setWinnerModalRecordId(null)}
+            title="Sinh viên được chọn trả bài"
+            size="sm"
+          >
+            {winnerRecord && (
+              <div className="flex flex-col items-center gap-4 py-2 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-redSoft text-brand-red">
+                  <GraduationCap className="h-8 w-8" aria-hidden="true" />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                    Xin mời lên trả bài
+                  </p>
+                  <h3 className="text-2xl font-bold text-brand-navy">
+                    {winnerRecord.student.name}
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+                    {winnerRecord.student.code && (
+                      <Badge tone="navy">{winnerRecord.student.code}</Badge>
+                    )}
+                    {winnerRecord.student.className && (
+                      <Badge tone="neutral">{winnerRecord.student.className}</Badge>
+                    )}
+                  </div>
+                </div>
+
+                {!enableUno && winnerRecord.questions.length > 0 && (
+                  <div className="w-full rounded-xl border border-line bg-surface-subtle p-3 text-left text-sm text-ink-primary">
+                    <p className="text-xs font-semibold text-brand-navy">Câu hỏi được bốc:</p>
+                    <p className="mt-1">{winnerRecord.questions.join(' · ')}</p>
+                  </div>
+                )}
+
+                <div className="flex w-full justify-center gap-2 border-t border-line pt-4">
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setWinnerModalRecordId(null);
+                      if (!enableUno && quickTimerSec > 0) {
+                        answerEndMsRef.current = Date.now() + quickTimerSec * 1000;
+                        setAnswerLeftSec(quickTimerSec);
+                        setAnswerTimerRunning(true);
+                      }
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    <span>{enableUno ? 'Tiếp tục rút thẻ UNO' : 'Bắt đầu trả bài'}</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

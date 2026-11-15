@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { isStaff } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import {
@@ -56,30 +57,35 @@ export function Timetable() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const loadClasses = useCallback(async () => {
-    if (!staff) return;
-    setLoadingClasses(true);
-    try {
-      const { data, error } = await supabase.rpc('timetable_classes');
-      if (error) throw new Error(error.message);
-      const list = ((data as TimetableClassSummary[] | null) ?? []).map((item) => ({
-        ...item,
-        entries: Number(item.entries),
-      }));
-      setClasses(list);
-      setSelectedClassKey((prev) => {
-        if (requestedClassKey && list.some((c) => c.class_key === requestedClassKey)) {
-          return requestedClassKey;
+  const loadClasses = useCallback(
+    async (silent = false) => {
+      if (!staff) return;
+      if (!silent) setLoadingClasses(true);
+      try {
+        const { data, error } = await supabase.rpc('timetable_classes');
+        if (error) throw new Error(error.message);
+        const list = ((data as TimetableClassSummary[] | null) ?? []).map((item) => ({
+          ...item,
+          entries: Number(item.entries),
+        }));
+        setClasses(list);
+        setSelectedClassKey((prev) => {
+          if (requestedClassKey && list.some((c) => c.class_key === requestedClassKey)) {
+            return requestedClassKey;
+          }
+          if (prev && list.some((c) => c.class_key === prev)) return prev;
+          return list[0]?.class_key ?? '';
+        });
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp');
         }
-        if (prev && list.some((c) => c.class_key === prev)) return prev;
-        return list[0]?.class_key ?? '';
-      });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp');
-    } finally {
-      setLoadingClasses(false);
-    }
-  }, [staff, requestedClassKey, toast]);
+      } finally {
+        if (!silent) setLoadingClasses(false);
+      }
+    },
+    [staff, requestedClassKey, toast]
+  );
 
   useEffect(() => {
     if (staff) {
@@ -89,42 +95,57 @@ export function Timetable() {
     }
   }, [staff, profile, loadClasses]);
 
-  const loadEntries = useCallback(async () => {
-    if (!profile) return;
-    const targetKey = staff ? selectedClassKey : profile.class_key ?? '';
-    if (!targetKey) {
-      setEntries([]);
-      setLinkedClassId(null);
-      setLoadingEntries(false);
-      return;
-    }
+  const loadEntries = useCallback(
+    async (silent = false) => {
+      if (!profile) return;
+      const targetKey = staff ? selectedClassKey : profile.class_key ?? '';
+      if (!targetKey) {
+        setEntries([]);
+        setLinkedClassId(null);
+        if (!silent) setLoadingEntries(false);
+        return;
+      }
 
-    setLoadingEntries(true);
-    try {
-      const [{ data, error }, linkedRes] = await Promise.all([
-        supabase
-          .from('timetable_entries')
-          .select('*')
-          .eq('class_key', targetKey)
-          .order('weekday', { ascending: true })
-          .order('period_start', { ascending: true })
-          .returns<TimetableEntry[]>(),
-        supabase.from('classes').select('id').eq('class_key', targetKey).maybeSingle<{ id: string }>(),
-      ]);
+      if (!silent) setLoadingEntries(true);
+      try {
+        const [{ data, error }, linkedRes] = await Promise.all([
+          supabase
+            .from('timetable_entries')
+            .select('*')
+            .eq('class_key', targetKey)
+            .order('weekday', { ascending: true })
+            .order('period_start', { ascending: true })
+            .returns<TimetableEntry[]>(),
+          supabase.from('classes').select('id').eq('class_key', targetKey).maybeSingle<{ id: string }>(),
+        ]);
 
-      if (error) throw new Error(error.message);
-      setEntries(data ?? []);
-      setLinkedClassId(linkedRes.error ? null : linkedRes.data?.id ?? null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được thời khóa biểu');
-    } finally {
-      setLoadingEntries(false);
-    }
-  }, [profile, staff, selectedClassKey, toast]);
+        if (error) throw new Error(error.message);
+        setEntries(data ?? []);
+        setLinkedClassId(linkedRes.error ? null : linkedRes.data?.id ?? null);
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được thời khóa biểu');
+        }
+      } finally {
+        if (!silent) setLoadingEntries(false);
+      }
+    },
+    [profile, staff, selectedClassKey, toast]
+  );
 
   useEffect(() => {
     void loadEntries();
   }, [loadEntries]);
+
+  useRealtimeRefresh({
+    channelName: `timetable-${profile?.id ?? 'anon'}`,
+    tables: [{ table: 'timetable_entries' }, { table: 'timetable_uploads' }, { table: 'classes' }],
+    enabled: Boolean(profile),
+    onRefresh: async () => {
+      if (staff) await loadClasses(true);
+      await loadEntries(true);
+    },
+  });
 
   const weekDays = useMemo(() => getWeekDays(weekMonday), [weekMonday]);
   const todayIso = toIsoDate(new Date());

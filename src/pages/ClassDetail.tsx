@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { isAdmin, isStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
@@ -53,11 +54,10 @@ export function ClassDetail() {
 
   const studentView = isStudent(profile?.role);
 
-  useEffect(() => {
-    let active = true;
-    async function load() {
+  const loadClass = useCallback(
+    async (silent = false) => {
       if (!id) return;
-      setLoading(true);
+      if (!silent) setLoading(true);
       try {
         const [{ data, error }, enrRes, ttRes] = await Promise.all([
           supabase
@@ -74,7 +74,6 @@ export function ClassDetail() {
           supabase.rpc('timetable_classes'),
         ]);
         if (error) throw new Error(error.message);
-        if (!active) return;
 
         setCls(data ?? null);
         setStudentCount(enrRes.count ?? null);
@@ -88,16 +87,32 @@ export function ClassDetail() {
           setTimetableCount(0);
         }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Không tải được thông tin lớp học');
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được thông tin lớp học');
+        }
       } finally {
-        if (active) setLoading(false);
+        if (!silent) setLoading(false);
       }
-    }
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [id, studentView, toast]);
+    },
+    [id, studentView, toast]
+  );
+
+  useEffect(() => {
+    void loadClass();
+  }, [loadClass]);
+
+  useRealtimeRefresh({
+    channelName: `class-detail-${id ?? 'none'}`,
+    tables: id
+      ? [
+          { table: 'classes', filter: `id=eq.${id}` },
+          { table: 'enrollments', filter: `class_id=eq.${id}` },
+          { table: 'timetable_entries' },
+        ]
+      : [],
+    enabled: Boolean(id),
+    onRefresh: () => loadClass(true),
+  });
 
   const canManageTeaching = Boolean(
     profile?.role === 'admin' ||

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
 import type { Enrollment, Profile } from '@/types/database';
@@ -34,44 +35,55 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
   const [removeTarget, setRemoveTarget] = useState<Enrollment | null>(null);
   const [removing, setRemoving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [{ data: enrData, error: eErr }, { data: stuData, error: sErr }] = await Promise.all([
-        supabase
-          .from('enrollments')
-          .select(
-            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active)'
-          )
-          .eq('class_id', classId)
-          .order('enrolled_at', { ascending: false })
-          .returns<Enrollment[]>(),
-        canManage
-          ? supabase
-              .from('profiles')
-              .select('*')
-              .eq('role', 'student')
-              .eq('is_active', true)
-              .order('full_name', { ascending: true })
-              .returns<Profile[]>()
-          : Promise.resolve({ data: [] as Profile[], error: null }),
-      ]);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const [{ data: enrData, error: eErr }, { data: stuData, error: sErr }] = await Promise.all([
+          supabase
+            .from('enrollments')
+            .select(
+              '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active)'
+            )
+            .eq('class_id', classId)
+            .order('enrolled_at', { ascending: false })
+            .returns<Enrollment[]>(),
+          canManage
+            ? supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'student')
+                .eq('is_active', true)
+                .order('full_name', { ascending: true })
+                .returns<Profile[]>()
+            : Promise.resolve({ data: [] as Profile[], error: null }),
+        ]);
 
-      if (eErr) throw new Error(eErr.message);
-      if (sErr) throw new Error(sErr.message);
+        if (eErr) throw new Error(eErr.message);
+        if (sErr) throw new Error(sErr.message);
 
-      setEnrollments(enrData ?? []);
-      setAllStudents(stuData ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được danh sách thành viên');
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, canManage, toast]);
+        setEnrollments(enrData ?? []);
+        setAllStudents(stuData ?? []);
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách thành viên');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [classId, canManage, toast]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeRefresh({
+    channelName: `class-members-${classId}`,
+    tables: [{ table: 'enrollments', filter: `class_id=eq.${classId}` }, { table: 'profiles' }],
+    onRefresh: () => load(true),
+  });
 
   const enrolledIds = useMemo(
     () => new Set(enrollments.map((item) => item.student_id)),

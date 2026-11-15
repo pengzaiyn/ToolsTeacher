@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   ATTENDANCE_STATUS_META,
   ATTENDANCE_STATUS_ORDER,
@@ -95,9 +96,10 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
 
   const targetClassKey = classItem.class_key || classKey(classItem.name);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
+  const loadData = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
       const [enrRes, sesRes, cfgRes, ttRes] = await Promise.all([
         supabase
           .from('enrollments')
@@ -164,15 +166,29 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
         return sesList[0]?.id ?? '';
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được dữ liệu điểm danh');
+      if (!silent) {
+        toast.error(err instanceof Error ? err.message : 'Không tải được dữ liệu điểm danh');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [classItem.id, targetClassKey, toast]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useRealtimeRefresh({
+    channelName: `class-attendance-${classItem.id}`,
+    tables: [
+      { table: 'attendance_sessions', filter: `class_id=eq.${classItem.id}` },
+      { table: 'attendance_records' },
+      { table: 'enrollments', filter: `class_id=eq.${classItem.id}` },
+      { table: 'class_gradebook_settings', filter: `class_id=eq.${classItem.id}` },
+    ],
+    enabled: !dirty,
+    onRefresh: () => loadData(true),
+  });
 
   const sortedEnrollments = useMemo(
     () =>

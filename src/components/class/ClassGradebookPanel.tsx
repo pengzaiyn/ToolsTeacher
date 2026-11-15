@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { computeStudentAttendanceSummaries } from '@/lib/attendance';
 import { formatClassActionError } from '@/lib/classStorage';
 import {
@@ -69,9 +70,10 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
 
   const assignmentWeight = Math.max(0, 100 - attendanceWeight);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
+  const loadData = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
       const [enrRes, assignRes, sesRes, cfgRes] = await Promise.all([
         supabase
           .from('enrollments')
@@ -151,15 +153,31 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
         setExcusedWeight(DEFAULT_GRADEBOOK_SETTINGS.excused_weight);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được sổ điểm tổng hợp');
+      if (!silent) {
+        toast.error(err instanceof Error ? err.message : 'Không tải được sổ điểm tổng hợp');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [classItem.id, toast]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useRealtimeRefresh({
+    channelName: `class-gradebook-${classItem.id}`,
+    tables: [
+      { table: 'attendance_sessions', filter: `class_id=eq.${classItem.id}` },
+      { table: 'attendance_records' },
+      { table: 'assignments', filter: `class_id=eq.${classItem.id}` },
+      { table: 'submissions' },
+      { table: 'grades' },
+      { table: 'enrollments', filter: `class_id=eq.${classItem.id}` },
+      { table: 'class_gradebook_settings', filter: `class_id=eq.${classItem.id}` },
+    ],
+    onRefresh: () => loadData(true),
+  });
 
   const activeSettings = useMemo(
     () => ({

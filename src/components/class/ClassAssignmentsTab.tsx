@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ClipboardList, Eye, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
 import { supabase } from '@/lib/supabase';
 import type { Assignment, AssignmentType, Grade, Submission } from '@/types/database';
@@ -46,48 +47,63 @@ export function ClassAssignmentsTab({
   const [deleteTarget, setDeleteTarget] = useState<Assignment | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: assignData, error: aErr } = await supabase
-        .from('assignments')
-        .select('*')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false })
-        .returns<Assignment[]>();
-      if (aErr) throw new Error(aErr.message);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const { data: assignData, error: aErr } = await supabase
+          .from('assignments')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .returns<Assignment[]>();
+        if (aErr) throw new Error(aErr.message);
 
-      const list = assignData ?? [];
-      setAssignments(list);
+        const list = assignData ?? [];
+        setAssignments(list);
 
-      if (isStudentView && user && list.length > 0) {
-        const { data: subData, error: sErr } = await supabase
-          .from('submissions')
-          .select('*, grade:grades(*)')
-          .eq('student_id', user.id)
-          .in(
-            'assignment_id',
-            list.map((a) => a.id)
-          )
-          .returns<Submission[]>();
+        if (isStudentView && user && list.length > 0) {
+          const { data: subData, error: sErr } = await supabase
+            .from('submissions')
+            .select('*, grade:grades(*)')
+            .eq('student_id', user.id)
+            .in(
+              'assignment_id',
+              list.map((a) => a.id)
+            )
+            .returns<Submission[]>();
 
-        if (sErr) throw new Error(sErr.message);
-        const map = new Map<string, Submission>();
-        (subData ?? []).forEach((s) => map.set(s.assignment_id, s));
-        setMySubmissions(map);
-      } else {
-        setMySubmissions(new Map());
+          if (sErr) throw new Error(sErr.message);
+          const map = new Map<string, Submission>();
+          (subData ?? []).forEach((s) => map.set(s.assignment_id, s));
+          setMySubmissions(map);
+        } else {
+          setMySubmissions(new Map());
+        }
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách bài tập');
+        }
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được danh sách bài tập');
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, isStudentView, user, toast]);
+    },
+    [classId, isStudentView, user, toast]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeRefresh({
+    channelName: `class-assignments-${classId}`,
+    tables: [
+      { table: 'assignments', filter: `class_id=eq.${classId}` },
+      { table: 'submissions' },
+      { table: 'grades' },
+    ],
+    onRefresh: () => load(true),
+  });
 
   async function handleDelete() {
     if (!deleteTarget) return;

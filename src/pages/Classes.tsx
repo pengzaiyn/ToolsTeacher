@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { formatClassActionError } from '@/lib/classStorage';
 import { isAdmin, isStudent, isTeacher } from '@/lib/roles';
@@ -57,10 +58,11 @@ export function Classes() {
   const [deleteTarget, setDeleteTarget] = useState<CollegeClass | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [{ data: classData, error: cErr }, teacherRes, enrRes, ttRes] = await Promise.all([
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const [{ data: classData, error: cErr }, teacherRes, enrRes, ttRes] = await Promise.all([
         supabase
           .from('classes')
           .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
@@ -98,15 +100,23 @@ export function Classes() {
       });
       setTimetableCounts(tMap);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp học');
+      if (!silent) {
+        toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp học');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [adminRole, studentRole, toast]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeRefresh({
+    channelName: 'classes-list-realtime',
+    tables: [{ table: 'classes' }, { table: 'enrollments' }, { table: 'timetable_entries' }],
+    onRefresh: () => load(true),
+  });
 
   const subjectSuggestions = useMemo(() => {
     const set = new Set<string>();
