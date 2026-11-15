@@ -127,6 +127,18 @@ export function AdminStudents() {
     return studentEmail(fullName, normalized);
   }, [fullName, studentCode]);
 
+  const duplicateStudentOwner = useMemo(() => {
+    const normalized = normalizeStudentCode(studentCode);
+    if (!normalized) return null;
+    return students.find((s) => s.student_code?.trim() === normalized) ?? null;
+  }, [studentCode, students]);
+
+  const duplicateEmailOwner = useMemo(() => {
+    if (!emailPreview) return null;
+    const lower = emailPreview.toLowerCase();
+    return students.find((s) => s.email.toLowerCase() === lower) ?? null;
+  }, [emailPreview, students]);
+
   function resetCreateForm() {
     setFullName('');
     setGender('Nam');
@@ -482,6 +494,26 @@ export function AdminStudents() {
             )}
           </div>
 
+          {(duplicateStudentOwner || duplicateEmailOwner) && (
+            <div className="flex flex-col gap-2 rounded-lg border border-status-dangerBorder bg-status-dangerBg p-3 text-xs text-status-dangerText">
+              <p className="font-semibold">
+                {duplicateStudentOwner
+                  ? `Mã sinh viên ${duplicateStudentOwner.student_code} đã thuộc về ${duplicateStudentOwner.full_name} (${duplicateStudentOwner.email}).`
+                  : `Email dự kiến ${emailPreview} đã thuộc về ${duplicateEmailOwner?.full_name}.`}
+              </p>
+              <div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setStudentCode('')}
+                >
+                  Xóa mã để hệ thống tự cấp mã mới
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 border-t border-line pt-4">
             <Button
               variant="secondary"
@@ -490,7 +522,12 @@ export function AdminStudents() {
             >
               Hủy
             </Button>
-            <Button type="submit" variant="primary" loading={creating}>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={creating}
+              disabled={Boolean(duplicateStudentOwner || duplicateEmailOwner)}
+            >
               Tạo sinh viên
             </Button>
           </div>

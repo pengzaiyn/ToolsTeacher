@@ -1,20 +1,31 @@
-import { type ChangeEvent, type DragEvent, useRef, useState } from 'react';
-import { CheckCircle2, Download, FileSpreadsheet, Upload, XCircle } from 'lucide-react';
+import { type ChangeEvent, type DragEvent, useMemo, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  FileSpreadsheet,
+  Upload,
+  XCircle,
+} from 'lucide-react';
+import { classKey } from '@/lib/classKey';
 import {
   downloadStudentImportTemplate,
   parseStudentImportWorkbook,
   type StudentImportParseResult,
   type StudentImportRow,
 } from '@/lib/studentImportExcel';
-import { manageUsers } from '@/lib/supabase';
+import { manageUsers, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { Gender, Profile } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
 import { Table, type TableColumn } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/Toast';
+
+export type DuplicateStrategy = 'skip' | 'auto_code' | 'update';
 
 interface StudentImportModalProps {
   open: boolean;
@@ -42,6 +53,7 @@ export function StudentImportModal({
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState('');
   const [parsed, setParsed] = useState<StudentImportParseResult | null>(null);
+  const [duplicateStrategy, setDuplicateStrategy] = useState<DuplicateStrategy>('skip');
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -49,12 +61,50 @@ export function StudentImportModal({
   const [progressTotal, setProgressTotal] = useState(0);
   const [importSummary, setImportSummary] = useState<{
     created: number;
+    updated: number;
+    skipped: number;
     failures: ImportFailure[];
   } | null>(null);
+
+  const actionablePlan = useMemo(() => {
+    if (!parsed) {
+      return { createCount: 0, updateCount: 0, skipCount: 0, totalActionable: 0 };
+    }
+
+    const cleanRows = parsed.rows.filter((r) => !r.error && r.duplicateType === 'none');
+    const dupRows = parsed.rows.filter((r) => !r.error && r.duplicateType !== 'none');
+
+    if (duplicateStrategy === 'skip') {
+      return {
+        createCount: cleanRows.length,
+        updateCount: 0,
+        skipCount: dupRows.length + parsed.errorCount,
+        totalActionable: cleanRows.length,
+      };
+    }
+
+    if (duplicateStrategy === 'auto_code') {
+      return {
+        createCount: cleanRows.length + dupRows.length,
+        updateCount: 0,
+        skipCount: parsed.errorCount,
+        totalActionable: cleanRows.length + dupRows.length,
+      };
+    }
+
+    const updatableRows = dupRows.filter((r) => Boolean(r.existingStudentId));
+    return {
+      createCount: cleanRows.length,
+      updateCount: updatableRows.length,
+      skipCount: dupRows.length - updatableRows.length + parsed.errorCount,
+      totalActionable: cleanRows.length + updatableRows.length,
+    };
+  }, [parsed, duplicateStrategy]);
 
   function resetState() {
     setFileName('');
     setParsed(null);
+    setDuplicateStrategy('skip');
     setImportSummary(null);
     setProgressDone(0);
     setProgressTotal(0);
@@ -104,30 +154,75 @@ export function StudentImportModal({
 
   async function handleConfirmImport() {
     if (!parsed) return;
-    const validRows = parsed.rows.filter((r) => !r.error);
-    if (validRows.length === 0) return;
+
+    const cleanRows = parsed.rows.filter((r) => !r.error && r.duplicateType === 'none');
+    const dupRows = parsed.rows.filter((r) => !r.error && r.duplicateType !== 'none');
+
+    type TaskItem =
+      | { kind: 'create'; row: StudentImportRow; useAutoCode: boolean }
+      | { kind: 'update'; row: StudentImportRow };
+
+    const tasks: TaskItem[] = cleanRows.map((row) => ({
+      kind: 'create',
+      row,
+      useAutoCode: false,
+    }));
+
+    if (duplicateStrategy === 'auto_code') {
+      dupRows.forEach((row) => {
+        tasks.push({ kind: 'create', row, useAutoCode: true });
+      });
+    } else if (duplicateStrategy === 'update') {
+      dupRows.forEach((row) => {
+        if (row.existingStudentId) {
+          tasks.push({ kind: 'update', row });
+        }
+      });
+    }
+
+    if (tasks.length === 0) return;
 
     setConfirmOpen(false);
     setImporting(true);
     setProgressDone(0);
-    setProgressTotal(validRows.length);
+    setProgressTotal(tasks.length);
 
     let created = 0;
+    let updated = 0;
     const failures: ImportFailure[] = [];
 
-    for (let i = 0; i < validRows.length; i += 1) {
-      const row = validRows[i];
+    for (let i = 0; i < tasks.length; i += 1) {
+      const task = tasks[i];
+      const { row } = task;
       try {
-        await manageUsers({
-          action: 'create_student',
-          full_name: row.fullName,
-          gender: row.gender as Gender,
-          date_of_birth: row.dateOfBirth,
-          student_code: row.studentCode || undefined,
-          class_name: row.className || undefined,
-          admissions_advisor: row.admissionsAdvisor || undefined,
-        });
-        created += 1;
+        if (task.kind === 'create') {
+          await manageUsers({
+            action: 'create_student',
+            full_name: row.fullName,
+            gender: row.gender as Gender,
+            date_of_birth: row.dateOfBirth,
+            student_code: task.useAutoCode ? undefined : row.studentCode || undefined,
+            class_name: row.className || undefined,
+            admissions_advisor: row.admissionsAdvisor || undefined,
+          });
+          created += 1;
+        } else if (row.existingStudentId) {
+          const cleanClass = row.className.trim().replace(/\s+/g, ' ');
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              full_name: row.fullName,
+              gender: row.gender as Gender,
+              date_of_birth: row.dateOfBirth,
+              class_name: cleanClass || null,
+              class_key: cleanClass ? classKey(cleanClass) : null,
+              admissions_advisor: row.admissionsAdvisor || null,
+            })
+            .eq('id', row.existingStudentId);
+
+          if (error) throw new Error(error.message);
+          updated += 1;
+        }
       } catch (err) {
         failures.push({
           rowNumber: row.rowNumber,
@@ -140,14 +235,22 @@ export function StudentImportModal({
     }
 
     setImporting(false);
-    setImportSummary({ created, failures });
+    setImportSummary({
+      created,
+      updated,
+      skipped: actionablePlan.skipCount,
+      failures,
+    });
 
-    if (created > 0) {
-      toast.success(`Đã tạo thành công ${created}/${validRows.length} tài khoản sinh viên`);
+    if (created > 0 || updated > 0) {
+      const parts: string[] = [];
+      if (created > 0) parts.push(`tạo mới ${created}`);
+      if (updated > 0) parts.push(`cập nhật ${updated}`);
+      toast.success(`Đã ${parts.join(', ')} hồ sơ sinh viên`);
       await onImported();
     }
     if (failures.length > 0) {
-      toast.error(`Có ${failures.length} dòng tạo không thành công`);
+      toast.error(`Có ${failures.length} dòng xử lý không thành công`);
     }
   }
 
@@ -168,7 +271,9 @@ export function StudentImportModal({
       header: 'Mã SV',
       render: (r) => (
         <span className="text-xs font-semibold text-brand-navy">
-          {r.studentCode || 'Tự cấp'}
+          {r.duplicateType !== 'none' && duplicateStrategy === 'auto_code'
+            ? 'Tự cấp mã mới'
+            : r.studentCode || 'Tự cấp'}
         </span>
       ),
     },
@@ -185,23 +290,39 @@ export function StudentImportModal({
       key: 'class',
       header: 'Lớp',
       render: (r) =>
-        r.className ? <Badge tone="navy">{r.className}</Badge> : <span className="text-xs text-ink-muted">—</span>,
+        r.className ? (
+          <Badge tone="navy">{r.className}</Badge>
+        ) : (
+          <span className="text-xs text-ink-muted">—</span>
+        ),
     },
     {
       key: 'status',
       header: 'Kiểm tra',
-      render: (r) =>
-        r.error ? (
-          <div className="flex items-start gap-1 text-xs font-semibold text-status-dangerText">
-            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>{r.error}</span>
-          </div>
-        ) : (
+      render: (r) => {
+        if (r.error) {
+          return (
+            <div className="flex items-start gap-1 text-xs font-semibold text-status-dangerText">
+              <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{r.error}</span>
+            </div>
+          );
+        }
+        if (r.duplicateType !== 'none') {
+          return (
+            <div className="flex items-start gap-1 text-xs font-semibold text-status-warningText">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{r.duplicateReason}</span>
+            </div>
+          );
+        }
+        return (
           <div className="flex items-center gap-1 text-xs font-semibold text-status-successText">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>Hợp lệ</span>
           </div>
-        ),
+        );
+      },
     },
   ];
 
@@ -277,17 +398,50 @@ export function StudentImportModal({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-2">
                   <Badge tone="navy">Tổng: {parsed.rows.length} dòng</Badge>
-                  <Badge tone="success">Hợp lệ: {parsed.validCount}</Badge>
+                  <Badge tone="success">Tạo mới: {parsed.validCount}</Badge>
+                  {parsed.duplicateCount > 0 && (
+                    <Badge tone="warning">Trùng mã/email: {parsed.duplicateCount}</Badge>
+                  )}
                   {parsed.errorCount > 0 && (
-                    <Badge tone="danger">Lỗi: {parsed.errorCount}</Badge>
+                    <Badge tone="danger">Lỗi dữ liệu: {parsed.errorCount}</Badge>
                   )}
                 </div>
-                {parsed.errorCount > 0 && parsed.validCount > 0 && (
-                  <span className="text-xs text-ink-muted">
-                    Các dòng lỗi sẽ tự động được bỏ qua khi tạo.
-                  </span>
-                )}
               </div>
+
+              {parsed.duplicateCount > 0 && !importSummary && (
+                <div className="flex flex-col gap-2 rounded-xl border border-status-warningBorder bg-status-warningBg p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs font-semibold text-status-warningText">
+                      Phát hiện {parsed.duplicateCount} dòng bị trùng mã sinh viên hoặc email. Chọn cách xử lý:
+                    </span>
+                    <div className="w-full sm:w-72">
+                      <Select
+                        value={duplicateStrategy}
+                        onChange={(e) => setDuplicateStrategy(e.target.value as DuplicateStrategy)}
+                        options={[
+                          { value: 'skip', label: 'Bỏ qua các dòng bị trùng' },
+                          {
+                            value: 'auto_code',
+                            label: 'Tự cấp mã 6111 mới cho dòng trùng',
+                          },
+                          {
+                            value: 'update',
+                            label: 'Cập nhật hồ sơ & lớp cho SV đã có',
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-ink-secondary">
+                    {duplicateStrategy === 'skip' &&
+                      'Chỉ tạo các sinh viên mới chưa tồn tại; các dòng trùng sẽ được giữ nguyên không đụng tới.'}
+                    {duplicateStrategy === 'auto_code' &&
+                      'Các dòng bị trùng sẽ được bỏ mã cũ để hệ thống tự động cấp mã sinh viên 6111 mới tiếp theo.'}
+                    {duplicateStrategy === 'update' &&
+                      'Các sinh viên đã có trên hệ thống sẽ được cập nhật Họ tên, Giới tính, Ngày sinh, Lớp và Tư vấn TS theo file Excel; dòng trùng ngay trong file sẽ bỏ qua.'}
+                  </p>
+                </div>
+              )}
 
               <div className="max-h-72 overflow-y-auto rounded-xl border border-line">
                 <Table
@@ -303,7 +457,7 @@ export function StudentImportModal({
           {importing && (
             <div className="flex flex-col gap-2 rounded-xl border border-line bg-surface-subtle p-4">
               <div className="flex items-center justify-between text-sm font-semibold text-brand-navy">
-                <span>Đang tạo tài khoản sinh viên...</span>
+                <span>Đang xử lý danh sách sinh viên...</span>
                 <span>
                   {progressDone} / {progressTotal}
                 </span>
@@ -322,8 +476,10 @@ export function StudentImportModal({
           {importSummary && (
             <div className="flex flex-col gap-2 rounded-xl border border-line bg-surface-subtle p-4 text-sm">
               <p className="font-semibold text-ink-primary">
-                Kết quả nhập: Thành công{' '}
-                <span className="text-status-successText">{importSummary.created}</span> • Thất bại{' '}
+                Kết quả xử lý: Tạo mới{' '}
+                <span className="text-status-successText">{importSummary.created}</span> • Cập nhật{' '}
+                <span className="text-brand-navy">{importSummary.updated}</span> • Bỏ qua{' '}
+                <span className="text-ink-muted">{importSummary.skipped}</span> • Lỗi{' '}
                 <span className="text-status-dangerText">{importSummary.failures.length}</span>
               </p>
               {importSummary.failures.length > 0 && (
@@ -342,7 +498,7 @@ export function StudentImportModal({
             <Button type="button" variant="secondary" disabled={importing} onClick={handleClose}>
               {importSummary ? 'Đóng' : 'Hủy'}
             </Button>
-            {parsed && parsed.validCount > 0 && !importSummary && (
+            {parsed && actionablePlan.totalActionable > 0 && !importSummary && (
               <Button
                 type="button"
                 variant="primary"
@@ -350,7 +506,11 @@ export function StudentImportModal({
                 onClick={() => setConfirmOpen(true)}
               >
                 <Upload className="h-4 w-4" aria-hidden="true" />
-                <span>Tạo {parsed.validCount} sinh viên</span>
+                <span>
+                  Thực hiện ({actionablePlan.createCount > 0 ? `Tạo ${actionablePlan.createCount}` : ''}
+                  {actionablePlan.createCount > 0 && actionablePlan.updateCount > 0 ? ' • ' : ''}
+                  {actionablePlan.updateCount > 0 ? `Cập nhật ${actionablePlan.updateCount}` : ''})
+                </span>
               </Button>
             )}
           </div>
@@ -361,9 +521,15 @@ export function StudentImportModal({
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleConfirmImport}
-        title="Xác nhận tạo sinh viên hàng loạt"
-        message={`Hệ thống sẽ tạo ${parsed?.validCount ?? 0} tài khoản sinh viên hợp lệ theo quy chuẩn trường (mật khẩu mặc định của nhà trường) và tự động xếp vào lớp học tương ứng. Bạn có muốn tiếp tục?`}
-        confirmLabel={`Tạo ${parsed?.validCount ?? 0} tài khoản`}
+        title="Xác nhận nhập sinh viên từ Excel"
+        message={`Hệ thống sẽ tạo mới ${actionablePlan.createCount} tài khoản sinh viên${
+          actionablePlan.updateCount > 0
+            ? `, cập nhật ${actionablePlan.updateCount} hồ sơ đã có`
+            : ''
+        }${
+          actionablePlan.skipCount > 0 ? ` và bỏ qua ${actionablePlan.skipCount} dòng` : ''
+        }. Bạn có muốn tiếp tục?`}
+        confirmLabel="Xác nhận thực hiện"
         confirmVariant="primary"
       />
     </>

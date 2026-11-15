@@ -2,6 +2,13 @@ import * as XLSX from 'xlsx';
 import { normalizeStudentCode, studentEmail } from '@/lib/email';
 import type { Gender, Profile } from '@/types/database';
 
+export type StudentDuplicateType =
+  | 'none'
+  | 'system_code'
+  | 'file_code'
+  | 'system_email'
+  | 'file_email';
+
 export interface StudentImportRow {
   rowNumber: number;
   fullName: string;
@@ -12,12 +19,16 @@ export interface StudentImportRow {
   admissionsAdvisor: string;
   emailPreview: string | null;
   error: string | null;
+  duplicateType: StudentDuplicateType;
+  duplicateReason: string | null;
+  existingStudentId: string | null;
 }
 
 export interface StudentImportParseResult {
   sheetName: string;
   rows: StudentImportRow[];
   validCount: number;
+  duplicateCount: number;
   errorCount: number;
 }
 
@@ -139,20 +150,22 @@ export async function parseStudentImportWorkbook(
     'advisor',
   ]);
 
-  const existingCodes = new Set(
-    existingStudents
-      .map((s) => s.student_code?.trim())
-      .filter((v): v is string => Boolean(v))
-  );
-  const existingEmails = new Set(existingStudents.map((s) => s.email.toLowerCase()));
+  const existingByCode = new Map<string, Profile>();
+  const existingByEmail = new Map<string, Profile>();
+  existingStudents.forEach((s) => {
+    const code = s.student_code?.trim();
+    if (code) existingByCode.set(code, s);
+    existingByEmail.set(s.email.toLowerCase(), s);
+  });
 
-  const seenCodes = new Set<string>();
-  const seenEmails = new Set<string>();
+  const seenCodeRow = new Map<string, number>();
+  const seenEmailRow = new Map<string, number>();
 
   const rows: StudentImportRow[] = [];
 
   for (let i = headerRowIndex + 1; i < rawRows.length; i += 1) {
     const raw = rawRows[i] ?? [];
+    const rowNumber = i + 1;
     const fullName = String(raw[colName] ?? '')
       .trim()
       .replace(/\s+/g, ' ');
@@ -189,18 +202,28 @@ export async function parseStudentImportWorkbook(
     }
 
     let normalizedCode = '';
+    let duplicateType: StudentDuplicateType = 'none';
+    let duplicateReason: string | null = null;
+    let existingStudentId: string | null = null;
+
     if (rawCode) {
       const codeResult = normalizeStudentCode(rawCode);
       if (!codeResult) {
         errors.push('MSV phải đủ 11 số đầu 6111 hoặc 7 số cuối');
       } else {
         normalizedCode = codeResult;
-        if (existingCodes.has(normalizedCode)) {
-          errors.push(`Trùng MSV ${normalizedCode} trên hệ thống`);
-        } else if (seenCodes.has(normalizedCode)) {
-          errors.push(`Trùng MSV ${normalizedCode} trong file`);
+        const sysMatch = existingByCode.get(normalizedCode);
+        const fileRow = seenCodeRow.get(normalizedCode);
+        if (sysMatch) {
+          duplicateType = 'system_code';
+          existingStudentId = sysMatch.id;
+          duplicateReason = `Trùng MSV ${normalizedCode} (${sysMatch.full_name})`;
+        } else if (fileRow !== undefined) {
+          duplicateType = 'file_code';
+          duplicateReason = `Trùng MSV ${normalizedCode} với dòng ${fileRow} trong file`;
+        } else {
+          seenCodeRow.set(normalizedCode, rowNumber);
         }
-        seenCodes.add(normalizedCode);
       }
     }
 
@@ -209,18 +232,24 @@ export async function parseStudentImportWorkbook(
 
     if (normalizedCode && !emailPreview) {
       errors.push('Không tạo được email từ họ tên và MSV');
-    } else if (emailPreview) {
+    } else if (emailPreview && duplicateType === 'none') {
       const lowerEmail = emailPreview.toLowerCase();
-      if (existingEmails.has(lowerEmail)) {
-        errors.push(`Email ${emailPreview} đã tồn tại`);
-      } else if (seenEmails.has(lowerEmail)) {
-        errors.push(`Trùng email ${emailPreview} trong file`);
+      const sysEmailMatch = existingByEmail.get(lowerEmail);
+      const fileEmailRow = seenEmailRow.get(lowerEmail);
+      if (sysEmailMatch) {
+        duplicateType = 'system_email';
+        existingStudentId = sysEmailMatch.id;
+        duplicateReason = `Trùng email ${emailPreview} (${sysEmailMatch.full_name})`;
+      } else if (fileEmailRow !== undefined) {
+        duplicateType = 'file_email';
+        duplicateReason = `Trùng email ${emailPreview} với dòng ${fileEmailRow} trong file`;
+      } else {
+        seenEmailRow.set(lowerEmail, rowNumber);
       }
-      seenEmails.add(lowerEmail);
     }
 
     rows.push({
-      rowNumber: i + 1,
+      rowNumber,
       fullName,
       gender: parsedGender ?? '',
       dateOfBirth: parsedDob ?? '',
@@ -229,6 +258,9 @@ export async function parseStudentImportWorkbook(
       admissionsAdvisor,
       emailPreview,
       error: errors.length > 0 ? errors.join('; ') : null,
+      duplicateType,
+      duplicateReason,
+      existingStudentId,
     });
   }
 
@@ -236,12 +268,15 @@ export async function parseStudentImportWorkbook(
     throw new Error('File Excel không có dòng dữ liệu sinh viên nào.');
   }
 
-  const validCount = rows.filter((r) => !r.error).length;
+  const validCount = rows.filter((r) => !r.error && r.duplicateType === 'none').length;
+  const duplicateCount = rows.filter((r) => !r.error && r.duplicateType !== 'none').length;
+  const errorCount = rows.filter((r) => Boolean(r.error)).length;
   return {
     sheetName,
     rows,
     validCount,
-    errorCount: rows.length - validCount,
+    duplicateCount,
+    errorCount,
   };
 }
 
