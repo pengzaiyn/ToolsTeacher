@@ -15,7 +15,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: 'bg-brand-red text-white hover:bg-brand-redHover border border-transparent',
   navy: 'bg-brand-navy text-white hover:bg-brand-navyHover border border-transparent',
   secondary: 'bg-surface-card text-ink-primary border border-line-strong hover:bg-surface-subtle',
-  danger: 'bg-status-dangerText text-white hover:opacity-90 border border-transparent',
+  danger: 'bg-status-dangerSolid text-white hover:opacity-90 border border-transparent',
   ghost: 'bg-transparent text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary border border-transparent',
 };
 

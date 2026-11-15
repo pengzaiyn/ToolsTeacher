@@ -3,12 +3,144 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+    --color-brand-red: 200 16 46;
+    --color-brand-red-hover: 163 13 37;
+    --color-brand-red-soft: 253 242 244;
+    --color-brand-red-accent: 200 16 46;
+
+    --color-brand-navy: 26 54 93;
+    --color-brand-navy-hover: 19 40 70;
+    --color-brand-navy-soft: 238 242 247;
+    --color-brand-navy-accent: 26 54 93;
+
+    --color-surface-page: 248 250 252;
+    --color-surface-card: 255 255 255;
+    --color-surface-subtle: 241 245 249;
+    --color-surface-bright: 255 255 255;
+
+    --color-ink-primary: 15 23 42;
+    --color-ink-secondary: 71 85 105;
+    --color-ink-muted: 100 116 139;
+    --color-ink-card: 15 23 42;
+
+    --color-line: 226 232 240;
+    --color-line-strong: 203 213 225;
+
+    --color-status-success-bg: 236 253 245;
+    --color-status-success-text: 6 95 70;
+    --color-status-success-border: 167 243 208;
+
+    --color-status-warning-bg: 255 251 235;
+    --color-status-warning-text: 146 64 14;
+    --color-status-warning-border: 253 230 138;
+
+    --color-status-danger-bg: 254 242 242;
+    --color-status-danger-text: 153 27 27;
+    --color-status-danger-border: 254 202 202;
+    --color-status-danger-solid: 153 27 27;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --color-brand-red: 220 38 68;
+    --color-brand-red-hover: 239 58 88;
+    --color-brand-red-soft: 58 20 33;
+    --color-brand-red-accent: 251 113 133;
+
+    --color-brand-navy: 31 66 114;
+    --color-brand-navy-hover: 41 85 145;
+    --color-brand-navy-soft: 24 43 74;
+    --color-brand-navy-accent: 147 197 253;
+
+    --color-surface-page: 9 14 26;
+    --color-surface-card: 16 25 43;
+    --color-surface-subtle: 24 37 61;
+    --color-surface-bright: 255 255 255;
+
+    --color-ink-primary: 241 245 249;
+    --color-ink-secondary: 203 213 225;
+    --color-ink-muted: 148 163 184;
+    --color-ink-card: 15 23 42;
+
+    --color-line: 34 49 77;
+    --color-line-strong: 52 74 112;
+
+    --color-status-success-bg: 13 43 36;
+    --color-status-success-text: 110 231 183;
+    --color-status-success-border: 22 86 68;
+
+    --color-status-warning-bg: 48 33 12;
+    --color-status-warning-text: 252 211 77;
+    --color-status-warning-border: 102 69 20;
+
+    --color-status-danger-bg: 54 18 26;
+    --color-status-danger-text: 253 164 175;
+    --color-status-danger-border: 112 33 46;
+    --color-status-danger-solid: 185 28 28;
+  }
+
+  .dark *,
+  .dark ::before,
+  .dark ::after {
+    --tw-ring-offset-color: rgb(var(--color-surface-page));
+  }
+
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  html.theme-switching,
+  html.theme-switching body,
+  html.theme-switching aside,
+  html.theme-switching header,
+  html.theme-switching footer,
+  html.theme-switching section,
+  html.theme-switching article {
+    transition:
+      background-color 220ms ease,
+      border-color 220ms ease,
+      color 220ms ease;
   }
 }
 
 @layer utilities {
+  /* Giữ độ tương phản chữ và viền điểm nhấn trên nền tối mà vẫn giữ nút bg-brand-navy đậm nét */
+  .dark .text-brand-navy,
+  .dark .hover\:text-brand-navy:hover,
+  .dark .group:hover .group-hover\:text-brand-navy {
+    color: rgb(var(--color-brand-navy-accent) / var(--tw-text-opacity, 1));
+  }
+
+  .dark .border-brand-navy,
+  .dark .focus\:border-brand-navy:focus {
+    border-color: rgb(var(--color-brand-navy-accent) / var(--tw-border-opacity, 1));
+  }
+
+  .dark .border-brand-navy\/20 {
+    border-color: rgb(var(--color-brand-navy-accent) / 0.35);
+  }
+
+  .dark .ring-brand-navy\/20,
+  .dark .focus\:ring-brand-navy\/20:focus,
+  .dark .focus-visible\:ring-brand-navy:focus-visible {
+    --tw-ring-color: rgb(var(--color-brand-navy-accent) / 0.38);
+  }
+
+  .dark .text-brand-red,
+  .dark .hover\:text-brand-red:hover {
+    color: rgb(var(--color-brand-red-accent) / var(--tw-text-opacity, 1));
+  }
+
+  .dark .border-brand-red\/20 {
+    border-color: rgb(var(--color-brand-red-accent) / 0.35);
+  }
+
+  .dark .border-brand-red\/30 {
+    border-color: rgb(var(--color-brand-red-accent) / 0.45);
+  }
+
   .uno-perspective {
     perspective: 1100px;
   }
@@ -50,10 +182,10 @@
   @keyframes unoChosenPulse {
     0%,
     100% {
-      box-shadow: 0 10px 24px -6px rgb(200 16 46 / 0.35);
+      box-shadow: 0 10px 24px -6px rgb(var(--color-brand-red) / 0.35);
     }
     50% {
-      box-shadow: 0 14px 32px -4px rgb(200 16 46 / 0.55);
+      box-shadow: 0 14px 32px -4px rgb(var(--color-brand-red) / 0.55);
     }
   }
 
@@ -61,4 +193,3 @@
     animation: unoChosenPulse 2s ease-in-out infinite;
   }
 }
-

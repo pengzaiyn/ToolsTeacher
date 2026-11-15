@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Shuffle, SlidersHorizontal, Star } from 'lucide-react';
 import {
   HOPE_STAR_CARDS,
   HOPE_STAR_ODDS_PRESETS,
   normalizeHopeStarPercentages,
   normalizeUnoPercentages,
+  playUnoCardHover,
   UNO_CARDS,
   UNO_ODDS_PRESETS,
   type HopeStarCardKind,
@@ -39,10 +40,10 @@ function UnoCardBackSvg({ index }: { index: number }) {
         width="136"
         height="204"
         rx="14"
-        className="fill-surface-card stroke-line-strong"
+        className="fill-surface-bright stroke-line-strong"
         strokeWidth="2"
       />
-      <rect x="9" y="9" width="122" height="190" rx="10" className="fill-ink-primary" />
+      <rect x="9" y="9" width="122" height="190" rx="10" className="fill-ink-card" />
       <ellipse
         cx="70"
         cy="104"
@@ -71,7 +72,7 @@ function UnoCardBackSvg({ index }: { index: number }) {
           fontSize="34"
           fontWeight="800"
           letterSpacing="1"
-          className="fill-amber-300 stroke-ink-primary"
+          className="fill-amber-300 stroke-ink-card"
           strokeWidth="3"
           paintOrder="stroke"
         >
@@ -109,7 +110,7 @@ function HopeStarCardBackSvg({ index }: { index: number }) {
         width="136"
         height="204"
         rx="14"
-        className="fill-surface-card stroke-amber-400"
+        className="fill-surface-bright stroke-amber-400"
         strokeWidth="2.5"
       />
       <rect x="9" y="9" width="122" height="190" rx="10" className="fill-brand-navy" />
@@ -125,7 +126,7 @@ function HopeStarCardBackSvg({ index }: { index: number }) {
       {/* Ngôi sao 5 cánh vàng ở tâm lá bài */}
       <polygon
         points="70,56 79,82 106,82 84,98 92,124 70,108 48,124 56,98 34,82 61,82"
-        className="fill-amber-400 stroke-surface-card"
+        className="fill-amber-400 stroke-surface-bright"
         strokeWidth="2.5"
         strokeLinejoin="round"
       />
@@ -136,7 +137,7 @@ function HopeStarCardBackSvg({ index }: { index: number }) {
         textAnchor="middle"
         fontSize="11"
         fontWeight="800"
-        className="fill-brand-navy"
+        className="fill-ink-card"
       >
         NGÔI SAO
       </text>
@@ -226,7 +227,7 @@ export function UnoCardFrontSvg({
         width="136"
         height="204"
         rx="14"
-        className="fill-surface-card stroke-line-strong"
+        className="fill-surface-bright stroke-line-strong"
         strokeWidth="2"
       />
       <rect x="9" y="9" width="122" height="190" rx="10" className={cardBgClass} />
@@ -247,7 +248,7 @@ export function UnoCardFrontSvg({
         y="31"
         fontSize={kind === 'plus2' ? '18' : '19'}
         fontWeight="800"
-        className="fill-white stroke-ink-primary/40"
+        className="fill-white stroke-ink-card/40"
         strokeWidth="1.5"
         paintOrder="stroke"
       >
@@ -259,7 +260,7 @@ export function UnoCardFrontSvg({
         textAnchor="end"
         fontSize={kind === 'plus2' ? '18' : '19'}
         fontWeight="800"
-        className="fill-white stroke-ink-primary/40"
+        className="fill-white stroke-ink-card/40"
         strokeWidth="1.5"
         paintOrder="stroke"
       >
@@ -294,14 +295,14 @@ export function UnoCardFrontSvg({
           {/* Mũi tên phải trên */}
           <path
             d="M -22 -14 L 8 -14 L 8 -24 L 28 -8 L 8 8 L 8 -2 L -22 -2 Z"
-            className="fill-amber-400 stroke-ink-primary"
+            className="fill-amber-400 stroke-ink-card"
             strokeWidth="2.5"
             strokeLinejoin="round"
           />
           {/* Mũi tên trái dưới */}
           <path
             d="M 22 14 L -8 14 L -8 24 L -28 8 L -8 -8 L -8 2 L 22 2 Z"
-            className="fill-amber-400 stroke-ink-primary"
+            className="fill-amber-400 stroke-ink-card"
             strokeWidth="2.5"
             strokeLinejoin="round"
           />
@@ -317,7 +318,7 @@ export function UnoCardFrontSvg({
             height="42"
             rx="5"
             transform="rotate(-10)"
-            className="fill-sky-600 stroke-ink-primary"
+            className="fill-sky-600 stroke-ink-card"
             strokeWidth="2.5"
           />
           <rect
@@ -327,7 +328,7 @@ export function UnoCardFrontSvg({
             height="42"
             rx="5"
             transform="rotate(8)"
-            className="fill-sky-500 stroke-ink-primary"
+            className="fill-sky-500 stroke-ink-card"
             strokeWidth="2.5"
           />
         </g>
@@ -341,7 +342,7 @@ export function UnoCardFrontSvg({
           dominantBaseline="central"
           fontSize={mode === 'hope-star' ? '48' : '58'}
           fontWeight="800"
-          className={`${symbolFillClass} stroke-ink-primary`}
+          className={`${symbolFillClass} stroke-ink-card`}
           strokeWidth="2.5"
           paintOrder="stroke"
         >
@@ -350,7 +351,7 @@ export function UnoCardFrontSvg({
       )}
 
       {/* Nhãn tiếng Việt ngắn gọn phía dưới để cả lớp đọc từ xa */}
-      <rect x="20" y="176" width="100" height="17" rx="5" className="fill-ink-primary/80" />
+      <rect x="20" y="176" width="100" height="17" rx="5" className="fill-ink-card/80" />
       <text
         x="70"
         y="187"
@@ -384,6 +385,7 @@ interface SharedSixCardBoardProps<K extends UnoCardKind> {
   oddsPresets: { id: string; label: string; odds: Record<K, number> }[];
   scanningIndex: number | null;
   isPicking: boolean;
+  soundEnabled?: boolean;
   onPickCard: (index: number) => void;
   onAutoPickCard: () => void;
   onChangeOdds: (nextOdds: Record<K, number>) => void;
@@ -404,6 +406,7 @@ function SharedSixCardBoard<K extends UnoCardKind>({
   oddsPresets,
   scanningIndex,
   isPicking,
+  soundEnabled = true,
   onPickCard,
   onAutoPickCard,
   onChangeOdds,
@@ -411,12 +414,14 @@ function SharedSixCardBoard<K extends UnoCardKind>({
 }: SharedSixCardBoardProps<K>) {
   const [showOddsConfig, setShowOddsConfig] = useState(false);
   const [revealOthers, setRevealOthers] = useState(false);
+  const lastHoverSoundRef = useRef<{ index: number; atMs: number }>({ index: -1, atMs: 0 });
 
   const hasPicked = pickedSlotIndex !== null;
 
   useEffect(() => {
     if (!hasPicked) {
       setRevealOthers(false);
+      lastHoverSoundRef.current = { index: -1, atMs: 0 };
       return;
     }
     // Lật lá đã chọn ngay lập tức, sau 450ms bắt đầu hiệu ứng lật nối tiếp 5 lá còn lại
@@ -425,6 +430,25 @@ function SharedSixCardBoard<K extends UnoCardKind>({
     }, 450);
     return () => window.clearTimeout(timer);
   }, [hasPicked, pickedSlotIndex, deck]);
+
+  function triggerCardHoverSound(idx: number) {
+    if (!soundEnabled || hasPicked || isPicking) return;
+    const now = performance.now();
+    const prev = lastHoverSoundRef.current;
+    // Chống dội âm khi con trỏ rung nhẹ trên cùng một thẻ bài
+    if (prev.index === idx && now - prev.atMs < 140) return;
+    if (now - prev.atMs < 35) return;
+    lastHoverSoundRef.current = { index: idx, atMs: now };
+    playUnoCardHover(idx, mode);
+  }
+
+  function isFocusVisibleTarget(el: HTMLButtonElement): boolean {
+    try {
+      return el.matches(':focus-visible');
+    } catch {
+      return false;
+    }
+  }
 
   let nonPickedSeq = 0;
 
@@ -552,39 +576,55 @@ function SharedSixCardBoard<K extends UnoCardKind>({
                 type="button"
                 disabled={hasPicked || isPicking}
                 onClick={() => onPickCard(idx)}
+                onPointerEnter={(e) => {
+                  if (e.pointerType !== 'touch') {
+                    triggerCardHoverSound(idx);
+                  }
+                }}
+                onFocus={(e) => {
+                  if (isFocusVisibleTarget(e.currentTarget)) {
+                    triggerCardHoverSound(idx);
+                  }
+                }}
                 aria-label={
                   isFlipped
                     ? `Lá #${idx + 1}: ${cardTitle}`
                     : `Chọn lá bài ${mode === 'hope-star' ? 'Ngôi sao hy vọng' : 'UNO'} số ${idx + 1}`
                 }
-                className={`uno-perspective group relative aspect-[2/3] w-full max-w-[124px] rounded-xl transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${tiltClass} ${
-                  !hasPicked
-                    ? isScanned
-                      ? '-translate-y-2 scale-105 rotate-0 rounded-xl ring-4 ring-brand-red/40'
-                      : 'cursor-pointer hover:-translate-y-2 hover:scale-105 hover:rotate-0'
-                    : isPicked
-                      ? 'z-10 -translate-y-2 scale-105 rotate-0 rounded-xl ring-4 ring-brand-red/35 uno-chosen-glow'
-                      : isOtherRevealed
-                        ? 'scale-95 rotate-0 opacity-75'
-                        : 'opacity-80'
+                className={`group relative aspect-[2/3] w-full max-w-[124px] rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${
+                  isPicked ? 'z-10' : !hasPicked && !isPicking ? 'cursor-pointer hover:z-10' : ''
                 }`}
               >
                 <div
-                  style={{ transitionDelay: `${flipDelayMs}ms` }}
-                  className={`uno-card-inner h-full w-full ${isFlipped ? 'is-flipped' : ''}`}
+                  className={`uno-perspective h-full w-full rounded-xl transition-all duration-300 ${tiltClass} ${
+                    !hasPicked
+                      ? isScanned
+                        ? '-translate-y-2 scale-105 rotate-0 ring-4 ring-brand-red/40'
+                        : 'group-hover:-translate-y-2 group-hover:scale-105 group-hover:rotate-0 group-hover:ring-2 group-hover:ring-brand-red/35'
+                      : isPicked
+                        ? '-translate-y-2 scale-105 rotate-0 ring-4 ring-brand-red/35 uno-chosen-glow'
+                        : isOtherRevealed
+                          ? 'scale-95 rotate-0 opacity-75'
+                          : 'opacity-80'
+                  }`}
                 >
-                  {/* Mặt úp */}
-                  <div className="uno-card-face absolute inset-0 h-full w-full overflow-hidden rounded-xl">
-                    {mode === 'hope-star' ? (
-                      <HopeStarCardBackSvg index={idx} />
-                    ) : (
-                      <UnoCardBackSvg index={idx} />
-                    )}
-                  </div>
+                  <div
+                    style={{ transitionDelay: `${flipDelayMs}ms` }}
+                    className={`uno-card-inner h-full w-full ${isFlipped ? 'is-flipped' : ''}`}
+                  >
+                    {/* Mặt úp */}
+                    <div className="uno-card-face absolute inset-0 h-full w-full overflow-hidden rounded-xl">
+                      {mode === 'hope-star' ? (
+                        <HopeStarCardBackSvg index={idx} />
+                      ) : (
+                        <UnoCardBackSvg index={idx} />
+                      )}
+                    </div>
 
-                  {/* Mặt ngửa */}
-                  <div className="uno-card-face uno-card-face-front absolute inset-0 h-full w-full overflow-hidden rounded-xl">
-                    <UnoCardFrontSvg kind={slot.kind} mode={mode} />
+                    {/* Mặt ngửa */}
+                    <div className="uno-card-face uno-card-face-front absolute inset-0 h-full w-full overflow-hidden rounded-xl">
+                      <UnoCardFrontSvg kind={slot.kind} mode={mode} />
+                    </div>
                   </div>
                 </div>
               </button>
@@ -605,6 +645,7 @@ interface UnoSixCardBoardProps {
   odds: UnoOddsConfig;
   scanningIndex: number | null;
   isPicking: boolean;
+  soundEnabled?: boolean;
   onPickCard: (index: number) => void;
   onAutoPickCard: () => void;
   onChangeOdds: (nextOdds: UnoOddsConfig) => void;
@@ -617,6 +658,7 @@ export function UnoSixCardBoard({
   odds,
   scanningIndex,
   isPicking,
+  soundEnabled = true,
   onPickCard,
   onAutoPickCard,
   onChangeOdds,
@@ -651,6 +693,7 @@ export function UnoSixCardBoard({
       oddsPresets={UNO_ODDS_PRESETS}
       scanningIndex={scanningIndex}
       isPicking={isPicking}
+      soundEnabled={soundEnabled}
       onPickCard={onPickCard}
       onAutoPickCard={onAutoPickCard}
       onChangeOdds={onChangeOdds}
@@ -666,6 +709,7 @@ interface HopeStarCardBoardProps {
   odds: HopeStarOddsConfig;
   scanningIndex: number | null;
   isPicking: boolean;
+  soundEnabled?: boolean;
   onPickCard: (index: number) => void;
   onAutoPickCard: () => void;
   onChangeOdds: (nextOdds: HopeStarOddsConfig) => void;
@@ -680,6 +724,7 @@ export function HopeStarCardBoard({
   odds,
   scanningIndex,
   isPicking,
+  soundEnabled = true,
   onPickCard,
   onAutoPickCard,
   onChangeOdds,
@@ -715,6 +760,7 @@ export function HopeStarCardBoard({
       oddsPresets={HOPE_STAR_ODDS_PRESETS}
       scanningIndex={scanningIndex}
       isPicking={isPicking}
+      soundEnabled={soundEnabled}
       onPickCard={onPickCard}
       onAutoPickCard={onAutoPickCard}
       onChangeOdds={onChangeOdds}

@@ -7,6 +7,7 @@ import {
   Home,
   LogOut,
   Menu,
+  SlidersHorizontal,
   User,
   Users,
   UserCheck,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_LABELS, isAdmin, isStaff } from '@/lib/roles';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 
@@ -139,6 +141,31 @@ export function Header() {
           })}
         </nav>
 
+        <div className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-2">
+          <NavLink
+            to="/settings"
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
+                isActive
+                  ? 'bg-brand-navySoft text-brand-navy'
+                  : 'text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <SlidersHorizontal
+                  className={`h-4 w-4 shrink-0 ${isActive ? 'text-brand-red' : ''}`}
+                  aria-hidden="true"
+                />
+                <span>Cài đặt</span>
+              </>
+            )}
+          </NavLink>
+          <ThemeToggle />
+        </div>
+
         <div className="shrink-0 border-t border-line p-4">
           {profile && (
             <Link
@@ -207,14 +234,17 @@ export function Header() {
           </Link>
         </div>
 
-        {profile && <Badge tone="navy">{ROLE_LABELS[profile.role]}</Badge>}
+        <div className="flex items-center gap-2">
+          <ThemeToggle compact />
+          {profile && <Badge tone="navy">{ROLE_LABELS[profile.role]}</Badge>}
+        </div>
       </header>
 
       {/* Ngăn kéo điều hướng trượt từ cạnh trái trên điện thoại */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden" role="dialog" aria-modal="true">
           <div
-            className="fixed inset-0 bg-ink-primary/50"
+            className="fixed inset-0 bg-ink-card/60 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />

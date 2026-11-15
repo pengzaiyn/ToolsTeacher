@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { GraduationCap, Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingState } from '@/components/ui/Spinner';
@@ -51,7 +52,10 @@ export function Login() {
   const displayError = error ?? authError;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-surface-page px-4 py-8">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-4 py-8">
+      <div className="fixed right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md rounded-2xl border border-line bg-surface-card p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex flex-col items-center gap-4 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-red text-white shadow-sm">

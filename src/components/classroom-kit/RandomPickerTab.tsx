@@ -43,6 +43,7 @@ import {
   playUnoEffectSound,
   playWheelTick,
   shuffleList,
+  unlockClassroomAudio,
   type HopeStarOddsConfig,
   type KitStudent,
   type RecitationOutcome,
@@ -987,7 +988,10 @@ export function RandomPickerTab({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setSoundEnabled((v) => !v)}
+              onClick={() => {
+                if (!soundEnabled) unlockClassroomAudio();
+                setSoundEnabled((v) => !v);
+              }}
               title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
             >
               {soundEnabled ? (
@@ -1266,6 +1270,7 @@ export function RandomPickerTab({
                       odds={unoOdds}
                       scanningIndex={scanningUnoIdx}
                       isPicking={pickingUno}
+                      soundEnabled={soundEnabled}
                       onPickCard={(slotIdx) => applyUnoSlotSelection(activeRecord.id, slotIdx)}
                       onAutoPickCard={() => handleAutoPickUnoCard(activeRecord.id)}
                       onChangeOdds={handleChangeUnoOdds}
@@ -1325,6 +1330,7 @@ export function RandomPickerTab({
                         odds={hopeStarOdds}
                         scanningIndex={scanningHopeStarIdx}
                         isPicking={pickingHopeStar}
+                        soundEnabled={soundEnabled}
                         onPickCard={(slotIdx) =>
                           applyHopeStarSlotSelection(activeRecord.id, slotIdx)
                         }

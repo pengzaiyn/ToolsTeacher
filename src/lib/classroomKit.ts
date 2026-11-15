@@ -552,6 +552,8 @@ export function exportRecitationToExcel(
 }
 
 let sharedAudioCtx: AudioContext | null = null;
+let cachedNoiseCtx: AudioContext | null = null;
+let cachedNoiseBuffer: AudioBuffer | null = null;
 
 function getAudioContext(): AudioContext | null {
   try {
@@ -568,6 +570,29 @@ function getAudioContext(): AudioContext | null {
     return null;
   }
 }
+
+/** Đánh thức AudioContext sau thao tác người dùng để hiệu ứng âm thanh phát ngay */
+export function unlockClassroomAudio(): void {
+  void getAudioContext();
+}
+
+function getHoverNoiseBuffer(ctx: AudioContext): AudioBuffer {
+  if (cachedNoiseCtx === ctx && cachedNoiseBuffer) {
+    return cachedNoiseBuffer;
+  }
+  const length = Math.max(1, Math.floor(ctx.sampleRate * 0.032));
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) {
+    const fade = 1 - i / length;
+    channel[i] = (Math.random() * 2 - 1) * fade;
+  }
+  cachedNoiseCtx = ctx;
+  cachedNoiseBuffer = buffer;
+  return buffer;
+}
+
+const CARD_HOVER_SCALE_HZ = [523.25, 587.33, 659.25, 783.99, 880, 1046.5] as const;
 
 function playAudioSequence(
   notes: { freq: number; delay: number; duration: number; gainPeak: number; type?: OscillatorType }[]
@@ -592,6 +617,73 @@ function playAudioSequence(
       osc.start(startAt);
       osc.stop(startAt + note.duration + 0.01);
     });
+  } catch {
+    // Bỏ qua nếu trình duyệt chặn phát âm thanh
+  }
+}
+
+/** Phát âm thanh vuốt nhẹ & nốt nhạc theo vị trí khi lướt qua từng thẻ UNO */
+export function playUnoCardHover(cardIndex: number, mode: 'uno' | 'hope-star' = 'uno'): void {
+  const ctx = getAudioContext();
+  // Tránh dồn nốt khi trình duyệt chưa cấp quyền phát qua thao tác click
+  if (!ctx || ctx.state !== 'running') return;
+
+  try {
+    const safeIdx = Math.abs(cardIndex) % CARD_HOVER_SCALE_HZ.length;
+    const baseFreq = CARD_HOVER_SCALE_HZ[safeIdx];
+    const now = ctx.currentTime;
+
+    // 1. Tiếng sột nhẹ mô phỏng mép lá bài lướt qua tay
+    const noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = getHoverNoiseBuffer(ctx);
+    const bandpass = ctx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.setValueAtTime(2200 + safeIdx * 240, now);
+    bandpass.Q.setValueAtTime(1.8, now);
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.055, now + 0.005);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.026);
+
+    noiseSrc.connect(bandpass);
+    bandpass.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noiseSrc.start(now);
+    noiseSrc.stop(now + 0.03);
+
+    // 2. Âm nảy êm tai theo thang ngũ cung 6 lá bài
+    const osc = ctx.createOscillator();
+    const oscGain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(baseFreq * 1.06, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.016);
+
+    oscGain.gain.setValueAtTime(0.001, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.068, now + 0.008);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.105);
+
+    // 3. Điểm thêm hài âm cao lấp lánh cho bộ Ngôi sao hy vọng
+    if (mode === 'hope-star') {
+      const shimmerOsc = ctx.createOscillator();
+      const shimmerGain = ctx.createGain();
+      shimmerOsc.type = 'sine';
+      shimmerOsc.frequency.setValueAtTime(baseFreq * 2, now + 0.006);
+
+      shimmerGain.gain.setValueAtTime(0.001, now + 0.006);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.024, now + 0.018);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+      shimmerOsc.connect(shimmerGain);
+      shimmerGain.connect(ctx.destination);
+      shimmerOsc.start(now + 0.006);
+      shimmerOsc.stop(now + 0.12);
+    }
   } catch {
     // Bỏ qua nếu trình duyệt chặn phát âm thanh
   }

@@ -23,11 +23,11 @@ function getSliceStyle(index: number, total: number) {
   const palette = [
     { path: 'fill-brand-navy', text: 'fill-white' },
     { path: 'fill-brand-red', text: 'fill-white' },
-    { path: 'fill-brand-navySoft', text: 'fill-brand-navy' },
-    { path: 'fill-brand-redSoft', text: 'fill-brand-red' },
+    { path: 'fill-brand-navySoft', text: 'fill-brand-navyText' },
+    { path: 'fill-brand-redSoft', text: 'fill-brand-redText' },
   ];
   if (index === total - 1 && total > 2 && total % 4 === 1) {
-    return { path: 'fill-surface-subtle', text: 'fill-brand-navy' };
+    return { path: 'fill-surface-subtle', text: 'fill-brand-navyText' };
   }
   return palette[index % palette.length];
 }

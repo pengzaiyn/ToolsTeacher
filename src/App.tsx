@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
-import { CursorSparkleTrail } from '@/components/CursorSparkleTrail';
+import { CursorEffectProvider } from '@/context/CursorEffectContext';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { CursorEffectOverlay } from '@/components/CursorEffectOverlay';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ClassDetail } from '@/pages/ClassDetail';
@@ -8,6 +10,7 @@ import { ClassroomKit } from '@/pages/ClassroomKit';
 import { Classes } from '@/pages/Classes';
 import { Login } from '@/pages/Login';
 import { Profile } from '@/pages/Profile';
+import { Settings } from '@/pages/Settings';
 import { TeacherSchedule } from '@/pages/TeacherSchedule';
 import { TeacherTools } from '@/pages/TeacherTools';
 import { Timetable } from '@/pages/Timetable';
@@ -23,9 +26,11 @@ import { AdminTeachers } from '@/pages/admin/AdminTeachers';
 export function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <AuthProvider>
-          <Routes>
+      <ThemeProvider>
+        <CursorEffectProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <Routes>
             <Route path="/login" element={<Login />} />
             <Route
               path="/tools"
@@ -100,6 +105,14 @@ export function App() {
               }
             />
             <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
@@ -150,9 +163,11 @@ export function App() {
             <Route path="/" element={<Navigate to="/tools" replace />} />
             <Route path="*" element={<Navigate to="/tools" replace />} />
           </Routes>
-        </AuthProvider>
-      </ToastProvider>
-      <CursorSparkleTrail />
+            </AuthProvider>
+          </ToastProvider>
+          <CursorEffectOverlay />
+        </CursorEffectProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }
