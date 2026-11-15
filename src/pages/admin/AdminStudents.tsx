@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { FileSpreadsheet, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { classKey } from '@/lib/classKey';
 import { normalizeStudentCode, studentEmail } from '@/lib/email';
 import { manageUsers, supabase } from '@/lib/supabase';
@@ -7,6 +7,7 @@ import { formatDateVi } from '@/lib/week';
 import type { Gender, Profile, TimetableClassSummary } from '@/types/database';
 import { AccountActions } from '@/components/AccountActions';
 import { Layout } from '@/components/Layout';
+import { StudentImportModal } from '@/components/admin/StudentImportModal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -37,6 +38,7 @@ export function AdminStudents() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [fullName, setFullName] = useState('');
   const [gender, setGender] = useState<Gender>('Nam');
@@ -325,10 +327,16 @@ export function AdminStudents() {
               Tạo tài khoản theo quy chuẩn nhà trường, gán lớp học và quản lý trạng thái truy cập
             </p>
           </div>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>Thêm sinh viên</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setImportOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+              <span>Nhập từ Excel</span>
+            </Button>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              <span>Thêm sinh viên</span>
+            </Button>
+          </div>
         </div>
 
         <section className="grid grid-cols-1 gap-4 rounded-xl border border-line bg-surface-card p-4 md:grid-cols-4">
@@ -575,6 +583,12 @@ export function AdminStudents() {
               }? Toàn bộ ghi danh lớp học và bài nộp liên quan sẽ bị xóa và không thể khôi phục.`
             : ''
         }
+      />
+      <StudentImportModal
+        open={importOpen}
+        existingStudents={students}
+        onClose={() => setImportOpen(false)}
+        onImported={loadData}
       />
     </Layout>
   );
