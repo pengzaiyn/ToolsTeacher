@@ -76,11 +76,8 @@ const TIMER_OPTIONS = [
   { value: 90, label: '90 giây' },
 ];
 
-function buildWheelSlots(available: readonly KitStudent[], winner?: KitStudent): KitStudent[] {
-  if (available.length <= 12) return [...available];
-  if (!winner) return available.slice(0, 12);
-  const others = shuffleList(available.filter((s) => s.id !== winner.id)).slice(0, 11);
-  return shuffleList([winner, ...others]);
+function buildWheelSlots(available: readonly KitStudent[], _winner?: KitStudent): KitStudent[] {
+  return [...available];
 }
 
 function formatTimeNow(): string {

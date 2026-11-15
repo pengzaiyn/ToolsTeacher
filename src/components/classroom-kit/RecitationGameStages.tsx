@@ -3,20 +3,38 @@ import { HelpCircle, RotateCw, Shuffle, Sparkles } from 'lucide-react';
 import type { KitStudent } from '@/lib/classroomKit';
 import { Button } from '@/components/ui/Button';
 
-function formatWheelLabel(fullName: string): string {
+function formatWheelLabel(fullName: string, total: number): string {
   const clean = fullName.trim().replace(/\s+/g, ' ');
-  if (clean.length <= 13) return clean;
+  const maxLen = total > 32 ? 10 : total > 18 ? 12 : 13;
+  if (clean.length <= maxLen) return clean;
   const parts = clean.split(' ');
-  if (parts.length >= 3) {
-    const compact = `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
-    if (compact.length <= 13) return compact;
-    const shortMid = `${parts
-      .slice(0, -1)
-      .map((w) => `${w[0]}.`)
-      .join(' ')} ${parts[parts.length - 1]}`;
-    if (shortMid.length <= 13) return shortMid;
+  if (parts.length >= 2) {
+    if (total > 24) {
+      const compactDots = `${parts
+        .slice(0, -1)
+        .map((w) => `${w[0]}.`)
+        .join('')}${parts[parts.length - 1]}`;
+      if (compactDots.length <= maxLen) return compactDots;
+    }
+    if (parts.length >= 3) {
+      const compact = `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
+      if (compact.length <= maxLen) return compact;
+      const shortMid = `${parts
+        .slice(0, -1)
+        .map((w) => `${w[0]}.`)
+        .join(' ')} ${parts[parts.length - 1]}`;
+      if (shortMid.length <= maxLen) return shortMid;
+    }
   }
-  return `${clean.slice(0, 12)}…`;
+  return `${clean.slice(0, Math.max(4, maxLen - 1))}…`;
+}
+
+function getWheelFontSize(total: number): number {
+  if (total <= 12) return 11;
+  if (total <= 20) return 9;
+  if (total <= 32) return 7.5;
+  if (total <= 45) return 6;
+  return 5;
 }
 
 function getSliceStyle(index: number, total: number) {
@@ -64,10 +82,17 @@ export function SpinWheelStage({
   const slots = displaySlots.length === 1 ? [displaySlots[0], displaySlots[0]] : displaySlots;
   const count = slots.length;
   const sliceAngle = count > 0 ? 360 / count : 360;
+  const fontSize = getWheelFontSize(count);
+  const labelRadius = count > 18 ? 108 : 102;
+  const sliceStrokeWidth = count > 30 ? 0.8 : count > 18 ? 1.2 : 2;
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="relative flex w-full max-w-[320px] items-center justify-center sm:max-w-[340px]">
+      <div
+        className={`relative flex w-full items-center justify-center ${
+          count > 16 ? 'max-w-[340px] sm:max-w-[420px]' : 'max-w-[320px] sm:max-w-[340px]'
+        }`}
+      >
         {/* Kim chỉ cố định ở đỉnh 12 giờ */}
         <svg
           viewBox="0 0 360 360"
@@ -89,18 +114,19 @@ export function SpinWheelStage({
                   <g key={`${student.id}-${idx}`}>
                     <path
                       d={describeSlicePath(180, 180, 162, startDeg, endDeg)}
-                      className={`${style.path} stroke-surface-card stroke-2`}
+                      strokeWidth={sliceStrokeWidth}
+                      className={`${style.path} stroke-surface-card`}
                     />
                     <text
-                      x={180 + 102}
+                      x={180 + labelRadius}
                       y={180}
                       textAnchor="middle"
                       dominantBaseline="central"
-                      fontSize={11}
+                      fontSize={fontSize}
                       transform={`rotate(${centerDeg - 90} 180 180)`}
                       className={`${style.text} select-none font-bold`}
                     >
-                      {formatWheelLabel(student.name)}
+                      {formatWheelLabel(student.name, count)}
                     </text>
                   </g>
                 );
@@ -132,10 +158,9 @@ export function SpinWheelStage({
         </p>
       )}
 
-      {totalAvailable > 12 && (
+      {totalAvailable > 0 && (
         <p className="text-center text-xs font-normal text-ink-muted">
-          Vòng quay hiển thị đại diện 12 ô để dễ đọc; kết quả quay vẫn chọn công bằng từ toàn bộ{' '}
-          {totalAvailable} sinh viên còn lại.
+          Đang hiển thị toàn bộ {totalAvailable} sinh viên hợp lệ trên vòng quay.
         </p>
       )}
 
