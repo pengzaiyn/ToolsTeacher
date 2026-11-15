@@ -12,6 +12,7 @@ import { ClassroomKit } from '@/pages/ClassroomKit';
 import { Classes } from '@/pages/Classes';
 import { Login } from '@/pages/Login';
 import { Profile } from '@/pages/Profile';
+import { ResetPassword } from '@/pages/ResetPassword';
 import { Settings } from '@/pages/Settings';
 import { TeacherSchedule } from '@/pages/TeacherSchedule';
 import { TeacherTools } from '@/pages/TeacherTools';
@@ -35,6 +36,7 @@ export function App() {
               <AuthProvider>
                 <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               path="/tools"
               element={
