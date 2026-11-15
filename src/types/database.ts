@@ -180,3 +180,41 @@ export interface GradeRow {
   assignment_title?: string;
   max_score?: number;
 }
+
+export type AttendanceStatus = 'present' | 'late' | 'excused' | 'absent';
+
+export interface AttendanceSession {
+  id: string;
+  class_id: string;
+  session_date: string;
+  title: string;
+  subject: string | null;
+  period_start: number | null;
+  period_end: number | null;
+  room: string | null;
+  note: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  session_id: string;
+  student_id: string;
+  status: AttendanceStatus;
+  note: string | null;
+  marked_by: string;
+  updated_at: string;
+}
+
+export interface ClassGradebookSettings {
+  class_id: string;
+  attendance_weight: number;
+  assignment_weight: number;
+  absence_warning_pct: number;
+  late_weight: number;
+  excused_weight: number;
+  updated_by: string | null;
+  updated_at: string;
+}

@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   BookOpen,
   Calendar,
+  CheckSquare,
   ClipboardList,
   FileCheck2,
   FileText,
@@ -19,6 +20,7 @@ import type { CollegeClass, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
 import { ClassAnnouncementsTab } from '@/components/class/ClassAnnouncementsTab';
 import { ClassAssignmentsTab } from '@/components/class/ClassAssignmentsTab';
+import { ClassAttendancePanel } from '@/components/class/ClassAttendancePanel';
 import { ClassGradesTab } from '@/components/class/ClassGradesTab';
 import { ClassMaterialsTab } from '@/components/class/ClassMaterialsTab';
 import { ClassMembersTab } from '@/components/class/ClassMembersTab';
@@ -28,7 +30,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 
-type ClassTab = 'assignments' | 'materials' | 'announcements' | 'members' | 'grades';
+type ClassTab =
+  | 'assignments'
+  | 'materials'
+  | 'announcements'
+  | 'members'
+  | 'attendance'
+  | 'grades';
 
 export function ClassDetail() {
   const { id } = useParams<{ id: string }>();
@@ -104,6 +112,7 @@ export function ClassDetail() {
     ...(!studentView
       ? [
           { key: 'members' as const, label: 'Thành viên', icon: Users },
+          { key: 'attendance' as const, label: 'Điểm danh', icon: CheckSquare },
           { key: 'grades' as const, label: 'Bảng điểm', icon: FileCheck2 },
         ]
       : []),
@@ -223,7 +232,12 @@ export function ClassDetail() {
               {activeTab === 'members' && !studentView && (
                 <ClassMembersTab classId={id} canManage={canManageMembers} />
               )}
-              {activeTab === 'grades' && !studentView && <ClassGradesTab classId={id} />}
+              {activeTab === 'attendance' && !studentView && (
+                <ClassAttendancePanel classItem={cls} canManage={canManageTeaching} />
+              )}
+              {activeTab === 'grades' && !studentView && (
+                <ClassGradesTab classItem={cls} canManage={canManageTeaching} />
+              )}
             </div>
           </>
         )}

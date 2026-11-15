@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import { FileCheck2, FileSpreadsheet } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { GradeRow } from '@/types/database';
+import type { CollegeClass, GradeRow } from '@/types/database';
+import { ClassGradebookPanel } from '@/components/class/ClassGradebookPanel';
 import { GradeTable } from '@/components/GradeTable';
+import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 
@@ -20,8 +23,15 @@ interface SubmissionGradeQueryRow {
     | null;
 }
 
-export function ClassGradesTab({ classId }: { classId: string }) {
+export function ClassGradesTab({
+  classItem,
+  canManage,
+}: {
+  classItem: CollegeClass;
+  canManage: boolean;
+}) {
   const toast = useToast();
+  const [mode, setMode] = useState<'summary' | 'detail'>('summary');
   const [rows, setRows] = useState<GradeRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +43,7 @@ export function ClassGradesTab({ classId }: { classId: string }) {
         .select(
           'id, student:profiles!submissions_student_id_fkey(full_name, student_code), assignment:assignments!inner(title, max_score, class_id), grade:grades(id, score, feedback, graded_at, is_ai)'
         )
-        .eq('assignment.class_id', classId)
+        .eq('assignment.class_id', classItem.id)
         .returns<SubmissionGradeQueryRow[]>();
 
       if (error) throw new Error(error.message);
@@ -62,20 +72,45 @@ export function ClassGradesTab({ classId }: { classId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [classId, toast]);
+  }, [classItem.id, toast]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading) {
-    return <LoadingState message="Đang tải bảng điểm..." />;
-  }
+    if (mode === 'detail') {
+      void load();
+    }
+  }, [load, mode]);
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-lg font-bold text-ink-primary">Bảng điểm lớp học</h2>
-      <GradeTable rows={rows} />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h2 className="text-lg font-bold text-ink-primary">Bảng điểm lớp học</h2>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={mode === 'summary' ? 'navy' : 'secondary'}
+            size="sm"
+            onClick={() => setMode('summary')}
+          >
+            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+            <span>Sổ điểm tổng hợp</span>
+          </Button>
+          <Button
+            variant={mode === 'detail' ? 'navy' : 'secondary'}
+            size="sm"
+            onClick={() => setMode('detail')}
+          >
+            <FileCheck2 className="h-4 w-4" aria-hidden="true" />
+            <span>Chi tiết từng bài chấm</span>
+          </Button>
+        </div>
+      </div>
+
+      {mode === 'summary' ? (
+        <ClassGradebookPanel classItem={classItem} canManage={canManage} />
+      ) : loading ? (
+        <LoadingState message="Đang tải bảng điểm chi tiết..." />
+      ) : (
+        <GradeTable rows={rows} />
+      )}
     </div>
   );
 }

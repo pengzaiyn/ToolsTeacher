@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CheckSquare,
-  FileSpreadsheet,
   ListChecks,
   Search,
   Shuffle,
@@ -17,20 +15,6 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 const UPCOMING_TOOLS = [
-  {
-    id: 'attendance',
-    title: 'Điểm danh theo buổi',
-    description: 'Tích nhanh chuyên cần sinh viên theo buổi học, cảnh báo vắng quá ngưỡng và xuất Excel.',
-    icon: CheckSquare,
-    phase: 'Đợt 2',
-  },
-  {
-    id: 'gradebook',
-    title: 'Sổ điểm tổng hợp Excel',
-    description: 'Gom điểm bài tập và chuyên cần theo trọng số, tự xếp loại và xuất sổ điểm hoàn chỉnh.',
-    icon: FileSpreadsheet,
-    phase: 'Đợt 2',
-  },
   {
     id: 'quiz-builder',
     title: 'Nhập nhanh & Trộn đề trắc nghiệm',

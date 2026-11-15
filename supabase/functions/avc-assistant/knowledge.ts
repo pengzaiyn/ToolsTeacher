@@ -39,7 +39,23 @@ const SERVER_TOPICS: ServerTopic[] = [
     roles: ['teacher', 'admin'],
     route: '/teacher/tools',
     details:
-      'Trung tâm tiện ích đứng lớp có ô tìm nhanh công cụ, liên kết tới Lịch dạy cá nhân, Bộ điều phối lớp học và Tải TKB Excel.',
+      'Trung tâm tiện ích đứng lớp có ô tìm nhanh công cụ, liên kết tới Điểm danh theo buổi, Sổ điểm tổng hợp Excel, Lịch dạy cá nhân, Bộ điều phối lớp học và Tải TKB Excel.',
+  },
+  {
+    id: 'teacher-attendance',
+    title: 'Điểm danh theo buổi (/teacher/attendance)',
+    roles: ['teacher', 'admin'],
+    route: '/teacher/attendance',
+    details:
+      'Tạo buổi điểm danh theo lớp (gợi ý sẵn môn/tiết/phòng từ Thời khóa biểu), tích nhanh Có mặt / Đi muộn / Có phép / Vắng, cảnh báo vắng vượt ngưỡng (>20% mặc định) và xuất sổ điểm danh Excel. Cũng tích hợp ngay trong tab Điểm danh của Chi tiết lớp học.',
+  },
+  {
+    id: 'teacher-gradebook',
+    title: 'Sổ điểm tổng hợp Excel (/teacher/gradebook)',
+    roles: ['teacher', 'admin'],
+    route: '/teacher/gradebook',
+    details:
+      'Gom điểm chuyên cần và bài tập theo trọng số tùy chỉnh (mặc định 10% chuyên cần / 90% bài tập), tự quy đổi thang 10, xếp loại học lực, gắn cảnh báo vắng và xuất sổ điểm Excel hoàn chỉnh.',
   },
   {
     id: 'teacher-schedule',

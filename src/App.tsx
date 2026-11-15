@@ -17,6 +17,8 @@ import { Login } from '@/pages/Login';
 import { Profile } from '@/pages/Profile';
 import { ResetPassword } from '@/pages/ResetPassword';
 import { Settings } from '@/pages/Settings';
+import { TeacherAttendance } from '@/pages/TeacherAttendance';
+import { TeacherGradebook } from '@/pages/TeacherGradebook';
 import { TeacherSchedule } from '@/pages/TeacherSchedule';
 import { TeacherTools } from '@/pages/TeacherTools';
 import { Timetable } from '@/pages/Timetable';
@@ -86,6 +88,22 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['teacher', 'admin']}>
                   <ClassroomKit />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+                  <TeacherAttendance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/gradebook"
+              element={
+                <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+                  <TeacherGradebook />
                 </ProtectedRoute>
               }
             />

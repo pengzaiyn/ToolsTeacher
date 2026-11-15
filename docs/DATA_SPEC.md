@@ -9,6 +9,9 @@
 ## Bảng phân hệ lớp học
 - `classes`: `id (uuid PK)`, `name`, `class_key (unique, tự chuẩn hóa đồng bộ với profiles & timetable_entries)`, `subject`, `description`, `cover_url`, `teacher_id (uuid nullable -> profiles)`, `created_at`
 - `enrollments`, `materials`, `assignments`, `assignment_keys`, `submissions`, `grades`
+- `attendance_sessions`: `id (uuid PK)`, `class_id (-> classes)`, `session_date`, `title`, `subject`, `period_start`, `period_end`, `room`, `note`, `created_by (-> profiles)`, `created_at`, `updated_at`
+- `attendance_records`: `id (uuid PK)`, `session_id (-> attendance_sessions)`, `student_id (-> profiles)`, `status ('present'|'late'|'excused'|'absent')`, `note`, `marked_by (-> profiles)`, `updated_at`, `unique(session_id, student_id)`
+- `class_gradebook_settings`: `class_id (uuid PK -> classes)`, `attendance_weight`, `assignment_weight`, `absence_warning_pct`, `late_weight`, `excused_weight`, `updated_by (-> profiles)`, `updated_at`
 
 ## Storage Buckets (riêng tư)
 - `materials`: tối đa 50 MB

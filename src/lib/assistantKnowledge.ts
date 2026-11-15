@@ -147,13 +147,75 @@ export const ASSISTANT_TOPICS: AssistantKnowledgeTopic[] = [
     steps: [
       'Chọn "Công cụ giảng dạy" ở thanh menu bên trái hoặc từ Trang chủ.',
       'Gõ từ khóa vào ô "Tìm nhanh công cụ..." để lọc tiện ích cần dùng.',
-      'Nhấp vào thẻ công cụ để mở Lịch dạy cá nhân, Mini game trả bài, Chia nhóm ngẫu nhiên, Đồng hồ bấm giờ hoặc Tải TKB Excel.',
+      'Nhấp vào thẻ công cụ để mở Điểm danh theo buổi, Sổ điểm tổng hợp Excel, Lịch dạy cá nhân, Mini game trả bài, Chia nhóm ngẫu nhiên, Đồng hồ bấm giờ hoặc Tải TKB Excel.',
     ],
     notes: [
       'Sinh viên không thấy mục Công cụ giảng dạy.',
     ],
     sampleQuestions: [
       'Trong Công cụ giảng dạy có những tiện ích nào?',
+    ],
+  },
+  {
+    id: 'teacher-attendance',
+    title: 'Điểm danh theo buổi',
+    roles: ['teacher', 'admin'],
+    route: '/teacher/attendance',
+    routeLabel: 'Mở Điểm danh theo buổi',
+    routePrefixes: ['/teacher/attendance'],
+    keywords: [
+      'diem danh',
+      'chuyen can',
+      'vang',
+      'di muon',
+      'co phep',
+      'canh bao vang',
+      'buoi hoc',
+    ],
+    summary:
+      'Công cụ Điểm danh theo buổi (/teacher/attendance và tab Điểm danh trong từng lớp học) cho phép Giáo viên và Hiệu trưởng tạo buổi học (gợi ý sẵn từ Thời khóa biểu), tích nhanh trạng thái Có mặt / Đi muộn / Có phép / Vắng, cảnh báo sinh viên vắng vượt ngưỡng và xuất file Excel.',
+    steps: [
+      'Mở Công cụ giảng dạy (/teacher/tools) -> chọn "Điểm danh theo buổi" hoặc vào tab "Điểm danh" trong Chi tiết lớp học.',
+      'Chọn lớp và bấm "Tạo buổi điểm danh" (có thể chọn nhanh môn/tiết/phòng gợi ý từ Thời khóa biểu theo ngày).',
+      'Tích trạng thái từng sinh viên hoặc bấm "Tất cả Có mặt" rồi bấm "Lưu điểm danh".',
+      'Chuyển sang chế độ "Tổng hợp chuyên cần" hoặc bấm "Xuất Excel" để tải bảng điểm danh cả lớp.',
+    ],
+    notes: [
+      'Ngưỡng cảnh báo vắng mặc định là > 20% số buổi đã điểm danh (có thể cấu hình ở Sổ điểm tổng hợp).',
+    ],
+    sampleQuestions: [
+      'Điểm danh sinh viên theo buổi ở đâu?',
+      'Làm sao xuất file Excel điểm danh?',
+    ],
+  },
+  {
+    id: 'teacher-gradebook',
+    title: 'Sổ điểm tổng hợp Excel',
+    roles: ['teacher', 'admin'],
+    route: '/teacher/gradebook',
+    routeLabel: 'Mở Sổ điểm tổng hợp',
+    routePrefixes: ['/teacher/gradebook'],
+    keywords: [
+      'so diem',
+      'bang diem tong hop',
+      'trong so',
+      'xep loai',
+      'xuat diem excel',
+      'tong ket',
+    ],
+    summary:
+      'Sổ điểm tổng hợp Excel (/teacher/gradebook và tab Bảng điểm trong Chi tiết lớp học) tự động gom điểm chuyên cần và điểm bài tập của lớp theo trọng số cấu hình, quy đổi thang 10, tự xếp loại học lực và xuất sổ điểm Excel nhiều sheet.',
+    steps: [
+      'Mở Công cụ giảng dạy (/teacher/tools) -> chọn "Sổ điểm tổng hợp Excel" hoặc vào tab "Bảng điểm" trong Chi tiết lớp học.',
+      'Bấm "Cấu hình trọng số" để điều chỉnh % Chuyên cần / % Bài tập, hệ số Đi muộn / Có phép và ngưỡng cảnh báo vắng rồi lưu.',
+      'Kiểm tra điểm tổng kết, xếp loại và bấm "Xuất sổ điểm Excel" để tải file .xlsx hoàn chỉnh.',
+    ],
+    notes: [
+      'Mặc định trọng số là Chuyên cần 10% + Bài tập 90%, ngưỡng cảnh báo vắng > 20%.',
+    ],
+    sampleQuestions: [
+      'Chỉnh trọng số điểm chuyên cần và bài tập ở đâu?',
+      'Xuất sổ điểm tổng hợp ra Excel như thế nào?',
     ],
   },
   {
