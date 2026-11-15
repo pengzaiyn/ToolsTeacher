@@ -9,11 +9,18 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  applyGlassClasses,
+  DEFAULT_GLASS_SETTINGS,
+  GLASS_STORAGE_KEY,
+  loadGlassSettings,
   loadThemeMode,
   resolveThemeMode,
+  sanitizeGlassSettings,
   sanitizeThemeMode,
+  saveGlassSettings,
   saveThemeMode,
   THEME_STORAGE_KEY,
+  type GlassSettings,
   type ResolvedTheme,
   type ThemeMode,
 } from '@/lib/theme';
@@ -23,6 +30,9 @@ interface ThemeContextValue {
   resolvedTheme: ResolvedTheme;
   setTheme: (mode: ThemeMode) => void;
   toggleTheme: () => void;
+  glassSettings: GlassSettings;
+  updateGlassSettings: (patch: Partial<GlassSettings>) => void;
+  resetGlassSettings: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -39,6 +49,7 @@ function readSystemPrefersDark(): boolean {
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => loadThemeMode());
+  const [glassSettings, setGlassSettings] = useState<GlassSettings>(() => loadGlassSettings());
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => readSystemPrefersDark());
   const switchTimerRef = useRef<number | null>(null);
 
@@ -58,6 +69,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.classList.toggle('dark', resolvedTheme === 'dark');
   }, [resolvedTheme]);
+
+  useEffect(() => {
+    applyGlassClasses(document.documentElement, glassSettings);
+  }, [glassSettings]);
 
   useEffect(() => {
     return () => {
@@ -93,18 +108,62 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(next);
   }, [resolvedTheme, setTheme]);
 
+  const updateGlassSettings = useCallback(
+    (patch: Partial<GlassSettings>) => {
+      triggerSmoothTransition();
+      setGlassSettings((prev) => {
+        const next = sanitizeGlassSettings({ ...prev, ...patch });
+        saveGlassSettings(next);
+        return next;
+      });
+    },
+    [triggerSmoothTransition]
+  );
+
+  const resetGlassSettings = useCallback(() => {
+    triggerSmoothTransition();
+    const next = { ...DEFAULT_GLASS_SETTINGS };
+    saveGlassSettings(next);
+    setGlassSettings(next);
+  }, [triggerSmoothTransition]);
+
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== THEME_STORAGE_KEY) return;
-      setThemeState(sanitizeThemeMode(event.newValue));
+      if (event.key === THEME_STORAGE_KEY) {
+        setThemeState(sanitizeThemeMode(event.newValue));
+      } else if (event.key === GLASS_STORAGE_KEY) {
+        try {
+          setGlassSettings(
+            sanitizeGlassSettings(event.newValue ? JSON.parse(event.newValue) : null)
+          );
+        } catch {
+          setGlassSettings({ ...DEFAULT_GLASS_SETTINGS });
+        }
+      }
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const value = useMemo(
-    () => ({ theme, resolvedTheme, setTheme, toggleTheme }),
-    [theme, resolvedTheme, setTheme, toggleTheme]
+    () => ({
+      theme,
+      resolvedTheme,
+      setTheme,
+      toggleTheme,
+      glassSettings,
+      updateGlassSettings,
+      resetGlassSettings,
+    }),
+    [
+      theme,
+      resolvedTheme,
+      setTheme,
+      toggleTheme,
+      glassSettings,
+      updateGlassSettings,
+      resetGlassSettings,
+    ]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

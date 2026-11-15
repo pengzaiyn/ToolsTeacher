@@ -57,6 +57,13 @@ export interface TimetableClassSummary {
   entries: number;
 }
 
+export interface TimetableTeacherAccount {
+  id: string;
+  full_name: string;
+  role: Extract<UserRole, 'teacher' | 'admin'>;
+  subject: string | null;
+}
+
 export interface TimetableUpload {
   id: string;
   file_name: string | null;

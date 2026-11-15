@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="wall" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAF7F0" />
+      <stop offset="50%" stop-color="#ECFDF5" />
+      <stop offset="100%" stop-color="#D1FAE5" />
+    </linearGradient>
+    <radialGradient id="sunbeam" cx="15%" cy="15%" r="75%">
+      <stop offset="0%" stop-color="#FEF9C3" stop-opacity="0.7" />
+      <stop offset="55%" stop-color="#FEF3C7" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#ECFDF5" stop-opacity="0" />
+    </radialGradient>
+    <filter id="leafShadow">
+      <feGaussianBlur stdDeviation="10" />
+    </filter>
+    <linearGradient id="leafGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34D399" stop-opacity="0.48" />
+      <stop offset="100%" stop-color="#059669" stop-opacity="0.65" />
+    </linearGradient>
+    <linearGradient id="leafSage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6EE7B7" stop-opacity="0.45" />
+      <stop offset="100%" stop-color="#047857" stop-opacity="0.58" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#wall)" />
+  <rect width="1600" height="900" fill="url(#sunbeam)" />
+
+  <!-- Vệt nắng xiên ấm áp trên tường -->
+  <polygon points="0,0 520,0 1180,900 420,900" fill="#FFFBEB" opacity="0.42" />
+  <polygon points="620,0 840,0 1480,900 1240,900" fill="#FFFBEB" opacity="0.24" />
+
+  <!-- Bóng lá mờ dịu trên tường -->
+  <g filter="url(#leafShadow)" opacity="0.22" fill="#065F46">
+    <path d="M1260 940 C1230 720 1350 560 1560 510 C1580 680 1480 860 1260 940 Z" />
+    <path d="M1080 940 C1050 760 1160 620 1340 600 C1330 760 1240 870 1080 940 Z" />
+    <path d="M140 930 C90 780 180 640 330 620 C310 780 250 880 140 930 Z" />
+  </g>
+
+  <!-- Tán lá xanh nhẹ ở góc phải dưới & trái trên -->
+  <g>
+    <path d="M1620 920 C1420 790 1320 620 1380 420 C1520 500 1610 660 1620 920 Z" fill="url(#leafGreen)" />
+    <path d="M1590 920 C1330 870 1160 760 1130 580 C1310 590 1490 710 1590 920 Z" fill="url(#leafSage)" />
+    <path d="M1610 690 C1490 610 1430 470 1490 320 C1580 410 1630 530 1610 690 Z" fill="#A7F3D0" opacity="0.55" />
+
+    <!-- Nhành lá khuynh diệp góc trên trái -->
+    <g stroke="#047857" stroke-opacity="0.35" stroke-width="4" fill="none">
+      <path d="M-20 40 Q120 120 280 190" />
+    </g>
+    <g fill="#34D399" opacity="0.38">
+      <ellipse cx="65" cy="75" rx="34" ry="20" transform="rotate(-25 65 75)" />
+      <ellipse cx="145" cy="128" rx="30" ry="18" transform="rotate(20 145 128)" />
+      <ellipse cx="215" cy="148" rx="28" ry="16" transform="rotate(-22 215 148)" />
+      <ellipse cx="275" cy="194" rx="24" ry="15" transform="rotate(14 275 194)" />
+    </g>
+  </g>
+</svg>

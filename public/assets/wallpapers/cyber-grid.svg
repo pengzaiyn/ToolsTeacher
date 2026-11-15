@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="nightSky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#070B1E" />
+      <stop offset="52%" stop-color="#1E1B4B" />
+      <stop offset="68%" stop-color="#4C1D95" />
+      <stop offset="100%" stop-color="#090D24" />
+    </linearGradient>
+    <linearGradient id="sunDisc" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F472B6" />
+      <stop offset="55%" stop-color="#EC4899" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+    <radialGradient id="horizonGlow" cx="50%" cy="62%" r="55%">
+      <stop offset="0%" stop-color="#EC4899" stop-opacity="0.45" />
+      <stop offset="50%" stop-color="#6366F1" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#070B1E" stop-opacity="0" />
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="12" />
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#nightSky)" />
+  <rect width="1600" height="900" fill="url(#horizonGlow)" />
+
+  <!-- Mặt trời synthwave -->
+  <circle cx="800" cy="480" r="170" fill="url(#sunDisc)" opacity="0.88" />
+  <g fill="#1E1B4B">
+    <rect x="610" y="512" width="380" height="8" />
+    <rect x="610" y="534" width="380" height="12" />
+    <rect x="610" y="562" width="380" height="16" />
+    <rect x="610" y="592" width="380" height="22" />
+  </g>
+
+  <!-- Rặng núi tối giản -->
+  <path d="M0 620 L180 510 L350 585 L520 495 L690 595 L860 530 L1050 600 L1240 480 L1440 570 L1600 510 L1600 630 L0 630 Z" fill="#0B102B" />
+
+  <!-- Nền lưới phối cảnh -->
+  <rect x="0" y="625" width="1600" height="275" fill="#090D24" />
+  <line x1="0" y1="625" x2="1600" y2="625" stroke="#22D3EE" stroke-width="2.5" opacity="0.85" />
+  <line x1="0" y1="625" x2="1600" y2="625" stroke="#22D3EE" stroke-width="10" opacity="0.25" filter="url(#glow)" />
+
+  <g stroke="#22D3EE" stroke-opacity="0.34" stroke-width="1.5">
+    <!-- Đường ngang phối cảnh -->
+    <line x1="0" y1="644" x2="1600" y2="644" />
+    <line x1="0" y1="670" x2="1600" y2="670" />
+    <line x1="0" y1="704" x2="1600" y2="704" />
+    <line x1="0" y1="748" x2="1600" y2="748" />
+    <line x1="0" y1="806" x2="1600" y2="806" />
+    <line x1="0" y1="874" x2="1600" y2="874" />
+
+    <!-- Đường dọc tụ về tâm chân trời -->
+    <line x1="800" y1="625" x2="800" y2="900" />
+    <line x1="740" y1="625" x2="540" y2="900" />
+    <line x1="860" y1="625" x2="1060" y2="900" />
+    <line x1="680" y1="625" x2="260" y2="900" />
+    <line x1="920" y1="625" x2="1340" y2="900" />
+    <line x1="620" y1="625" x2="-40" y2="900" />
+    <line x1="980" y1="625" x2="1640" y2="900" />
+    <line x1="560" y1="625" x2="-340" y2="900" />
+    <line x1="1040" y1="625" x2="1940" y2="900" />
+  </g>
+
+  <!-- Sao lấp lánh -->
+  <g fill="#E0E7FF" opacity="0.7">
+    <circle cx="140" cy="110" r="2" /><circle cx="310" cy="190" r="1.5" /><circle cx="490" cy="95" r="2.2" />
+    <circle cx="670" cy="160" r="1.6" /><circle cx="930" cy="120" r="2" /><circle cx="1150" cy="195" r="1.5" />
+    <circle cx="1340" cy="105" r="2.5" /><circle cx="1480" cy="220" r="1.7" /><circle cx="220" cy="310" r="1.6" />
+    <circle cx="1390" cy="340" r="1.8" />
+  </g>
+</svg>

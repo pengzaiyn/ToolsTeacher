@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="rainSky" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="55%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#134E4A" />
+    </linearGradient>
+    <radialGradient id="bokeh1" cx="22%" cy="35%" r="28%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="bokeh2" cx="78%" cy="48%" r="30%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.28" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
+    </radialGradient>
+    <filter id="bokehBlur">
+      <feGaussianBlur stdDeviation="24" />
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#rainSky)" />
+  <rect width="1600" height="900" fill="url(#bokeh1)" />
+  <rect width="1600" height="900" fill="url(#bokeh2)" />
+
+  <!-- Đốm đèn bokeh qua kính mưa -->
+  <g filter="url(#bokehBlur)">
+    <circle cx="290" cy="360" r="68" fill="#FBBF24" opacity="0.45" />
+    <circle cx="430" cy="490" r="52" fill="#F97316" opacity="0.35" />
+    <circle cx="1180" cy="340" r="76" fill="#22D3EE" opacity="0.35" />
+    <circle cx="1330" cy="510" r="60" fill="#FB7185" opacity="0.32" />
+    <circle cx="820" cy="420" r="90" fill="#34D399" opacity="0.22" />
+  </g>
+
+  <!-- Vệt mưa nhẹ trên khung kính -->
+  <g stroke="#E2E8F0" stroke-opacity="0.16" stroke-width="2" stroke-linecap="round">
+    <line x1="160" y1="80" x2="140" y2="220" /><line x1="340" y1="120" x2="320" y2="270" />
+    <line x1="590" y1="60" x2="570" y2="210" /><line x1="870" y1="150" x2="850" y2="300" />
+    <line x1="1120" y1="90" x2="1100" y2="240" /><line x1="1410" y1="110" x2="1390" y2="260" />
+    <line x1="250" y1="450" x2="230" y2="610" /><line x1="720" y1="520" x2="700" y2="680" />
+    <line x1="1030" y1="470" x2="1010" y2="630" /><line x1="1320" y1="540" x2="1300" y2="700" />
+  </g>
+
+  <!-- Giọt nước đọng trên kính -->
+  <g fill="#F8FAFC" fill-opacity="0.22">
+    <circle cx="220" cy="280" r="5" /><circle cx="480" cy="390" r="7" />
+    <circle cx="960" cy="260" r="6" /><circle cx="1240" cy="410" r="8" />
+    <circle cx="640" cy="610" r="5" /><circle cx="1440" cy="310" r="6" />
+  </g>
+</svg>

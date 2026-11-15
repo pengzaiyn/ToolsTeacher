@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
-  GraduationCap,
   Home,
   LogOut,
   Menu,
@@ -79,15 +78,23 @@ export function Header() {
   function renderSidebarBody(onNavigate?: () => void, showCloseButton = false) {
     return (
       <div className="flex h-full flex-col bg-surface-card">
-        <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-          <Link to="/tools" onClick={onNavigate} className="flex items-center gap-2">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-red text-white">
-              <GraduationCap className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-base font-bold leading-tight text-brand-navy">AVC Connect</span>
-              <span className="text-xs font-normal text-ink-muted">Cao đẳng Việt Mỹ Hà Nội</span>
-            </div>
+        <div className="flex h-20 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
+          <Link
+            to="/tools"
+            onClick={onNavigate}
+            aria-label="Trang chủ Trường Cao đẳng Việt Mỹ Hà Nội"
+            className="flex min-w-0 flex-1 items-center justify-center"
+          >
+            <img
+              src="/logo-light.png"
+              alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+              className="h-16 w-auto max-w-full object-contain dark:hidden"
+            />
+            <img
+              src="/logo-dark.png"
+              alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+              className="hidden h-16 w-auto max-w-full object-contain dark:block"
+            />
           </Link>
 
           {showCloseButton && (
@@ -226,11 +233,21 @@ export function Header() {
             <Menu className="h-5 w-5" />
           </button>
 
-          <Link to="/tools" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-red text-white">
-              <GraduationCap className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <span className="text-base font-bold text-brand-navy">AVC Connect</span>
+          <Link
+            to="/tools"
+            aria-label="Trang chủ Trường Cao đẳng Việt Mỹ Hà Nội"
+            className="flex items-center"
+          >
+            <img
+              src="/logo-mark-light.png"
+              alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+              className="h-10 w-auto object-contain dark:hidden"
+            />
+            <img
+              src="/logo-mark-dark.png"
+              alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+              className="hidden h-10 w-auto object-contain dark:block"
+            />
           </Link>
         </div>
 

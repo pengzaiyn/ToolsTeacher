@@ -18,10 +18,11 @@ import { useAuth } from '@/context/AuthContext';
 import { isAdmin } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import {
+  buildTeacherScheduleGroups,
   countTotalPeriods,
   exportScheduleWeekToExcel,
-  extractTeacherOptions,
-  findMatchingTeacherKey,
+  findOptionKeyForProfile,
+  getEntryTeacherKey,
 } from '@/lib/teacherSchedule';
 import {
   addDays,
@@ -36,7 +37,7 @@ import {
   toIsoDate,
   weekdayLabel,
 } from '@/lib/week';
-import type { CollegeClass, TimetableEntry } from '@/types/database';
+import type { CollegeClass, TimetableEntry, TimetableTeacherAccount } from '@/types/database';
 import { Layout } from '@/components/Layout';
 import { TimetableWeekView } from '@/components/TimetableWeekView';
 import { Badge } from '@/components/ui/Badge';
@@ -55,10 +56,12 @@ export function TeacherSchedule() {
 
   const [allEntries, setAllEntries] = useState<TimetableEntry[]>([]);
   const [classes, setClasses] = useState<Pick<CollegeClass, 'id' | 'name' | 'class_key'>[]>([]);
+  const [teacherAccounts, setTeacherAccounts] = useState<TimetableTeacherAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedTeacherKey, setSelectedTeacherKey] = useState<string>('');
   const [teacherInitialized, setTeacherInitialized] = useState(false);
+  const [showUnmatched, setShowUnmatched] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [weekMonday, setWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
   const [viewMode, setViewMode] = useState<'week' | 'list'>('week');
@@ -66,7 +69,11 @@ export function TeacherSchedule() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: ttData, error: ttErr }, { data: clsData, error: clsErr }] = await Promise.all([
+      const [
+        { data: ttData, error: ttErr },
+        { data: clsData, error: clsErr },
+        { data: accData, error: accErr },
+      ] = await Promise.all([
         supabase
           .from('timetable_entries')
           .select('*')
@@ -77,13 +84,16 @@ export function TeacherSchedule() {
           .from('classes')
           .select('id, name, class_key')
           .returns<Pick<CollegeClass, 'id' | 'name' | 'class_key'>[]>(),
+        supabase.rpc('timetable_teacher_accounts'),
       ]);
 
       if (ttErr) throw new Error(ttErr.message);
       if (clsErr) throw new Error(clsErr.message);
+      if (accErr) throw new Error(accErr.message);
 
       setAllEntries(ttData ?? []);
       setClasses(clsData ?? []);
+      setTeacherAccounts((accData as TimetableTeacherAccount[] | null) ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không tải được lịch giảng dạy');
     } finally {
@@ -95,11 +105,27 @@ export function TeacherSchedule() {
     void loadData();
   }, [loadData]);
 
-  const teacherOptions = useMemo(() => extractTeacherOptions(allEntries), [allEntries]);
+  const teacherGroups = useMemo(
+    () => buildTeacherScheduleGroups(allEntries, teacherAccounts),
+    [allEntries, teacherAccounts]
+  );
+
+  const visibleTeacherOptions = useMemo(
+    () =>
+      showUnmatched
+        ? [...teacherGroups.verified, ...teacherGroups.unmatched]
+        : teacherGroups.verified,
+    [showUnmatched, teacherGroups]
+  );
 
   const matchedProfileTeacherKey = useMemo(
-    () => findMatchingTeacherKey(profile?.full_name, teacherOptions),
-    [profile?.full_name, teacherOptions]
+    () => findOptionKeyForProfile(profile?.id, profile?.full_name, teacherGroups.verified),
+    [profile?.id, profile?.full_name, teacherGroups.verified]
+  );
+
+  const matchedProfileOption = useMemo(
+    () => teacherGroups.verified.find((opt) => opt.key === matchedProfileTeacherKey),
+    [teacherGroups.verified, matchedProfileTeacherKey]
   );
 
   useEffect(() => {
@@ -114,6 +140,16 @@ export function TeacherSchedule() {
     setTeacherInitialized(true);
   }, [loading, teacherInitialized, adminRole, matchedProfileTeacherKey]);
 
+  function handleToggleShowUnmatched() {
+    setShowUnmatched((prev) => {
+      const next = !prev;
+      if (!next && selectedTeacherKey.startsWith('raw:')) {
+        setSelectedTeacherKey(adminRole ? 'all' : matchedProfileTeacherKey || 'all');
+      }
+      return next;
+    });
+  }
+
   const classIdByKey = useMemo(() => {
     const map = new Map<string, string>();
     classes.forEach((cls) => {
@@ -124,9 +160,26 @@ export function TeacherSchedule() {
 
   const teacherFilteredEntries = useMemo(() => {
     if (!selectedTeacherKey) return [];
-    if (selectedTeacherKey === 'all') return allEntries;
-    return allEntries.filter((entry) => entry.teacher_key === selectedTeacherKey);
-  }, [allEntries, selectedTeacherKey]);
+    if (selectedTeacherKey === 'all') {
+      if (!showUnmatched) {
+        return allEntries.filter((entry) => {
+          const entryKey = getEntryTeacherKey(entry);
+          return Boolean(entryKey && teacherGroups.verifiedEntryKeys.has(entryKey));
+        });
+      }
+      return [...allEntries].sort((a, b) => {
+        const aVerified = teacherGroups.verifiedEntryKeys.has(getEntryTeacherKey(a));
+        const bVerified = teacherGroups.verifiedEntryKeys.has(getEntryTeacherKey(b));
+        if (aVerified !== bVerified) return aVerified ? -1 : 1;
+        return a.weekday - b.weekday || a.period_start - b.period_start;
+      });
+    }
+
+    const selectedOpt = visibleTeacherOptions.find((opt) => opt.key === selectedTeacherKey);
+    if (!selectedOpt || selectedOpt.matchedEntryKeys.length === 0) return [];
+    const targetKeys = new Set(selectedOpt.matchedEntryKeys);
+    return allEntries.filter((entry) => targetKeys.has(getEntryTeacherKey(entry)));
+  }, [allEntries, selectedTeacherKey, showUnmatched, teacherGroups, visibleTeacherOptions]);
 
   const filteredEntries = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -182,13 +235,15 @@ export function TeacherSchedule() {
   }, [weekEntriesFlat]);
 
   const selectedTeacherLabel = useMemo(() => {
-    if (selectedTeacherKey === 'all') return 'Tất cả giảng viên';
+    if (selectedTeacherKey === 'all') {
+      return showUnmatched ? 'Tất cả (ưu tiên GV có tài khoản)' : 'Giảng viên trên hệ thống';
+    }
     return (
-      teacherOptions.find((opt) => opt.key === selectedTeacherKey)?.label ??
+      visibleTeacherOptions.find((opt) => opt.key === selectedTeacherKey)?.label ??
       profile?.full_name ??
       'Giảng viên'
     );
-  }, [selectedTeacherKey, teacherOptions, profile?.full_name]);
+  }, [selectedTeacherKey, showUnmatched, visibleTeacherOptions, profile?.full_name]);
 
   const listColumns: TableColumn<TimetableEntry>[] = [
     {
@@ -228,7 +283,16 @@ export function TeacherSchedule() {
     {
       key: 'teacher',
       header: 'Giảng viên',
-      render: (row) => <span>{row.teacher_name || '—'}</span>,
+      render: (row) => {
+        const entryKey = getEntryTeacherKey(row);
+        const isVerified = Boolean(entryKey && teacherGroups.verifiedEntryKeys.has(entryKey));
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{row.teacher_name || '—'}</span>
+            {row.teacher_name && !isVerified && <Badge tone="neutral">Chưa có TK</Badge>}
+          </div>
+        );
+      },
     },
     {
       key: 'range',
@@ -316,19 +380,36 @@ export function TeacherSchedule() {
         <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-4 sm:p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Select
-              label="Giảng viên trên thời khóa biểu"
+              label="Giảng viên"
               value={selectedTeacherKey}
               onChange={(e) => setSelectedTeacherKey(e.target.value)}
-              disabled={loading || teacherOptions.length === 0}
-              placeholder={teacherOptions.length === 0 ? 'Chưa có dữ liệu TKB' : 'Chọn giảng viên...'}
+              disabled={loading || visibleTeacherOptions.length === 0}
+              placeholder={
+                visibleTeacherOptions.length === 0
+                  ? 'Chưa có tài khoản giảng viên'
+                  : 'Chọn giảng viên...'
+              }
               options={[
-                ...(teacherOptions.length > 0
-                  ? [{ value: 'all', label: 'Tất cả giảng viên' }]
+                ...(visibleTeacherOptions.length > 0
+                  ? [
+                      {
+                        value: 'all',
+                        label: showUnmatched
+                          ? 'Tất cả (ưu tiên GV có tài khoản)'
+                          : 'Tất cả giảng viên trên hệ thống',
+                      },
+                    ]
                   : []),
-                ...teacherOptions.map((opt) => ({
+                ...teacherGroups.verified.map((opt) => ({
                   value: opt.key,
-                  label: `${opt.label} (${opt.entryCount} buổi)`,
+                  label: `${opt.label}${opt.account?.role === 'admin' ? ' — Hiệu trưởng' : ''} (${opt.entryCount} buổi)`,
                 })),
+                ...(showUnmatched
+                  ? teacherGroups.unmatched.map((opt) => ({
+                      value: opt.key,
+                      label: `${opt.label} — Chưa có tài khoản (${opt.entryCount} buổi)`,
+                    }))
+                  : []),
               ]}
             />
 
@@ -412,22 +493,63 @@ export function TeacherSchedule() {
             </div>
           </div>
 
-          {!loading && teacherOptions.length > 0 && !adminRole && !matchedProfileTeacherKey && !selectedTeacherKey && (
-            <div className="flex flex-col justify-between gap-4 rounded-lg border border-status-warningBorder bg-status-warningBg p-4 text-sm text-status-warningText sm:flex-row sm:items-center">
-              <span>
-                Chưa có dòng thời khóa biểu nào trùng với tên tài khoản{' '}
-                <strong>{profile?.full_name}</strong>. Bạn có thể chọn tên giảng viên ở ô phía trên
-                hoặc xem toàn bộ lịch để kiểm tra.
-              </span>
+          {!loading && allEntries.length > 0 && teacherGroups.unmatched.length > 0 && (
+            <div className="flex flex-col justify-between gap-2 rounded-lg border border-line bg-surface-page p-4 text-xs text-ink-secondary sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 shrink-0 text-brand-navy" aria-hidden="true" />
+                <span>
+                  {showUnmatched ? (
+                    <>
+                      Đang <strong>ưu tiên</strong> {teacherGroups.verified.length} giảng viên có tài
+                      khoản thật lên đầu, kèm{' '}
+                      <strong>{teacherGroups.unmatched.length} tên chưa có tài khoản</strong> từ
+                      file TKB.
+                    </>
+                  ) : (
+                    <>
+                      Chỉ hiển thị <strong>{teacherGroups.verified.length} giảng viên</strong> có tài
+                      khoản thật trên hệ thống (đã ẩn{' '}
+                      <strong>{teacherGroups.unmatched.length} tên</strong> trong file TKB chưa có
+                      tài khoản).
+                    </>
+                  )}
+                </span>
+              </div>
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => setSelectedTeacherKey('all')}
+                onClick={handleToggleShowUnmatched}
+                className="shrink-0 self-start sm:self-auto"
               >
-                Xem tất cả giảng viên
+                {showUnmatched
+                  ? 'Chỉ hiện GV có tài khoản'
+                  : `Hiện thêm tên chưa có TK (${teacherGroups.unmatched.length})`}
               </Button>
             </div>
           )}
+
+          {!loading &&
+            allEntries.length > 0 &&
+            !adminRole &&
+            (!matchedProfileTeacherKey ||
+              (matchedProfileOption && matchedProfileOption.entryCount === 0)) && (
+              <div className="flex flex-col justify-between gap-4 rounded-lg border border-status-warningBorder bg-status-warningBg p-4 text-sm text-status-warningText sm:flex-row sm:items-center">
+                <span>
+                  Chưa có dòng thời khóa biểu nào trùng với tên tài khoản{' '}
+                  <strong>{profile?.full_name}</strong>. Vui lòng kiểm tra lại cột Giáo viên trong
+                  file Excel hoặc xem lịch giảng viên trên hệ thống.
+                </span>
+                {selectedTeacherKey !== 'all' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setSelectedTeacherKey('all')}
+                  >
+                    Xem tất cả giảng viên
+                  </Button>
+                )}
+              </div>
+            )}
         </section>
 
         {loading ? (
@@ -447,11 +569,38 @@ export function TeacherSchedule() {
           <EmptyState
             icon={UserCheck}
             title="Chọn tên giảng viên để xem lịch"
-            description="Chọn tên của bạn trong danh sách giảng viên phía trên để lọc lịch dạy theo tuần."
+            description="Chọn giảng viên có tài khoản trên hệ thống ở danh sách phía trên để lọc lịch dạy theo tuần."
             action={
               <Button variant="navy" onClick={() => setSelectedTeacherKey('all')}>
                 Hiển thị tất cả giảng viên
               </Button>
+            }
+          />
+        ) : !showUnmatched && selectedTeacherKey === 'all' && teacherGroups.verifiedEntryCount === 0 ? (
+          <EmptyState
+            icon={UserCheck}
+            title="Chưa có buổi dạy nào khớp tài khoản giảng viên trên hệ thống"
+            description={
+              teacherGroups.unmatched.length > 0
+                ? `Thời khóa biểu hiện có ${allEntries.length} buổi nhưng thuộc về ${teacherGroups.unmatched.length} tên chưa có tài khoản thật trên hệ thống.`
+                : 'Các buổi học trong thời khóa biểu hiện chưa gán tên giảng viên khớp tài khoản nào.'
+            }
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {adminRole && (
+                  <Link to="/admin/teachers">
+                    <Button variant="navy">Quản lý giáo viên</Button>
+                  </Link>
+                )}
+                <Link to="/timetable/upload">
+                  <Button variant="primary">Tải thời khóa biểu Excel</Button>
+                </Link>
+                {teacherGroups.unmatched.length > 0 && (
+                  <Button variant="secondary" onClick={handleToggleShowUnmatched}>
+                    Xem tạm {teacherGroups.unmatched.length} tên chưa có TK
+                  </Button>
+                )}
+              </div>
             }
           />
         ) : (
@@ -479,6 +628,10 @@ export function TeacherSchedule() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {todaySessions.map((item) => {
                       const linkedId = classIdByKey.get(item.class_key);
+                      const isVerifiedTeacher = Boolean(
+                        getEntryTeacherKey(item) &&
+                          teacherGroups.verifiedEntryKeys.has(getEntryTeacherKey(item))
+                      );
                       return (
                         <article
                           key={item.id}
@@ -504,7 +657,12 @@ export function TeacherSchedule() {
                                 </span>
                               )}
                               {selectedTeacherKey === 'all' && item.teacher_name && (
-                                <span>GV: {item.teacher_name}</span>
+                                <span className="inline-flex items-center gap-2">
+                                  <span>GV: {item.teacher_name}</span>
+                                  {!isVerifiedTeacher && (
+                                    <Badge tone="neutral">Chưa có TK</Badge>
+                                  )}
+                                </span>
                               )}
                             </div>
                             {item.note && (
@@ -583,7 +741,7 @@ export function TeacherSchedule() {
                 description={
                   teacherFilteredEntries.length > 0
                     ? 'Các buổi dạy nằm ngoài khoảng ngày của tuần đang xem, hoặc không khớp từ khóa tìm kiếm.'
-                    : 'Giảng viên chưa có buổi dạy nào trong thời khóa biểu.'
+                    : 'Chưa có buổi dạy nào trên thời khóa biểu khớp với tên tài khoản giảng viên này.'
                 }
               />
             ) : (

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { GraduationCap, Lock, Mail } from 'lucide-react';
+import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { AmbientGlassBackdrop } from '@/components/AmbientGlassBackdrop';
+import { CustomWallpaperBackdrop } from '@/components/custom-theme/CustomWallpaperBackdrop';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -53,20 +55,26 @@ export function Login() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-4 py-8">
-      <div className="fixed right-4 top-4">
+      <CustomWallpaperBackdrop />
+      <AmbientGlassBackdrop />
+      <div className="fixed right-4 top-4 z-20">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-md rounded-2xl border border-line bg-surface-card p-6 shadow-sm sm:p-8">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-line bg-surface-card p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex flex-col items-center gap-4 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-red text-white shadow-sm">
-            <GraduationCap className="h-8 w-8" aria-hidden="true" />
+          <div className="flex w-full items-center justify-center">
+            <img
+              src="/logo-light.png"
+              alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+              className="h-24 w-auto max-w-full object-contain dark:hidden sm:h-28"
+            />
+            <img
+              src="/logo-dark.png"
+              alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+              className="hidden h-24 w-auto max-w-full object-contain dark:block sm:h-28"
+            />
           </div>
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold text-brand-navy">AVC Connect</h1>
-            <p className="text-sm font-normal text-ink-secondary">
-              Cổng công cụ Trường Cao đẳng Việt Mỹ Hà Nội
-            </p>
-          </div>
+          <h1 className="sr-only">Đăng nhập Trường Cao đẳng Việt Mỹ Hà Nội</h1>
         </div>
 
         {displayError && (

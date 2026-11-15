@@ -3,10 +3,10 @@
 > Lưu ý: Mọi thay đổi về bố cục, điều hướng hoặc quy chuẩn giao diện phải được cập nhật vào file này trước khi viết hoặc sửa mã nguồn.
 
 ## Thương hiệu Trường Cao đẳng Việt Mỹ Hà Nội
-- **Màu chủ đạo:** Đỏ `#C8102E` (`brand-red`) và Navy `#1A365D` (`brand-navy`), hỗ trợ chuyển đổi **Giao diện Sáng / Tối / Theo thiết bị** qua biến CSS trong `src/index.css` và token trong `tailwind.config.js`
+- **Màu chủ đạo:** Đỏ `#C8102E` (`brand-red`) và Navy `#1A365D` (`brand-navy`), hỗ trợ chuyển đổi **Giao diện Sáng / Tối / Theo thiết bị**, tùy chọn **Hiệu ứng kính iOS** (`Không hiệu ứng` mặc định / `Kính mờ iOS` / `Kính lỏng iOS` kèm mức độ `Nhẹ / Vừa / Rõ`) và **Chủ đề tùy chỉnh (`/settings?tab=custom`)** (bộ Preset phối sẵn, tùy chỉnh bảng màu nhấn qua biến CSS, ảnh nền kèm lớp phủ/làm mờ, bộ sticker kéo thả và thú cưng đồng hành kèm nút ẩn/hiện nhanh; mặc định giữ nguyên chuẩn nhận diện nhà trường khi chưa bật) qua biến CSS trong `src/index.css` và token trong `tailwind.config.js`
 - **Kiểu chữ:** `Inter`, chỉ dùng 3 độ đậm: `400` (`font-normal`), `600` (`font-semibold`), `700` (`font-bold`)
 - **Khoảng cách:** Bội số của `8px` (`p-2`, `p-4`, `p-6`, `gap-2`, `gap-4`, `gap-6`...)
-- **Biểu tượng:** Chỉ dùng `lucide-react`, không dùng emoji
+- **Biểu tượng:** Chỉ dùng `lucide-react`, không dùng emoji (tài sản Sticker & Pet trong Chủ đề tùy chỉnh sử dụng đồ họa minh họa/SVG riêng)
 
 ## Bố cục & Điều hướng (Left Sidebar)
 - **Desktop & Tablet ngang (`md`, >= 768px):**
@@ -16,9 +16,9 @@
   - Thanh tiêu đề gọn phía trên (`h-16` = `64px`) chứa nút mở menu, tên hệ thống và nút chuyển nhanh Sáng/Tối.
   - Bấm nút mở menu sẽ hiện ngăn kéo trượt từ cạnh trái (`w-64`, `max-w-[80vw]`) kèm nền phủ tối, hỗ trợ đóng bằng phím `ESC`, bấm ra ngoài hoặc chọn liên kết.
 - **Cấu trúc thanh điều hướng (`Header.tsx`):**
-  - Đầu thanh: Logo đỏ (`GraduationCap`) + `AVC Connect` + `Cao đẳng Việt Mỹ Hà Nội`.
+  - Đầu thanh: Logo trường Cao đẳng Việt Mỹ Hà Nội (`logo-light.png` / `logo-dark.png` ở thanh bên, `logo-mark-*` trên thanh di động, không kèm tên web thừa).
   - Giữa thanh (cuộn dọc được): Các mục điều hướng theo vai trò (`Trang chủ`, `Thời khóa biểu`, `Lớp học`, `Công cụ giảng dạy` cho GV/HT dẫn tới trang tập hợp công cụ giảng dạy, `Sinh viên` & `Giáo viên` cho HT).
-  - Phía trên chân thanh (`shrink-0 border-t border-line px-4 py-2`): Liên kết `Cài đặt` (`/settings`) cùng nút chuyển nhanh Sáng/Tối cho tất cả người dùng.
+  - Phía trên chân thanh (`shrink-0 border-t border-line px-4 py-2`): Liên kết `Cài đặt` (`/settings` — trang Cài đặt có navbar điều hướng riêng gắn bên trái trên desktop và tab ngang trên di động) cùng nút chuyển nhanh Sáng/Tối cho tất cả người dùng.
   - Đáy thanh (`shrink-0 border-t border-line p-4`): Thẻ hồ sơ cá nhân (`/profile`) và nút `Đăng xuất`.
 
 ## Quy chuẩn giao diện

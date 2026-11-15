@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCursorEffects } from '@/context/CursorEffectContext';
+import { useCustomTheme } from '@/context/CustomThemeContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   buildSchemePalette,
@@ -29,6 +30,7 @@ const HALO_FADE_MS = 380;
  */
 export function CursorEffectOverlay() {
   const { settings } = useCursorEffects();
+  const { customTheme } = useCustomTheme();
   const { resolvedTheme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const probeRef = useRef<HTMLDivElement | null>(null);
@@ -433,7 +435,15 @@ export function CursorEffectOverlay() {
       document.removeEventListener('mouseleave', handlePointerLeave);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [shouldRender, settings, resolvedTheme]);
+  }, [
+    shouldRender,
+    settings,
+    resolvedTheme,
+    customTheme.enabled,
+    customTheme.accentPreset,
+    customTheme.customPrimaryHex,
+    customTheme.customSecondaryHex,
+  ]);
 
   if (!shouldRender) return null;
 

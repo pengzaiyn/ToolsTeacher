@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AVC Connect — Trường Cao đẳng Việt Mỹ Hà Nội</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <title>Trường Cao đẳng Việt Mỹ Hà Nội</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,6 +22,20 @@
               window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) {
             document.documentElement.classList.add('dark');
+          }
+          var rawGlass = localStorage.getItem('avc_glass_effect_v1');
+          if (rawGlass) {
+            var glass = JSON.parse(rawGlass);
+            var validModes = { frosted: true, liquid: true };
+            var validLevels = { subtle: true, medium: true, strong: true };
+            if (glass && validModes[glass.mode]) {
+              var level = validLevels[glass.intensity] ? glass.intensity : 'medium';
+              var root = document.documentElement;
+              root.classList.add('glass-active', 'glass-' + glass.mode, 'glass-' + level);
+              if (glass.ambientGlow !== false) {
+                root.classList.add('glass-ambient');
+              }
+            }
           }
         } catch (e) {}
       })();

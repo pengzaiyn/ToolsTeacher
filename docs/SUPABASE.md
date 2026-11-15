@@ -13,12 +13,13 @@ Chi tiết cột: `DATA_SPEC.md`, `TIMETABLE_SPEC.md`.
 
 ## Hàm
 Schema `private` (không lộ qua API, chỉ dùng trong policy; security definer, `search_path = ''`):
-`user_role()`, `is_admin()`, `is_class_teacher(cid)`, `is_class_student(cid)`, `can_see_class(cid)`, `class_of_assignment(aid)`, `class_of_submission(sid)`, `is_own_graded_submission(sid)`, `has_teacher(tid)`, `my_class_key()`, `protect_profile()` (trigger), `normalize_class_key(val)`, `classes_set_key()` (trigger), `sync_class_after_write()` (trigger), `sync_profile_class()` (trigger), `sync_classes_from_system()`.
+`user_role()`, `is_admin()`, `is_class_teacher(cid)`, `is_class_student(cid)`, `can_see_class(cid)`, `class_of_assignment(aid)`, `class_of_submission(sid)`, `is_own_graded_submission(sid)`, `has_teacher(tid)`, `my_class_key()`, `protect_profile()` (trigger), `normalize_class_key(val)`, `classes_set_key()` (trigger), `sync_class_after_write()` (trigger), `sync_profile_class()` (trigger), `sync_classes_from_system()`, `list_timetable_teacher_accounts()`.
 
 Schema `public` (gọi qua RPC):
 - `replace_timetable(p_file_name text, p_entries jsonb) returns integer`: giáo viên/hiệu trưởng; thay thế lịch của các lớp trong file và tự động đồng bộ các lớp mới sang `classes`, một giao dịch
 - `sync_system_classes() returns integer`: chỉ hiệu trưởng; đồng bộ toàn bộ lớp từ `profiles` (sinh viên) & `timetable_entries` sang `classes` và tự xếp sinh viên trùng `class_key` vào `enrollments`
 - `timetable_classes()`: danh sách lớp có thời khóa biểu (tuân theo RLS)
+- `timetable_teacher_accounts()`: giáo viên/hiệu trưởng; trả về `id`, `full_name`, `role`, `subject` của tài khoản `teacher`/`admin` đang hoạt động để lọc Lịch dạy cá nhân
 - `next_student_code() returns text`: chỉ service role; mã 11 chữ số = `6111` + 2 số cuối của năm (giờ VN) + 5 số thứ tự
 
 ## Quy tắc phân quyền (tóm tắt)

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E0F2FE" />
+      <stop offset="48%" stop-color="#BAE6FD" />
+      <stop offset="60%" stop-color="#FEF3C7" />
+      <stop offset="100%" stop-color="#67E8F9" />
+    </linearGradient>
+    <radialGradient id="sun" cx="68%" cy="52%" r="42%">
+      <stop offset="0%" stop-color="#FFFBEB" stop-opacity="0.95" />
+      <stop offset="28%" stop-color="#FDE68A" stop-opacity="0.55" />
+      <stop offset="100%" stop-color="#BAE6FD" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="sea" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="35%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+    <filter id="mist">
+      <feGaussianBlur stdDeviation="20" />
+    </filter>
+  </defs>
+
+  <rect width="1600" height="540" fill="url(#sky)" />
+  <rect width="1600" height="560" fill="url(#sun)" />
+  <circle cx="1088" cy="468" r="54" fill="#FFFBEB" opacity="0.9" />
+
+  <!-- Mây chân trời nhẹ -->
+  <g filter="url(#mist)" opacity="0.72" fill="#FFFFFF">
+    <ellipse cx="380" cy="280" rx="310" ry="48" />
+    <ellipse cx="1220" cy="240" rx="280" ry="42" />
+    <ellipse cx="820" cy="495" rx="520" ry="38" fill="#FEF3C7" />
+  </g>
+
+  <!-- Mặt biển & phản chiếu nắng -->
+  <rect x="0" y="520" width="1600" height="380" fill="url(#sea)" />
+  <path d="M0 536 Q400 524 800 538 T1600 532 L1600 562 L0 562 Z" fill="#67E8F9" opacity="0.45" />
+  <path d="M0 610 Q420 595 840 615 T1600 605 L1600 900 L0 900 Z" fill="#0891B2" opacity="0.32" />
+  <path d="M0 730 Q360 708 740 735 T1600 720 L1600 900 L0 900 Z" fill="#155E75" opacity="0.35" />
+
+  <!-- Vệt nắng lấp lánh trên sóng -->
+  <g fill="#FEF9C3" opacity="0.65">
+    <ellipse cx="1088" cy="542" rx="85" ry="5" />
+    <ellipse cx="1088" cy="566" rx="115" ry="6" opacity="0.55" />
+    <ellipse cx="1082" cy="596" rx="95" ry="5" opacity="0.45" />
+    <ellipse cx="1095" cy="632" rx="125" ry="6" opacity="0.38" />
+    <ellipse cx="1084" cy="675" rx="80" ry="5" opacity="0.32" />
+    <ellipse cx="1090" cy="726" rx="105" ry="6" opacity="0.24" />
+  </g>
+</svg>

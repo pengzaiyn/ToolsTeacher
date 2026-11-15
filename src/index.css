@@ -101,7 +101,107 @@
     transition:
       background-color 220ms ease,
       border-color 220ms ease,
-      color 220ms ease;
+      color 220ms ease,
+      box-shadow 220ms ease,
+      backdrop-filter 220ms ease,
+      -webkit-backdrop-filter 220ms ease;
+  }
+
+  /* Hệ thống kính mờ / kính lỏng iOS (chỉ kích hoạt khi người dùng bật trong Cài đặt) */
+  html.glass-frosted {
+    --glass-blur: 20px;
+    --glass-saturate: 180%;
+    --glass-bg: rgb(var(--color-surface-card) / 0.72);
+    --glass-sub-bg: rgb(var(--color-surface-page) / 0.56);
+    --glass-border: rgb(255 255 255 / 0.72);
+    --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.92);
+    --glass-shadow: 0 8px 28px -8px rgb(15 23 42 / 0.1);
+    --glass-sheen: none;
+  }
+
+  html.dark.glass-frosted {
+    --glass-bg: rgb(var(--color-surface-card) / 0.64);
+    --glass-sub-bg: rgb(var(--color-surface-subtle) / 0.48);
+    --glass-border: rgb(255 255 255 / 0.16);
+    --glass-rim: inset 0 1px 0 rgb(255 255 255 / 0.18);
+    --glass-shadow: 0 12px 32px -10px rgb(0 0 0 / 0.48);
+  }
+
+  html.glass-liquid {
+    --glass-blur: 24px;
+    --glass-saturate: 215%;
+    --glass-bg: rgb(var(--color-surface-card) / 0.5);
+    --glass-sub-bg: rgb(var(--color-surface-page) / 0.4);
+    --glass-border: rgb(255 255 255 / 0.8);
+    --glass-rim:
+      inset 0 1px 0 rgb(255 255 255 / 0.96),
+      inset 0 -1px 0 rgb(var(--color-brand-navy) / 0.08);
+    --glass-shadow: 0 14px 36px -10px rgb(15 23 42 / 0.14);
+    --glass-sheen: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.36) 0%,
+      rgb(255 255 255 / 0.06) 44%,
+      rgb(255 255 255 / 0) 62%,
+      rgb(255 255 255 / 0.16) 100%
+    );
+  }
+
+  html.dark.glass-liquid {
+    --glass-bg: rgb(var(--color-surface-card) / 0.44);
+    --glass-sub-bg: rgb(var(--color-surface-subtle) / 0.36);
+    --glass-border: rgb(255 255 255 / 0.22);
+    --glass-rim:
+      inset 0 1px 0 rgb(255 255 255 / 0.28),
+      inset 0 -1px 0 rgb(255 255 255 / 0.06);
+    --glass-shadow: 0 16px 40px -10px rgb(0 0 0 / 0.58);
+    --glass-sheen: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.15) 0%,
+      rgb(255 255 255 / 0.03) 44%,
+      rgb(255 255 255 / 0) 64%,
+      rgb(255 255 255 / 0.06) 100%
+    );
+  }
+
+  /* Điều chỉnh 3 mức độ hiệu ứng (Nhẹ / Vừa / Rõ) */
+  html.glass-frosted.glass-subtle {
+    --glass-blur: 12px;
+    --glass-saturate: 150%;
+    --glass-bg: rgb(var(--color-surface-card) / 0.84);
+  }
+
+  html.dark.glass-frosted.glass-subtle {
+    --glass-bg: rgb(var(--color-surface-card) / 0.78);
+  }
+
+  html.glass-liquid.glass-subtle {
+    --glass-blur: 14px;
+    --glass-saturate: 180%;
+    --glass-bg: rgb(var(--color-surface-card) / 0.68);
+  }
+
+  html.dark.glass-liquid.glass-subtle {
+    --glass-bg: rgb(var(--color-surface-card) / 0.62);
+  }
+
+  html.glass-frosted.glass-strong {
+    --glass-blur: 28px;
+    --glass-saturate: 215%;
+    --glass-bg: rgb(var(--color-surface-card) / 0.56);
+  }
+
+  html.dark.glass-frosted.glass-strong {
+    --glass-bg: rgb(var(--color-surface-card) / 0.48);
+  }
+
+  html.glass-liquid.glass-strong {
+    --glass-blur: 30px;
+    --glass-saturate: 235%;
+    --glass-bg: rgb(var(--color-surface-card) / 0.34);
+  }
+
+  html.dark.glass-liquid.glass-strong {
+    --glass-bg: rgb(var(--color-surface-card) / 0.3);
   }
 }
 
@@ -139,6 +239,89 @@
 
   .dark .border-brand-red\/30 {
     border-color: rgb(var(--color-brand-red-accent) / 0.45);
+  }
+
+  /* Áp dụng lớp kính iOS cho thanh điều hướng, thẻ, modal và toast khi bật */
+  html.glass-active :is(
+    aside > .bg-surface-card,
+    header.bg-surface-card,
+    footer.bg-surface-card,
+    section.bg-surface-card,
+    article.bg-surface-card,
+    nav.bg-surface-card,
+    div.rounded-xl.bg-surface-card,
+    div.rounded-2xl.bg-surface-card,
+    a.rounded-xl.bg-surface-card,
+    a.rounded-2xl.bg-surface-card,
+    .glass-panel
+  ) {
+    background-color: var(--glass-bg);
+    background-image: var(--glass-sheen);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-rim), var(--glass-shadow);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+
+  html.glass-active aside {
+    border-color: var(--glass-border);
+  }
+
+  html.glass-active :is(
+    aside,
+    header,
+    footer,
+    section,
+    nav.glass-panel,
+    div.rounded-xl.bg-surface-card,
+    div.rounded-2xl.bg-surface-card
+  ) :is(a, button, div, section).bg-surface-page:not(.no-glass) {
+    background-color: var(--glass-sub-bg);
+  }
+
+  html.glass-active .glass-toast {
+    --tw-bg-opacity: 0.82;
+    box-shadow: var(--glass-rim), var(--glass-shadow);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    backdrop-filter: blur(18px) saturate(180%);
+  }
+
+  html.glass-liquid a.group.bg-surface-card:hover {
+    border-color: rgb(var(--color-brand-navy-accent) / 0.55);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.9),
+      0 16px 38px -10px rgb(var(--color-brand-navy) / 0.22);
+  }
+
+  html.dark.glass-liquid a.group.bg-surface-card:hover {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 18px 42px -10px rgb(0 0 0 / 0.65);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    html.glass-active :is(
+      aside > .bg-surface-card,
+      header.bg-surface-card,
+      footer.bg-surface-card,
+      section.bg-surface-card,
+      article.bg-surface-card,
+      nav.bg-surface-card,
+      div.rounded-xl.bg-surface-card,
+      div.rounded-2xl.bg-surface-card,
+      a.rounded-xl.bg-surface-card,
+      a.rounded-2xl.bg-surface-card,
+      .glass-panel,
+      .glass-toast
+    ) {
+      background-color: rgb(var(--color-surface-card) / 0.96);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .glass-ambient-layer {
+      display: none;
+    }
   }
 
   .uno-perspective {
@@ -191,5 +374,151 @@
 
   .uno-chosen-glow {
     animation: unoChosenPulse 2s ease-in-out infinite;
+  }
+
+  /* Hoạt ảnh thú cưng đồng hành (Custom Theme) */
+  @keyframes petIdleBob {
+    0%,
+    100% {
+      transform: translateY(0) scaleY(1);
+    }
+    50% {
+      transform: translateY(-2px) scaleY(1.02);
+    }
+  }
+
+  @keyframes petWalkStep {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-2deg);
+    }
+    50% {
+      transform: translateY(-4px) rotate(2deg);
+    }
+  }
+
+  @keyframes petHappyHop {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    30% {
+      transform: translateY(-12px) scale(1.06, 0.96);
+    }
+    60% {
+      transform: translateY(-3px) scale(0.98, 1.03);
+    }
+  }
+
+  @keyframes petSleepBreath {
+    0%,
+    100% {
+      transform: scale(1, 0.96);
+    }
+    50% {
+      transform: scale(1.03, 0.93);
+    }
+  }
+
+  @keyframes petTailWag {
+    0%,
+    100% {
+      transform: rotate(-5deg);
+    }
+    50% {
+      transform: rotate(7deg);
+    }
+  }
+
+  @keyframes petBlink {
+    0%,
+    92%,
+    100% {
+      transform: scaleY(1);
+    }
+    96% {
+      transform: scaleY(0.1);
+    }
+  }
+
+  @keyframes petPawSwing {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+
+  @keyframes petFloatUp {
+    0% {
+      opacity: 0;
+      transform: translateY(4px) scale(0.8);
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-14px) scale(1.08);
+    }
+  }
+
+  .pet-idle-body {
+    transform-origin: center bottom;
+    animation: petIdleBob 2.6s ease-in-out infinite;
+  }
+
+  .pet-walk-body {
+    transform-origin: center bottom;
+    animation: petWalkStep 0.48s ease-in-out infinite;
+  }
+
+  .pet-hop-body {
+    transform-origin: center bottom;
+    animation: petHappyHop 0.65s ease-in-out infinite;
+  }
+
+  .pet-sleep-body {
+    transform-origin: center bottom;
+    animation: petSleepBreath 3.2s ease-in-out infinite;
+  }
+
+  .pet-tail-wag {
+    transform-origin: 68% 72%;
+    animation: petTailWag 1.8s ease-in-out infinite;
+  }
+
+  .pet-blink {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: petBlink 4.2s ease-in-out infinite;
+  }
+
+  .pet-paw-left {
+    animation: petPawSwing 0.36s ease-in-out infinite;
+  }
+
+  .pet-paw-right {
+    animation: petPawSwing 0.36s ease-in-out 0.18s infinite;
+  }
+
+  .pet-float-up {
+    animation: petFloatUp 1.8s ease-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pet-idle-body,
+    .pet-walk-body,
+    .pet-hop-body,
+    .pet-sleep-body,
+    .pet-tail-wag,
+    .pet-blink,
+    .pet-paw-left,
+    .pet-paw-right,
+    .pet-float-up {
+      animation: none;
+    }
   }
 }
