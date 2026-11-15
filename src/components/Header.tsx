@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useSettingsModal } from '@/context/SettingsModalContext';
 import { ROLE_LABELS, isAdmin, isStaff } from '@/lib/roles';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Badge } from '@/components/ui/Badge';
@@ -28,10 +29,20 @@ interface NavItem {
 
 export function Header() {
   const { profile, signOut } = useAuth();
+  const { isOpen: isSettingsOpen, openSettings } = useSettingsModal();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  const settingsActive = isSettingsOpen || location.pathname === '/settings';
+
+  function handleOpenSettings(onNavigate?: () => void) {
+    onNavigate?.();
+    if (location.pathname !== '/settings') {
+      openSettings();
+    }
+  }
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -149,27 +160,23 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-2">
-          <NavLink
-            to="/settings"
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
-                isActive
-                  ? 'bg-brand-navySoft text-brand-navy'
-                  : 'text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
-              }`
-            }
+          <button
+            type="button"
+            onClick={() => handleOpenSettings(onNavigate)}
+            aria-haspopup="dialog"
+            aria-expanded={isSettingsOpen && location.pathname !== '/settings'}
+            className={`flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
+              settingsActive
+                ? 'bg-brand-navySoft text-brand-navy'
+                : 'text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
+            }`}
           >
-            {({ isActive }) => (
-              <>
-                <SlidersHorizontal
-                  className={`h-4 w-4 shrink-0 ${isActive ? 'text-brand-red' : ''}`}
-                  aria-hidden="true"
-                />
-                <span>Cài đặt</span>
-              </>
-            )}
-          </NavLink>
+            <SlidersHorizontal
+              className={`h-4 w-4 shrink-0 ${settingsActive ? 'text-brand-red' : ''}`}
+              aria-hidden="true"
+            />
+            <span>Cài đặt</span>
+          </button>
           <ThemeToggle />
         </div>
 

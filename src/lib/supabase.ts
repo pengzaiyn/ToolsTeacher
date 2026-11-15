@@ -6,12 +6,15 @@ import {
 } from '@supabase/supabase-js';
 import type { Gender, Profile } from '@/types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const rawSupabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!rawSupabaseUrl || !rawSupabaseAnonKey) {
   throw new Error('Thiếu cấu hình VITE_SUPABASE_URL hoặc VITE_SUPABASE_ANON_KEY trong file .env');
 }
+
+export const supabaseUrl: string = rawSupabaseUrl;
+export const supabaseAnonKey: string = rawSupabaseAnonKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

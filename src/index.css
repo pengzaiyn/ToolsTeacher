@@ -508,6 +508,246 @@
     animation: petFloatUp 1.8s ease-out infinite;
   }
 
+  /* Hoạt ảnh Robot trợ lý AI AVC và thông báo gợi ý bên cạnh */
+  .robot-patrol-track {
+    --robot-patrol-dx: -20px;
+    animation: robotPatrol 10s ease-in-out infinite;
+  }
+
+  @media (min-width: 640px) {
+    .robot-patrol-track {
+      --robot-patrol-dx: -64px;
+    }
+  }
+
+  .robot-patrol-track:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes robotPatrol {
+    0%,
+    16% {
+      transform: translateX(0);
+    }
+    34%,
+    58% {
+      transform: translateX(var(--robot-patrol-dx));
+    }
+    76%,
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes robotBodyFloat {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    25% {
+      transform: translateY(-4px) rotate(-2deg);
+    }
+    50% {
+      transform: translateY(-1px) rotate(0deg);
+    }
+    75% {
+      transform: translateY(-4px) rotate(2deg);
+    }
+  }
+
+  @keyframes robotArmWave {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    20% {
+      transform: rotate(-28deg);
+    }
+    35% {
+      transform: rotate(10deg);
+    }
+    50% {
+      transform: rotate(-26deg);
+    }
+    65% {
+      transform: rotate(6deg);
+    }
+  }
+
+  @keyframes robotArmSwing {
+    0%,
+    100% {
+      transform: rotate(4deg);
+    }
+    50% {
+      transform: rotate(-10deg);
+    }
+  }
+
+  @keyframes robotStepLeft {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes robotStepRight {
+    0%,
+    100% {
+      transform: translateY(-4px);
+    }
+    50% {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes robotAntennaBob {
+    0%,
+    100% {
+      transform: rotate(-5deg);
+    }
+    50% {
+      transform: rotate(6deg);
+    }
+  }
+
+  @keyframes robotBeacon {
+    0%,
+    100% {
+      opacity: 0.9;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.35;
+      transform: scale(1.45);
+    }
+  }
+
+  @keyframes calloutPopIn {
+    0% {
+      opacity: 0;
+      transform: translateX(12px) scale(0.92);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  @keyframes calloutBob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .robot-body-bob {
+    transform-origin: center center;
+    animation: robotBodyFloat 2.4s ease-in-out infinite;
+  }
+
+  .robot-arm-wave {
+    transform-box: fill-box;
+    transform-origin: 50% 18%;
+    animation: robotArmWave 2.4s ease-in-out infinite;
+  }
+
+  .robot-arm-swing {
+    transform-box: fill-box;
+    transform-origin: 50% 18%;
+    animation: robotArmSwing 1.2s ease-in-out infinite;
+  }
+
+  .robot-step-left {
+    animation: robotStepLeft 0.72s ease-in-out infinite;
+  }
+
+  .robot-step-right {
+    animation: robotStepRight 0.72s ease-in-out infinite;
+  }
+
+  .robot-antenna {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: robotAntennaBob 1.8s ease-in-out infinite;
+  }
+
+  .robot-beacon {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robotBeacon 1.6s ease-in-out infinite;
+  }
+
+  .robot-beacon-fast {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robotBeacon 0.65s ease-in-out infinite;
+  }
+
+  @keyframes robotMouthSpeak {
+    0% {
+      transform: scaleY(0.45) scaleX(0.92);
+    }
+    50% {
+      transform: scaleY(1.15) scaleX(1.04);
+    }
+    100% {
+      transform: scaleY(0.7) scaleX(0.98);
+    }
+  }
+
+  @keyframes robotVoiceWave {
+    0% {
+      opacity: 0.25;
+      transform: scale(0.9);
+    }
+    100% {
+      opacity: 0.95;
+      transform: scale(1.08);
+    }
+  }
+
+  @keyframes robotEarListen {
+    0% {
+      opacity: 0.65;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1.12);
+    }
+  }
+
+  .robot-mouth-speak {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robotMouthSpeak 280ms ease-in-out infinite;
+  }
+
+  .robot-voice-wave {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robotVoiceWave 550ms ease-in-out infinite alternate;
+  }
+
+  .robot-ear-listen {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robotEarListen 650ms ease-in-out infinite alternate;
+  }
+
+  .robot-callout-float {
+    animation:
+      calloutPopIn 420ms cubic-bezier(0.22, 1, 0.36, 1) both,
+      calloutBob 2.6s ease-in-out 420ms infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .pet-idle-body,
     .pet-walk-body,
@@ -517,7 +757,20 @@
     .pet-blink,
     .pet-paw-left,
     .pet-paw-right,
-    .pet-float-up {
+    .pet-float-up,
+    .robot-patrol-track,
+    .robot-body-bob,
+    .robot-arm-wave,
+    .robot-arm-swing,
+    .robot-step-left,
+    .robot-step-right,
+    .robot-antenna,
+    .robot-beacon,
+    .robot-beacon-fast,
+    .robot-mouth-speak,
+    .robot-voice-wave,
+    .robot-ear-listen,
+    .robot-callout-float {
       animation: none;
     }
   }

@@ -2,8 +2,11 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { CursorEffectProvider } from '@/context/CursorEffectContext';
 import { CustomThemeProvider } from '@/context/CustomThemeContext';
+import { SettingsModalProvider } from '@/context/SettingsModalContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { CursorEffectOverlay } from '@/components/CursorEffectOverlay';
+import { AssistantWidget } from '@/components/AssistantWidget';
+import { SettingsModal } from '@/components/SettingsModal';
 import { CustomDecorationsOverlay } from '@/components/custom-theme/CustomDecorationsOverlay';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -34,7 +37,8 @@ export function App() {
           <CursorEffectProvider>
             <ToastProvider>
               <AuthProvider>
-                <Routes>
+                <SettingsModalProvider>
+                  <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route
@@ -168,6 +172,9 @@ export function App() {
             <Route path="/" element={<Navigate to="/tools" replace />} />
             <Route path="*" element={<Navigate to="/tools" replace />} />
           </Routes>
+                  <SettingsModal />
+                  <AssistantWidget />
+                </SettingsModalProvider>
               </AuthProvider>
             </ToastProvider>
             <CustomDecorationsOverlay />
