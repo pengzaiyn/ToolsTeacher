@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
+import { CursorSparkleTrail } from '@/components/CursorSparkleTrail';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ClassDetail } from '@/pages/ClassDetail';
@@ -151,6 +152,7 @@ export function App() {
           </Routes>
         </AuthProvider>
       </ToastProvider>
+      <CursorSparkleTrail />
     </BrowserRouter>
   );
 }
