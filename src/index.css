@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .uno-perspective {
+    perspective: 1100px;
+  }
+
+  .uno-card-inner {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .uno-card-inner.is-flipped {
+    transform: rotateY(180deg);
+  }
+
+  .uno-card-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .uno-card-face-front {
+    transform: rotateY(180deg);
+  }
+
+  @keyframes unoDealIn {
+    0% {
+      opacity: 0;
+      transform: translateY(18px) scale(0.88) rotate(-4deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1) rotate(0deg);
+    }
+  }
+
+  .uno-deal-in {
+    animation: unoDealIn 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes unoChosenPulse {
+    0%,
+    100% {
+      box-shadow: 0 10px 24px -6px rgb(200 16 46 / 0.35);
+    }
+    50% {
+      box-shadow: 0 14px 32px -4px rgb(200 16 46 / 0.55);
+    }
+  }
+
+  .uno-chosen-glow {
+    animation: unoChosenPulse 2s ease-in-out infinite;
+  }
+}
+

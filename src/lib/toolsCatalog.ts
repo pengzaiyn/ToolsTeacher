@@ -1,0 +1,147 @@
+import {
+  BookOpen,
+  Calendar,
+  CalendarClock,
+  FileSpreadsheet,
+  Shuffle,
+  Sparkles,
+  Timer,
+  User,
+  UserCheck,
+  Users,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
+import type { UserRole } from '@/types/database';
+
+export type ToolCategory = 'general' | 'teaching' | 'admin';
+
+export interface ToolItem {
+  id: string;
+  title: string;
+  description: string;
+  to: string;
+  icon: LucideIcon;
+  roles: UserRole[];
+  accent: 'red' | 'navy';
+  category: ToolCategory;
+  badge?: string;
+}
+
+// Danh sách công cụ trung tâm (/tools) và công cụ giảng dạy (/teacher/tools)
+export const TOOLS: ToolItem[] = [
+  {
+    id: 'timetable',
+    title: 'Thời khóa biểu',
+    description: 'Xem lịch học theo tuần, phòng học, môn học và giảng viên phụ trách.',
+    to: '/timetable',
+    icon: Calendar,
+    roles: ['student', 'teacher', 'admin'],
+    accent: 'red',
+    category: 'general',
+  },
+  {
+    id: 'classes',
+    title: 'Lớp học',
+    description: 'Quản lý lớp học, tài liệu học tập, thông báo lớp, bài tập và chấm điểm.',
+    to: '/classes',
+    icon: BookOpen,
+    roles: ['student', 'teacher', 'admin'],
+    accent: 'navy',
+    category: 'general',
+  },
+  {
+    id: 'teacher-tools-hub',
+    title: 'Công cụ giảng dạy',
+    description: 'Mở kho tiện ích đứng lớp: lịch dạy cá nhân, mini game trả bài, chia nhóm, đếm giờ.',
+    to: '/teacher/tools',
+    icon: Wrench,
+    roles: ['teacher', 'admin'],
+    accent: 'red',
+    category: 'general',
+  },
+  {
+    id: 'teacher-schedule',
+    title: 'Lịch dạy cá nhân',
+    description: 'Xem lịch giảng dạy hôm nay và theo tuần, tổng hợp số tiết và xuất file Excel.',
+    to: '/teacher/schedule',
+    icon: CalendarClock,
+    roles: ['teacher', 'admin'],
+    accent: 'red',
+    category: 'teaching',
+  },
+  {
+    id: 'classroom-kit-game',
+    title: 'Mini game trả bài',
+    description: 'Vòng quay may mắn và lật thẻ bí ẩn gọi tên sinh viên trả bài kèm bảng kết quả.',
+    to: '/teacher/classroom-kit?tab=random',
+    icon: Sparkles,
+    roles: ['teacher', 'admin'],
+    accent: 'red',
+    category: 'teaching',
+    badge: 'Đứng lớp',
+  },
+  {
+    id: 'classroom-kit-teams',
+    title: 'Chia nhóm ngẫu nhiên',
+    description: 'Chia đều danh sách sinh viên theo số nhóm hoặc sĩ số, sao chép và xuất Excel.',
+    to: '/teacher/classroom-kit?tab=teams',
+    icon: Shuffle,
+    roles: ['teacher', 'admin'],
+    accent: 'navy',
+    category: 'teaching',
+    badge: 'Đứng lớp',
+  },
+  {
+    id: 'classroom-kit-timer',
+    title: 'Đồng hồ bấm giờ lớp học',
+    description: 'Đếm ngược thời gian thảo luận, làm bài hoặc thuyết trình với chế độ chiếu toàn màn hình.',
+    to: '/teacher/classroom-kit?tab=timer',
+    icon: Timer,
+    roles: ['teacher', 'admin'],
+    accent: 'navy',
+    category: 'teaching',
+    badge: 'Đứng lớp',
+  },
+  {
+    id: 'timetable-upload',
+    title: 'Tải thời khóa biểu Excel',
+    description: 'Nhập lịch học từ file Excel theo từng lớp hoặc tải file Excel mẫu.',
+    to: '/timetable/upload',
+    icon: FileSpreadsheet,
+    roles: ['teacher', 'admin'],
+    accent: 'navy',
+    category: 'teaching',
+  },
+  {
+    id: 'admin-students',
+    title: 'Quản lý sinh viên',
+    description: 'Tạo tài khoản sinh viên, gán lớp học, khóa/mở khóa, đặt lại mật khẩu và xóa.',
+    to: '/admin/students',
+    icon: Users,
+    roles: ['admin'],
+    accent: 'navy',
+    category: 'admin',
+  },
+  {
+    id: 'admin-teachers',
+    title: 'Quản lý giáo viên',
+    description: 'Tạo tài khoản giảng viên, cập nhật chủ nhiệm môn và quản lý trạng thái.',
+    to: '/admin/teachers',
+    icon: UserCheck,
+    roles: ['admin'],
+    category: 'admin',
+    accent: 'navy',
+  },
+  {
+    id: 'profile',
+    title: 'Hồ sơ cá nhân',
+    description: 'Xem thông tin tài khoản nhà trường và đổi mật khẩu đăng nhập.',
+    to: '/profile',
+    icon: User,
+    roles: ['student', 'teacher', 'admin'],
+    accent: 'navy',
+    category: 'general',
+  },
+];
+
