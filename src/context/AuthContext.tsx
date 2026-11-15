@@ -8,9 +8,18 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
+import {
+  isAuthRetryableFetchError,
+  type Session,
+  type User,
+} from '@supabase/supabase-js';
 import { mapRecoveryAuthError, normalizeRecoveryEmail } from '@/lib/passwordRecovery';
-import { supabase } from '@/lib/supabase';
+import {
+  AUTH_SESSION_INVALIDATED_EVENT,
+  clearLocalAuthStorage,
+  SUPABASE_AUTH_STORAGE_KEY,
+  supabase,
+} from '@/lib/supabase';
 import type { Profile } from '@/types/database';
 
 export type AuthSignInErrorCode = 'invalid_credentials' | 'locked' | 'profile_invalid' | 'unknown';
@@ -51,6 +60,19 @@ function hasRecoveryUrlMarker(): boolean {
   );
 }
 
+function isRetryableNetworkAuthError(error: unknown): boolean {
+  if (isAuthRetryableFetchError(error)) return true;
+  if (error instanceof Error) {
+    const lower = error.message.toLowerCase();
+    return (
+      lower.includes('failed to fetch') ||
+      lower.includes('networkerror') ||
+      lower.includes('load failed')
+    );
+  }
+  return false;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const initialRecovery = hasRecoveryUrlMarker();
   const [session, setSession] = useState<Session | null>(null);
@@ -59,43 +81,175 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(initialRecovery);
+
   const recoveryPendingRef = useRef(initialRecovery);
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+  // Tăng thế hệ xác thực mỗi lần signIn/signOut/recovery để loại bỏ phản hồi cũ đến muộn
+  const authGenerationRef = useRef(0);
+  // Chặn trình duyệt/Supabase tự phục hồi phiên cũ từ localStorage sau khi đã đăng xuất
+  const explicitSignOutRef = useRef(false);
+  const lastVerifiedAtRef = useRef(0);
 
-  const loadProfile = useCallback(async (userId: string) => {
-    setProfileLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single<Profile>();
+  const performSignOut = useCallback(
+    async ({
+      markExplicit = true,
+      clearError = false,
+    }: {
+      markExplicit?: boolean;
+      clearError?: boolean;
+    } = {}) => {
+      const gen = ++authGenerationRef.current;
+      if (markExplicit) {
+        explicitSignOutRef.current = true;
+      }
+      recoveryPendingRef.current = false;
+      setIsPasswordRecovery(false);
+      if (clearError) {
+        setAuthError(null);
+      }
 
-      if (error || !data) {
+      let timeoutId: number | null = null;
+      const remoteSignOut = supabase.auth
+        .signOut({ scope: 'global' })
+        .catch(() => undefined)
+        .finally(() => {
+          if (authGenerationRef.current === gen) {
+            clearLocalAuthStorage();
+          }
+        });
+
+      try {
+        await Promise.race([
+          remoteSignOut,
+          new Promise<void>((resolve) => {
+            timeoutId = window.setTimeout(resolve, 3500);
+          }),
+        ]);
+      } finally {
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+      }
+
+      if (authGenerationRef.current === gen) {
+        clearLocalAuthStorage();
         setProfile(null);
-        setAuthError('Không tìm thấy hồ sơ tài khoản trên hệ thống.');
-        await supabase.auth.signOut();
+        setSession(null);
+      }
+    },
+    []
+  );
+
+  const loadProfile = useCallback(
+    async (userId: string) => {
+      const gen = authGenerationRef.current;
+      setProfileLoading(true);
+      try {
+        const [userRes, profileRes] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.from('profiles').select('*').eq('id', userId).single<Profile>(),
+        ]);
+
+        if (authGenerationRef.current !== gen || explicitSignOutRef.current) {
+          return;
+        }
+
+        // Nếu JWT không còn phiên hợp lệ trên Supabase Auth (đã đăng xuất/thu hồi) -> dọn sạch phiên ngay
+        const userRejected =
+          (userRes.error && !isRetryableNetworkAuthError(userRes.error)) ||
+          (!userRes.error && !userRes.data.user);
+
+        if (userRejected) {
+          await performSignOut({ markExplicit: false, clearError: true });
+          return;
+        }
+
+        if (profileRes.error || !profileRes.data) {
+          setProfile(null);
+          setAuthError(
+            userRes.error
+              ? 'Không thể kết nối máy chủ để xác thực phiên đăng nhập.'
+              : 'Không tìm thấy hồ sơ tài khoản trên hệ thống.'
+          );
+          await performSignOut({ markExplicit: true, clearError: false });
+          return;
+        }
+
+        if (!profileRes.data.is_active) {
+          setProfile(null);
+          setAuthError('Tài khoản của bạn đang bị khóa. Vui lòng liên hệ quản trị viên nhà trường.');
+          await performSignOut({ markExplicit: true, clearError: false });
+          return;
+        }
+
+        lastVerifiedAtRef.current = Date.now();
+        setAuthError(null);
+        setProfile(profileRes.data);
+      } finally {
+        if (authGenerationRef.current === gen) {
+          setProfileLoading(false);
+        }
+      }
+    },
+    [performSignOut]
+  );
+
+  const verifyActiveSession = useCallback(
+    async (force = false) => {
+      if (explicitSignOutRef.current) {
+        clearLocalAuthStorage();
+        if (sessionRef.current) {
+          setProfile(null);
+          setSession(null);
+        }
         return;
       }
 
-      if (!data.is_active) {
+      if (!sessionRef.current) return;
+
+      const now = Date.now();
+      if (!force && now - lastVerifiedAtRef.current < 3000) {
+        return;
+      }
+      lastVerifiedAtRef.current = now;
+
+      const gen = authGenerationRef.current;
+      const {
+        data: { session: storedSession },
+      } = await supabase.auth.getSession();
+
+      if (authGenerationRef.current !== gen || explicitSignOutRef.current) return;
+
+      if (!storedSession) {
+        clearLocalAuthStorage();
         setProfile(null);
-        setAuthError('Tài khoản của bạn đang bị khóa. Vui lòng liên hệ quản trị viên nhà trường.');
-        await supabase.auth.signOut();
+        setSession(null);
         return;
       }
 
-      setAuthError(null);
-      setProfile(data);
-    } finally {
-      setProfileLoading(false);
-    }
-  }, []);
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (authGenerationRef.current !== gen || explicitSignOutRef.current) return;
+
+      if ((userErr && !isRetryableNetworkAuthError(userErr)) || (!userErr && !userData.user)) {
+        await performSignOut({ markExplicit: false, clearError: true });
+      }
+    },
+    [performSignOut]
+  );
 
   useEffect(() => {
     let mounted = true;
+    const initialGen = authGenerationRef.current;
 
     supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
+      if (!mounted || authGenerationRef.current !== initialGen) return;
+      if (explicitSignOutRef.current) {
+        clearLocalAuthStorage();
+        setSession(null);
+        setSessionReady(true);
+        return;
+      }
       setSession(data.session ?? null);
       setSessionReady(true);
     });
@@ -105,6 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
       if (event === 'PASSWORD_RECOVERY') {
+        explicitSignOutRef.current = false;
         recoveryPendingRef.current = true;
         setIsPasswordRecovery(true);
       } else if (event === 'SIGNED_OUT') {
@@ -114,6 +269,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsPasswordRecovery(true);
       }
 
+      // Chặn các sự kiện phục hồi phiên cũ sau khi người dùng đã nhấn Đăng xuất
+      if (explicitSignOutRef.current && nextSession && event !== 'PASSWORD_RECOVERY') {
+        clearLocalAuthStorage();
+        setSession(null);
+        setProfile(null);
+        setSessionReady(true);
+        return;
+      }
+
       setSession(nextSession);
       if (!nextSession) {
         setProfile(null);
@@ -121,17 +285,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionReady(true);
     });
 
+    const handleStorageChange = (event: StorageEvent) => {
+      if (!mounted || !SUPABASE_AUTH_STORAGE_KEY || event.key !== SUPABASE_AUTH_STORAGE_KEY) {
+        return;
+      }
+      if (!event.newValue) {
+        authGenerationRef.current += 1;
+        explicitSignOutRef.current = true;
+        recoveryPendingRef.current = false;
+        setIsPasswordRecovery(false);
+        setProfile(null);
+        setSession(null);
+      } else {
+        explicitSignOutRef.current = false;
+        void supabase.auth.getSession().then(({ data }) => {
+          if (!mounted || explicitSignOutRef.current) return;
+          setSession(data.session ?? null);
+        });
+      }
+    };
+
+    const handleReturnToPage = () => {
+      if (!mounted || document.visibilityState === 'hidden') return;
+      void verifyActiveSession(false);
+    };
+
+    const handleSessionInvalidated = () => {
+      if (!mounted) return;
+      void verifyActiveSession(true);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    document.addEventListener('visibilitychange', handleReturnToPage);
+    window.addEventListener('pageshow', handleReturnToPage);
+    window.addEventListener(AUTH_SESSION_INVALIDATED_EVENT, handleSessionInvalidated);
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      window.removeEventListener('storage', handleStorageChange);
+      document.removeEventListener('visibilitychange', handleReturnToPage);
+      window.removeEventListener('pageshow', handleReturnToPage);
+      window.removeEventListener(AUTH_SESSION_INVALIDATED_EVENT, handleSessionInvalidated);
     };
-  }, []);
+  }, [verifyActiveSession]);
 
   const userId = session?.user?.id ?? null;
 
   useEffect(() => {
     if (!sessionReady) return;
-    if (!userId) {
+    if (!userId || explicitSignOutRef.current) {
       setProfile(null);
       setProfileLoading(false);
       return;
@@ -139,59 +342,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void loadProfile(userId);
   }, [sessionReady, userId, loadProfile]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    setAuthError(null);
-    recoveryPendingRef.current = false;
-    setIsPasswordRecovery(false);
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      authGenerationRef.current += 1;
+      explicitSignOutRef.current = false;
+      setAuthError(null);
+      recoveryPendingRef.current = false;
+      setIsPasswordRecovery(false);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-    if (error) {
-      const lower = error.message.toLowerCase();
-      if (lower.includes('banned')) {
-        throw new AuthSignInError(
-          'locked',
-          'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ nhà trường.'
-        );
+      if (error) {
+        const lower = error.message.toLowerCase();
+        if (lower.includes('banned')) {
+          throw new AuthSignInError(
+            'locked',
+            'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ nhà trường.'
+          );
+        }
+        if (lower.includes('invalid login')) {
+          throw new AuthSignInError('invalid_credentials', 'Email hoặc mật khẩu chưa đúng.');
+        }
+        throw new AuthSignInError('unknown', 'Đăng nhập thất bại, vui lòng thử lại.');
       }
-      if (lower.includes('invalid login')) {
-        throw new AuthSignInError('invalid_credentials', 'Email hoặc mật khẩu chưa đúng.');
-      }
-      throw new AuthSignInError('unknown', 'Đăng nhập thất bại, vui lòng thử lại.');
-    }
 
-    if (data.user) {
-      const { data: prof, error: pErr } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single<Profile>();
+      if (data.user) {
+        const { data: prof, error: pErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single<Profile>();
 
-      if (pErr || !prof) {
-        await supabase.auth.signOut();
-        throw new AuthSignInError('profile_invalid', 'Tài khoản chưa có hồ sơ hợp lệ trên hệ thống.');
+        if (pErr || !prof) {
+          await performSignOut({ markExplicit: true, clearError: true });
+          throw new AuthSignInError(
+            'profile_invalid',
+            'Tài khoản chưa có hồ sơ hợp lệ trên hệ thống.'
+          );
+        }
+        if (!prof.is_active) {
+          await performSignOut({ markExplicit: true, clearError: true });
+          throw new AuthSignInError(
+            'locked',
+            'Tài khoản của bạn đang bị khóa. Vui lòng liên hệ nhà trường.'
+          );
+        }
+        lastVerifiedAtRef.current = Date.now();
+        setSession(data.session ?? null);
+        setProfile(prof);
       }
-      if (!prof.is_active) {
-        await supabase.auth.signOut();
-        throw new AuthSignInError(
-          'locked',
-          'Tài khoản của bạn đang bị khóa. Vui lòng liên hệ nhà trường.'
-        );
-      }
-      setProfile(prof);
-    }
-  }, []);
+    },
+    [performSignOut]
+  );
 
   const signOut = useCallback(async () => {
-    recoveryPendingRef.current = false;
-    setIsPasswordRecovery(false);
-    await supabase.auth.signOut();
-    setProfile(null);
-    setSession(null);
-  }, []);
+    await performSignOut({ markExplicit: true, clearError: true });
+  }, [performSignOut]);
 
   const requestPasswordRecovery = useCallback(async (email: string) => {
     const normalized = normalizeRecoveryEmail(email);
@@ -206,59 +415,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const verifyRecoveryOtp = useCallback(async (email: string, otpCode: string) => {
-    setAuthError(null);
-    recoveryPendingRef.current = true;
-    setIsPasswordRecovery(true);
+  const verifyRecoveryOtp = useCallback(
+    async (email: string, otpCode: string) => {
+      authGenerationRef.current += 1;
+      explicitSignOutRef.current = false;
+      setAuthError(null);
+      recoveryPendingRef.current = true;
+      setIsPasswordRecovery(true);
 
-    const normalized = normalizeRecoveryEmail(email);
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: normalized,
-      token: otpCode.trim(),
-      type: 'recovery',
-    });
+      const normalized = normalizeRecoveryEmail(email);
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: normalized,
+        token: otpCode.trim(),
+        type: 'recovery',
+      });
 
-    if (error) {
-      recoveryPendingRef.current = false;
-      setIsPasswordRecovery(false);
-      throw new Error(mapRecoveryAuthError(error.message));
-    }
-
-    if (data.user) {
-      const { data: prof, error: pErr } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single<Profile>();
-
-      if (pErr || !prof) {
-        await supabase.auth.signOut();
+      if (error) {
         recoveryPendingRef.current = false;
         setIsPasswordRecovery(false);
-        throw new Error('Tài khoản chưa có hồ sơ hợp lệ trên hệ thống.');
+        throw new Error(mapRecoveryAuthError(error.message));
       }
-      if (!prof.is_active) {
-        await supabase.auth.signOut();
-        recoveryPendingRef.current = false;
-        setIsPasswordRecovery(false);
-        throw new Error('Tài khoản của bạn đang bị khóa. Vui lòng liên hệ nhà trường.');
+
+      if (data.user) {
+        const { data: prof, error: pErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single<Profile>();
+
+        if (pErr || !prof) {
+          await performSignOut({ markExplicit: true, clearError: true });
+          throw new Error('Tài khoản chưa có hồ sơ hợp lệ trên hệ thống.');
+        }
+        if (!prof.is_active) {
+          await performSignOut({ markExplicit: true, clearError: true });
+          throw new Error('Tài khoản của bạn đang bị khóa. Vui lòng liên hệ nhà trường.');
+        }
+        lastVerifiedAtRef.current = Date.now();
+        setProfile(prof);
       }
-      setProfile(prof);
-    }
-  }, []);
+    },
+    [performSignOut]
+  );
 
-  const completePasswordRecovery = useCallback(async (newPassword: string) => {
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      throw new Error(mapRecoveryAuthError(error.message));
-    }
+  const completePasswordRecovery = useCallback(
+    async (newPassword: string) => {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        throw new Error(mapRecoveryAuthError(error.message));
+      }
 
-    await supabase.auth.signOut();
-    recoveryPendingRef.current = false;
-    setIsPasswordRecovery(false);
-    setProfile(null);
-    setSession(null);
-  }, []);
+      await performSignOut({ markExplicit: true, clearError: true });
+    },
+    [performSignOut]
+  );
 
   const cancelPasswordRecovery = useCallback(async () => {
     recoveryPendingRef.current = false;
@@ -267,11 +477,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { session: activeSession },
     } = await supabase.auth.getSession();
     if (activeSession) {
-      await supabase.auth.signOut();
-      setProfile(null);
-      setSession(null);
+      await performSignOut({ markExplicit: true, clearError: true });
+    } else {
+      clearLocalAuthStorage();
     }
-  }, []);
+  }, [performSignOut]);
 
   const refreshProfile = useCallback(async () => {
     if (userId) {

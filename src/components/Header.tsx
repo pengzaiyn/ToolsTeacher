@@ -80,7 +80,7 @@ export function Header() {
     try {
       await signOut();
       setMobileOpen(false);
-      navigate('/login');
+      navigate('/login', { replace: true });
     } finally {
       setSigningOut(false);
     }

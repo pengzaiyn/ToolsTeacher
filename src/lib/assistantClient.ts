@@ -5,7 +5,12 @@ import {
   type AssistantAction,
   type AssistantAudienceRole,
 } from '@/lib/assistantKnowledge';
-import { supabase, supabaseAnonKey, supabaseUrl } from '@/lib/supabase';
+import {
+  notifyAuthSessionInvalidated,
+  supabase,
+  supabaseAnonKey,
+  supabaseUrl,
+} from '@/lib/supabase';
 
 export type AssistantSource = 'gemini' | 'local';
 
@@ -80,6 +85,9 @@ async function invokeAvcAssistantEdge(
       if (error instanceof FunctionsHttpError) {
         const status = error.context.status;
         if (status === 401 || status === 403) {
+          if (status === 401) {
+            notifyAuthSessionInvalidated();
+          }
           let errMsg = 'Phiên đăng nhập đã hết hạn hoặc tài khoản không hợp lệ';
           try {
             const parsed = (await error.context.json()) as { error?: string };
@@ -246,6 +254,9 @@ export function startStreamAssistantSpeech(
 
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
       if (!response.ok || contentType.includes('application/json')) {
+        if (response.status === 401) {
+          notifyAuthSessionInvalidated();
+        }
         try {
           const jsonBody = (await response.json()) as EdgeAssistantPayload;
           return { ok: false, fallbackReason: jsonBody.reason || 'tts_unavailable' };

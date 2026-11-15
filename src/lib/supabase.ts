@@ -16,6 +16,40 @@ if (!rawSupabaseUrl || !rawSupabaseAnonKey) {
 export const supabaseUrl: string = rawSupabaseUrl;
 export const supabaseAnonKey: string = rawSupabaseAnonKey;
 
+export const AUTH_SESSION_INVALIDATED_EVENT = 'avc-auth-session-invalidated';
+
+export const SUPABASE_AUTH_STORAGE_KEY = (() => {
+  try {
+    const ref = new URL(supabaseUrl).hostname.split('.')[0];
+    return ref ? `sb-${ref}-auth-token` : '';
+  } catch {
+    return '';
+  }
+})();
+
+/** Xóa sạch token phiên Supabase còn sót trong localStorage để tránh tự phục hồi sau khi đăng xuất */
+export function clearLocalAuthStorage(): void {
+  if (typeof window === 'undefined' || !SUPABASE_AUTH_STORAGE_KEY) return;
+  try {
+    const prefix = SUPABASE_AUTH_STORAGE_KEY;
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key && (key === prefix || key.startsWith(`${prefix}-`))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // Bỏ qua nếu trình duyệt chặn localStorage
+  }
+}
+
+export function notifyAuthSessionInvalidated(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(AUTH_SESSION_INVALIDATED_EVENT));
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type ManageUsersRequest =
@@ -61,6 +95,7 @@ export async function manageUsers(payload: ManageUsersRequest): Promise<ManageUs
   } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
+    notifyAuthSessionInvalidated();
     throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
   }
 
@@ -70,6 +105,9 @@ export async function manageUsers(payload: ManageUsersRequest): Promise<ManageUs
 
   if (error) {
     if (error instanceof FunctionsHttpError) {
+      if (error.context.status === 401) {
+        notifyAuthSessionInvalidated();
+      }
       try {
         const body = (await error.context.json()) as { error?: string };
         throw new Error(body.error || 'Yêu cầu thất bại, vui lòng thử lại');
