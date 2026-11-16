@@ -19,7 +19,8 @@ import {
   parseStudentWorkbook,
   type KitStudent,
 } from '@/lib/classroomKit';
-import { supabase } from '@/lib/supabase';
+import { isDroppedOutStudent } from '@/lib/roles';
+import { fetchAllPages, supabase } from '@/lib/supabase';
 import type { CollegeClass, Profile } from '@/types/database';
 import { ClassTimerTab } from '@/components/classroom-kit/ClassTimerTab';
 import { RandomPickerTab } from '@/components/classroom-kit/RandomPickerTab';
@@ -45,13 +46,13 @@ type RawEnrollmentRow = {
   class_id: string;
   student: Pick<
     Profile,
-    'id' | 'full_name' | 'student_code' | 'class_name' | 'is_active'
+    'id' | 'full_name' | 'student_code' | 'class_name' | 'is_active' | 'academic_status'
   > | null;
 };
 
 type RawStudentProfile = Pick<
   Profile,
-  'id' | 'full_name' | 'student_code' | 'class_name' | 'class_key' | 'is_active'
+  'id' | 'full_name' | 'student_code' | 'class_name' | 'class_key' | 'is_active' | 'academic_status'
 >;
 
 export function ClassroomKit() {
@@ -92,34 +93,44 @@ export function ClassroomKit() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [clsRes, enrRes, stuRes] = await Promise.all([
+      const [clsRes, enrRows, stuRows] = await Promise.all([
         supabase
           .from('classes')
           .select('id, name, class_key, subject')
           .order('name', { ascending: true })
           .returns<Pick<CollegeClass, 'id' | 'name' | 'class_key' | 'subject'>[]>(),
-        supabase
-          .from('enrollments')
-          .select(
-            'class_id, student:profiles!enrollments_student_id_fkey(id, full_name, student_code, class_name, is_active)'
-          )
-          .returns<RawEnrollmentRow[]>(),
-        supabase
-          .from('profiles')
-          .select('id, full_name, student_code, class_name, class_key, is_active')
-          .eq('role', 'student')
-          .eq('is_active', true)
-          .order('full_name', { ascending: true })
-          .returns<RawStudentProfile[]>(),
+        fetchAllPages<RawEnrollmentRow>((from, to, withCount) =>
+          supabase
+            .from('enrollments')
+            .select(
+              'class_id, student:profiles!enrollments_student_id_fkey(id, full_name, student_code, class_name, is_active, academic_status)',
+              withCount ? { count: 'exact' } : undefined
+            )
+            .range(from, to)
+            .returns<RawEnrollmentRow[]>()
+        ),
+        fetchAllPages<RawStudentProfile>((from, to, withCount) =>
+          supabase
+            .from('profiles')
+            .select(
+              'id, full_name, student_code, class_name, class_key, is_active, academic_status',
+              withCount ? { count: 'exact' } : undefined
+            )
+            .eq('role', 'student')
+            .eq('is_active', true)
+            .order('full_name', { ascending: true })
+            .range(from, to)
+            .returns<RawStudentProfile[]>()
+        ),
       ]);
 
       if (clsRes.error) throw new Error(clsRes.error.message);
-      if (enrRes.error) throw new Error(enrRes.error.message);
-      if (stuRes.error) throw new Error(stuRes.error.message);
 
       const enrolledByClassId = new Map<string, KitStudent[]>();
-      (enrRes.data ?? []).forEach((row) => {
-        if (!row.student || row.student.is_active === false) return;
+      enrRows.forEach((row) => {
+        if (!row.student || row.student.is_active === false || isDroppedOutStudent(row.student)) {
+          return;
+        }
         const list = enrolledByClassId.get(row.class_id) ?? [];
         list.push({
           id: row.student.id,
@@ -131,7 +142,8 @@ export function ClassroomKit() {
       });
 
       const profilesByClassKey = new Map<string, { name: string; students: KitStudent[] }>();
-      (stuRes.data ?? []).forEach((stu) => {
+      stuRows.forEach((stu) => {
+        if (isDroppedOutStudent(stu)) return;
         const cleanClassName = stu.class_name?.trim() ?? '';
         const key = stu.class_key?.trim() || (cleanClassName ? classKey(cleanClassName) : '');
         if (!key) return;

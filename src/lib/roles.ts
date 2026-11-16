@@ -22,3 +22,9 @@ export function isStudent(role?: UserRole | null): boolean {
   return role === 'student';
 }
 
+export function isDroppedOutStudent(
+  student?: { academic_status?: string | null } | null
+): boolean {
+  return (student?.academic_status ?? '').trim().toLowerCase() === 'thôi học';
+}
+

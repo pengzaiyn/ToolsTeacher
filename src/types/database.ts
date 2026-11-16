@@ -104,10 +104,10 @@ export interface Enrollment {
   class_id: string;
   student_id: string;
   enrolled_at: string;
-  student?: Pick<
+  student?: (Pick<
     Profile,
     'id' | 'full_name' | 'email' | 'student_code' | 'class_name' | 'is_active'
-  > | null;
+  > & { academic_status?: string | null }) | null;
 }
 
 export interface Material {

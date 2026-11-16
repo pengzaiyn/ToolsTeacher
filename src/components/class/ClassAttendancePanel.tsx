@@ -24,6 +24,7 @@ import { exportAttendanceToExcel } from '@/lib/attendanceExcel';
 import { classKey } from '@/lib/classKey';
 import { formatClassActionError } from '@/lib/classStorage';
 import { DEFAULT_GRADEBOOK_SETTINGS } from '@/lib/gradebook';
+import { isDroppedOutStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { formatDateVi, toIsoDate } from '@/lib/week';
 import type {
@@ -105,7 +106,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
         supabase
           .from('enrollments')
           .select(
-            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active)'
+            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active, academic_status)'
           )
           .eq('class_id', classItem.id)
           .returns<Enrollment[]>(),
@@ -147,7 +148,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
         recList = recRes.data ?? [];
       }
 
-      setEnrollments(enrRes.data ?? []);
+      setEnrollments((enrRes.data ?? []).filter((row) => !isDroppedOutStudent(row.student)));
       setSessions(sesList);
       setRecords(recList);
       setTimetableEntries(ttRes.data ?? []);

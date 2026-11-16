@@ -17,7 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { formatClassActionError } from '@/lib/classStorage';
-import { isAdmin, isStudent, isTeacher } from '@/lib/roles';
+import { isAdmin, isDroppedOutStudent, isStudent, isTeacher } from '@/lib/roles';
 import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { CollegeClass, Profile, TimetableClassSummary } from '@/types/database';
@@ -105,13 +105,30 @@ export function Classes() {
                 .returns<Profile[]>()
             : Promise.resolve({ data: [] as Profile[], error: null }),
           !studentRole
-            ? fetchAllPages<{ class_id: string }>((from, to, withCount) =>
+            ? fetchAllPages<{
+                class_id: string;
+                student: { academic_status: string | null } | null;
+              }>((from, to, withCount) =>
                 supabase
                   .from('enrollments')
-                  .select('class_id', withCount ? { count: 'exact' } : undefined)
+                  .select(
+                    'class_id, student:profiles!enrollments_student_id_fkey(academic_status)',
+                    withCount ? { count: 'exact' } : undefined
+                  )
                   .range(from, to)
+                  .returns<
+                    {
+                      class_id: string;
+                      student: { academic_status: string | null } | null;
+                    }[]
+                  >()
               )
-            : Promise.resolve([] as { class_id: string }[]),
+            : Promise.resolve(
+                [] as {
+                  class_id: string;
+                  student: { academic_status: string | null } | null;
+                }[]
+              ),
           supabase.rpc('timetable_classes'),
         ]);
         if (cErr) throw new Error(cErr.message);
@@ -119,6 +136,7 @@ export function Classes() {
 
         const eMap = new Map<string, number>();
         enrRows.forEach((row) => {
+          if (isDroppedOutStudent(row.student)) return;
           eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
         });
 

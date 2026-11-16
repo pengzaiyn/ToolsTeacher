@@ -22,6 +22,7 @@ import {
   type GradebookStudentRow,
 } from '@/lib/gradebook';
 import { exportGradebookToExcel } from '@/lib/gradebookExcel';
+import { isDroppedOutStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import type {
   Assignment,
@@ -86,7 +87,7 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
         supabase
           .from('enrollments')
           .select(
-            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active)'
+            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active, academic_status)'
           )
           .eq('class_id', classItem.id)
           .returns<Enrollment[]>(),
@@ -143,7 +144,7 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
       if (subRes.error) throw new Error(subRes.error.message);
       if (recRes.error) throw new Error(recRes.error.message);
 
-      setEnrollments(enrRes.data ?? []);
+      setEnrollments((enrRes.data ?? []).filter((row) => !isDroppedOutStudent(row.student)));
       setAssignments(assignList);
       setSubmissions(subRes.data ?? []);
       setSessions(sesList);

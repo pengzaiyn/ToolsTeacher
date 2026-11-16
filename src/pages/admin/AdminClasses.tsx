@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { BookOpen, Calendar } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
+import { isDroppedOutStudent } from '@/lib/roles';
 import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { CollegeClass, TimetableClassSummary } from '@/types/database';
@@ -31,11 +32,23 @@ export function AdminClasses() {
             .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
             .order('created_at', { ascending: false })
             .returns<CollegeClass[]>(),
-          fetchAllPages<{ class_id: string }>((from, to, withCount) =>
+          fetchAllPages<{
+            class_id: string;
+            student: { academic_status: string | null } | null;
+          }>((from, to, withCount) =>
             supabase
               .from('enrollments')
-              .select('class_id', withCount ? { count: 'exact' } : undefined)
+              .select(
+                'class_id, student:profiles!enrollments_student_id_fkey(academic_status)',
+                withCount ? { count: 'exact' } : undefined
+              )
               .range(from, to)
+              .returns<
+                {
+                  class_id: string;
+                  student: { academic_status: string | null } | null;
+                }[]
+              >()
           ),
           supabase.rpc('timetable_classes'),
         ]);
@@ -43,6 +56,7 @@ export function AdminClasses() {
 
         const eMap = new Map<string, number>();
         enrRows.forEach((row) => {
+          if (isDroppedOutStudent(row.student)) return;
           eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
         });
 

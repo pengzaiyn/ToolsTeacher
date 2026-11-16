@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
-import { supabase } from '@/lib/supabase';
+import { isDroppedOutStudent } from '@/lib/roles';
+import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
 import type { Enrollment, Profile } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
@@ -39,31 +40,33 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data: enrData, error: eErr }, { data: stuData, error: sErr }] = await Promise.all([
+        const [{ data: enrData, error: eErr }, stuData] = await Promise.all([
           supabase
             .from('enrollments')
             .select(
-              '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active)'
+              '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active, academic_status)'
             )
             .eq('class_id', classId)
             .order('enrolled_at', { ascending: false })
             .returns<Enrollment[]>(),
           canManage
-            ? supabase
-                .from('profiles')
-                .select('*')
-                .eq('role', 'student')
-                .eq('is_active', true)
-                .order('full_name', { ascending: true })
-                .returns<Profile[]>()
-            : Promise.resolve({ data: [] as Profile[], error: null }),
+            ? fetchAllPages<Profile>((from, to, withCount) =>
+                supabase
+                  .from('profiles')
+                  .select('*', withCount ? { count: 'exact' } : undefined)
+                  .eq('role', 'student')
+                  .eq('is_active', true)
+                  .order('full_name', { ascending: true })
+                  .range(from, to)
+                  .returns<Profile[]>()
+              )
+            : Promise.resolve([] as Profile[]),
         ]);
 
         if (eErr) throw new Error(eErr.message);
-        if (sErr) throw new Error(sErr.message);
 
-        setEnrollments(enrData ?? []);
-        setAllStudents(stuData ?? []);
+        setEnrollments((enrData ?? []).filter((row) => !isDroppedOutStudent(row.student)));
+        setAllStudents(stuData.filter((s) => !isDroppedOutStudent(s)));
       } catch (err) {
         if (!silent) {
           toast.error(err instanceof Error ? err.message : 'Không tải được danh sách thành viên');

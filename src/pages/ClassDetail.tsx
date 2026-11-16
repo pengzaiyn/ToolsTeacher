@@ -15,7 +15,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
-import { isAdmin, isStudent } from '@/lib/roles';
+import { isAdmin, isDroppedOutStudent, isStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import type { CollegeClass, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
@@ -68,15 +68,20 @@ export function ClassDetail() {
           !studentView
             ? supabase
                 .from('enrollments')
-                .select('id', { count: 'exact', head: true })
+                .select('id, student:profiles!enrollments_student_id_fkey(academic_status)')
                 .eq('class_id', id)
-            : Promise.resolve({ count: null, error: null }),
+                .returns<{ id: string; student: { academic_status: string | null } | null }[]>()
+            : Promise.resolve({ data: null, error: null }),
           supabase.rpc('timetable_classes'),
         ]);
         if (error) throw new Error(error.message);
 
         setCls(data ?? null);
-        setStudentCount(enrRes.count ?? null);
+        setStudentCount(
+          enrRes.data
+            ? enrRes.data.filter((row) => !isDroppedOutStudent(row.student)).length
+            : null
+        );
 
         if (data) {
           const targetKey = data.class_key || classKey(data.name);
