@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { FileSpreadsheet, Globe, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  FileSpreadsheet,
+  Globe,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { normalizeStudentCode, studentEmail } from '@/lib/email';
@@ -756,42 +769,91 @@ export function AdminStudents() {
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <Table
-              columns={columns}
-              data={paginated}
-              rowKey={(row) => row.id}
-              caption="Danh sách sinh viên"
-            />
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-secondary">
-              <span>
-                Hiển thị {(currentPage - 1) * PAGE_SIZE + 1}–
-                {Math.min(currentPage * PAGE_SIZE, filtered.length)} trên tổng{' '}
-                <strong className="text-ink-primary">{filtered.length}</strong> sinh viên
-              </span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={currentPage <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Trang trước
-                  </Button>
-                  <span className="font-semibold text-ink-primary">
-                    {currentPage} / {totalPages}
+            {(() => {
+              const startPage = Math.max(1, currentPage - 2);
+              const endPage = Math.min(totalPages, currentPage + 2);
+              const pageNumbers: number[] = [];
+              for (let p = startPage; p <= endPage; p += 1) pageNumbers.push(p);
+
+              const paginationBar = (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-card px-4 py-2 text-xs text-ink-secondary">
+                  <span>
+                    Hiển thị {(currentPage - 1) * PAGE_SIZE + 1}–
+                    {Math.min(currentPage * PAGE_SIZE, filtered.length)} trên tổng{' '}
+                    <strong className="text-ink-primary">{filtered.length}</strong> sinh viên
                   </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Trang sau
-                  </Button>
+                  {totalPages > 1 && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage(1)}
+                        title="Trang đầu"
+                        aria-label="Trang đầu"
+                      >
+                        <ChevronsLeft className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        title="Trang trước"
+                        aria-label="Trang trước"
+                      >
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                      {startPage > 1 && <span className="px-1 text-ink-muted">...</span>}
+                      {pageNumbers.map((p) => (
+                        <Button
+                          key={p}
+                          size="sm"
+                          variant={p === currentPage ? 'navy' : 'secondary'}
+                          onClick={() => setPage(p)}
+                        >
+                          {p}
+                        </Button>
+                      ))}
+                      {endPage < totalPages && <span className="px-1 text-ink-muted">...</span>}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        title="Trang sau"
+                        aria-label="Trang sau"
+                      >
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setPage(totalPages)}
+                        title="Trang cuối"
+                        aria-label="Trang cuối"
+                      >
+                        <ChevronsRight className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+
+              return (
+                <>
+                  {paginationBar}
+                  <Table
+                    columns={columns}
+                    data={paginated}
+                    rowKey={(row) => row.id}
+                    caption="Danh sách sinh viên"
+                  />
+                  {paginationBar}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>

@@ -262,9 +262,9 @@ Deno.serve(async (req: Request) => {
       .from("submissions")
       .select("file_url")
       .eq("student_id", targetId);
-    const storagePaths = (subs ?? [])
-      .map((row) => row.file_url as string | null)
-      .filter((path): path is string => Boolean(path) && !/^https?:\/\//i.test(path));
+    const storagePaths = ((subs ?? []) as { file_url: string | null }[])
+      .map((row: { file_url: string | null }) => row.file_url)
+      .filter((path: string | null): path is string => typeof path === "string" && path.length > 0 && !/^https?:\/\//i.test(path));
     if (storagePaths.length > 0) {
       await admin.storage.from("submissions").remove(storagePaths);
     }
