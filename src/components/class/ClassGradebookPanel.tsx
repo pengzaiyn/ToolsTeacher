@@ -176,6 +176,7 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
       { table: 'enrollments', filter: `class_id=eq.${classItem.id}` },
       { table: 'class_gradebook_settings', filter: `class_id=eq.${classItem.id}` },
     ],
+    enabled: !showConfig,
     onRefresh: () => loadData(true),
   });
 
@@ -533,10 +534,18 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
               type="number"
               min={1}
               max={100}
-              value={absenceWarningPct}
-              onChange={(e) =>
-                setAbsenceWarningPct(Math.max(1, Math.min(100, Number(e.target.value) || 20)))
-              }
+              value={absenceWarningPct === 0 ? '' : absenceWarningPct}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  setAbsenceWarningPct(0);
+                  return;
+                }
+                setAbsenceWarningPct(Math.max(0, Math.min(100, Number(raw))));
+              }}
+              onBlur={() => {
+                if (absenceWarningPct < 1) setAbsenceWarningPct(20);
+              }}
             />
             <Select
               label="Hệ số Đi muộn"

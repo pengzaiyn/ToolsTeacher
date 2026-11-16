@@ -208,16 +208,22 @@ export function StudentImportModal({
           created += 1;
         } else if (row.existingStudentId) {
           const cleanClass = row.className.trim().replace(/\s+/g, ' ');
+          const cleanAdvisor = row.admissionsAdvisor.trim().replace(/\s+/g, ' ');
+          const updatePayload: Record<string, string | null> = {
+            full_name: row.fullName,
+            gender: row.gender as Gender,
+            date_of_birth: row.dateOfBirth,
+          };
+          if (cleanClass) {
+            updatePayload.class_name = cleanClass;
+            updatePayload.class_key = classKey(cleanClass);
+          }
+          if (cleanAdvisor) {
+            updatePayload.admissions_advisor = cleanAdvisor;
+          }
           const { error } = await supabase
             .from('profiles')
-            .update({
-              full_name: row.fullName,
-              gender: row.gender as Gender,
-              date_of_birth: row.dateOfBirth,
-              class_name: cleanClass || null,
-              class_key: cleanClass ? classKey(cleanClass) : null,
-              admissions_advisor: row.admissionsAdvisor || null,
-            })
+            .update(updatePayload)
             .eq('id', row.existingStudentId);
 
           if (error) throw new Error(error.message);

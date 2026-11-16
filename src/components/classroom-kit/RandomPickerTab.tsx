@@ -624,6 +624,8 @@ export function RandomPickerTab({
   }
 
   function handlePickNextStudent() {
+    setNoticeState(null);
+    setWinnerModalRecordId(null);
     if (pendingTurnRecord) {
       toast.info(
         `Vui lòng hoàn tất lượt trả bài của ${pendingTurnRecord.student.name} trước khi chọn sinh viên khác.`
@@ -815,24 +817,36 @@ export function RandomPickerTab({
     }
 
     clearAllAnimations();
-    const freshDeck = shuffleList(availableStudents).slice(0, 16);
-    setCardDeck(freshDeck);
+    const pickableCards =
+      cardsAvailableInDeck.length > 0
+        ? cardsAvailableInDeck
+        : shuffleList(availableStudents).slice(0, 16);
+    if (cardsAvailableInDeck.length === 0) {
+      setCardDeck(pickableCards);
+    }
+    const visibleDeck =
+      cardsAvailableInDeck.length > 0
+        ? cardDeck.filter((s) => !absentStudentIds.has(s.id))
+        : pickableCards;
     setActiveRecordId(null);
     setDrawingCard(true);
 
-    const chosenIdx = Math.floor(Math.random() * freshDeck.length);
-    const chosenStudent = freshDeck[chosenIdx];
+    const chosenStudent = pickableCards[Math.floor(Math.random() * pickableCards.length)];
+    const chosenVisibleIdx = Math.max(
+      0,
+      visibleDeck.findIndex((s) => s.id === chosenStudent.id)
+    );
     let stepCount = 0;
 
     cardIntervalRef.current = window.setInterval(() => {
-      setHighlightedCardIdx(stepCount % freshDeck.length);
+      setHighlightedCardIdx(stepCount % Math.max(1, visibleDeck.length));
       if (soundEnabled) playWheelTick();
       stepCount += 1;
     }, 85);
 
     cardTimeoutRef.current = window.setTimeout(() => {
       clearAllAnimations();
-      setHighlightedCardIdx(null);
+      setHighlightedCardIdx(chosenVisibleIdx);
       setDrawingCard(false);
       finalizeSelection(chosenStudent);
     }, 760);
@@ -1107,11 +1121,14 @@ export function RandomPickerTab({
             {gameMode === 'wheel' ? (
               <SpinWheelStage
                 totalAvailable={availableStudents.length}
-                displaySlots={
-                  wheelSlots.filter((s) => !absentStudentIds.has(s.id)).length > 0
-                    ? wheelSlots.filter((s) => !absentStudentIds.has(s.id))
-                    : buildWheelSlots(availableStudents)
-                }
+                displaySlots={wheelSlots.filter(
+                  (s) =>
+                    !absentStudentIds.has(s.id) &&
+                    (!noRepeat ||
+                      !calledIdSet.has(s.id) ||
+                      s.id === pendingTurnRecord?.student.id ||
+                      spinning)
+                )}
                 rotationDeg={rotationDeg}
                 spinning={spinning}
                 canSpin={canStartPick}
@@ -1126,7 +1143,7 @@ export function RandomPickerTab({
               />
             ) : (
               <MysteryCardsStage
-                cards={cardsAvailableInDeck}
+                cards={cardDeck.filter((s) => !absentStudentIds.has(s.id))}
                 totalAvailable={availableStudents.length}
                 activeStudentId={activeRecord?.student.id ?? null}
                 calledStudentIds={calledIdSet}

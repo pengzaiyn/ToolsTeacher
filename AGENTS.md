@@ -7,7 +7,9 @@ Trang công cụ cho thầy cô và sinh viên Trường Cao đẳng Việt Mỹ
 ## Lệnh
 - `npm install` cài thư viện
 - `npm run dev` chạy ở http://localhost:5173
+- `npm test` chạy bộ unit test (`vitest run`)
 - `npm run build` kiểm tra kiểu TypeScript rồi đóng gói. Lưu ý: code chưa từng được build, việc đầu tiên là chạy lệnh này và sửa lỗi nếu có
+- `npm run verify` kiểm tra bảo mật/migration (`scripts/verify-project.mjs`), chạy unit test và build toàn bộ dự án
 
 ## Công nghệ
 React 18, Vite, TypeScript, Tailwind CSS 3, React Router 6, Supabase (Postgres, Auth, Storage, Edge Functions), lucide-react, xlsx. Chi tiết: `docs/TECH_STACK.md`.

@@ -104,7 +104,7 @@ export async function parseStudentImportWorkbook(
   existingStudents: Profile[]
 ): Promise<StudentImportParseResult> {
   const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+  const wb = XLSX.read(buffer, { type: 'array' });
 
   const sheetName =
     wb.SheetNames.find((name) => normalizeHeader(name).includes('danhsach')) ??
@@ -212,17 +212,18 @@ export async function parseStudentImportWorkbook(
         errors.push('MSV phải đủ 11 số đầu 6111 hoặc 7 số cuối');
       } else {
         normalizedCode = codeResult;
-        const sysMatch = existingByCode.get(normalizedCode);
         const fileRow = seenCodeRow.get(normalizedCode);
-        if (sysMatch) {
-          duplicateType = 'system_code';
-          existingStudentId = sysMatch.id;
-          duplicateReason = `Trùng MSV ${normalizedCode} (${sysMatch.full_name})`;
-        } else if (fileRow !== undefined) {
+        const sysMatch = existingByCode.get(normalizedCode);
+        if (fileRow !== undefined) {
           duplicateType = 'file_code';
           duplicateReason = `Trùng MSV ${normalizedCode} với dòng ${fileRow} trong file`;
         } else {
           seenCodeRow.set(normalizedCode, rowNumber);
+          if (sysMatch) {
+            duplicateType = 'system_code';
+            existingStudentId = sysMatch.id;
+            duplicateReason = `Trùng MSV ${normalizedCode} (${sysMatch.full_name})`;
+          }
         }
       }
     }
@@ -232,19 +233,22 @@ export async function parseStudentImportWorkbook(
 
     if (normalizedCode && !emailPreview) {
       errors.push('Không tạo được email từ họ tên và MSV');
-    } else if (emailPreview && duplicateType === 'none') {
+    } else if (emailPreview) {
       const lowerEmail = emailPreview.toLowerCase();
-      const sysEmailMatch = existingByEmail.get(lowerEmail);
       const fileEmailRow = seenEmailRow.get(lowerEmail);
-      if (sysEmailMatch) {
-        duplicateType = 'system_email';
-        existingStudentId = sysEmailMatch.id;
-        duplicateReason = `Trùng email ${emailPreview} (${sysEmailMatch.full_name})`;
-      } else if (fileEmailRow !== undefined) {
-        duplicateType = 'file_email';
-        duplicateReason = `Trùng email ${emailPreview} với dòng ${fileEmailRow} trong file`;
+      const sysEmailMatch = existingByEmail.get(lowerEmail);
+      if (fileEmailRow !== undefined) {
+        if (duplicateType === 'none') {
+          duplicateType = 'file_email';
+          duplicateReason = `Trùng email ${emailPreview} với dòng ${fileEmailRow} trong file`;
+        }
       } else {
         seenEmailRow.set(lowerEmail, rowNumber);
+        if (duplicateType === 'none' && sysEmailMatch) {
+          duplicateType = 'system_email';
+          existingStudentId = sysEmailMatch.id;
+          duplicateReason = `Trùng email ${emailPreview} (${sysEmailMatch.full_name})`;
+        }
       }
     }
 

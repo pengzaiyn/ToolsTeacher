@@ -156,6 +156,9 @@ export function buildClassGradebook(
       if (assignmentAverage10 !== null) {
         weightedSum += assignmentAverage10 * wAssign;
         activeWeightWithData += wAssign;
+        if (gradedAssignmentsCount < assignments.length) {
+          missingRequiredComponent = true;
+        }
       } else {
         missingRequiredComponent = true;
       }

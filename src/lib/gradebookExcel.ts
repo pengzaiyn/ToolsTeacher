@@ -102,8 +102,8 @@ export function exportGradebookToExcel(params: {
       ? Math.round(
           (gradedFinal.reduce((sum, r) => sum + (r.finalScore10 ?? 0), 0) /
             gradedFinal.length) *
-            100
-        ) / 100
+            10
+        ) / 10
       : '';
 
   const statsRows: (string | number)[][] = [

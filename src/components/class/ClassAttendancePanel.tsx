@@ -93,6 +93,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
 
   const [deleteTarget, setDeleteTarget] = useState<AttendanceSession | null>(null);
   const [deletingSession, setDeletingSession] = useState(false);
+  const [pendingSwitchSessionId, setPendingSwitchSessionId] = useState<string | null>(null);
 
   const targetClassKey = classItem.class_key || classKey(classItem.name);
 
@@ -226,7 +227,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
       };
     });
     setDraftMarks(nextDraft);
-    setDirty(false);
+    setDirty(sortedEnrollments.length > 0 && sessionRecords.size < sortedEnrollments.length);
   }, [selectedSessionId, records, sortedEnrollments]);
 
   const summaries = useMemo(
@@ -351,6 +352,22 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
         .single<AttendanceSession>();
 
       if (error) throw new Error(error.message);
+
+      if (sortedEnrollments.length > 0) {
+        const now = new Date().toISOString();
+        const defaultRecords = sortedEnrollments.map((enr) => ({
+          session_id: data.id,
+          student_id: enr.student_id,
+          status: 'present' as AttendanceStatus,
+          note: null,
+          marked_by: user.id,
+          updated_at: now,
+        }));
+        const { error: recErr } = await supabase
+          .from('attendance_records')
+          .upsert(defaultRecords, { onConflict: 'session_id,student_id' });
+        if (recErr) throw new Error(recErr.message);
+      }
 
       toast.success('Đã tạo buổi điểm danh mới');
       setCreateOpen(false);
@@ -759,7 +776,15 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
               <Select
                 label="Chọn buổi điểm danh"
                 value={selectedSessionId}
-                onChange={(e) => setSelectedSessionId(e.target.value)}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  if (nextId === selectedSessionId) return;
+                  if (dirty) {
+                    setPendingSwitchSessionId(nextId);
+                  } else {
+                    setSelectedSessionId(nextId);
+                  }
+                }}
                 options={sessions.map((s) => ({
                   value: s.id,
                   label: `${formatDateVi(s.session_date)} — ${s.title}${
@@ -948,6 +973,21 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
         })? Toàn bộ dữ liệu tích chuyên cần của buổi này sẽ bị xóa vĩnh viễn.`}
         confirmLabel="Xóa buổi"
         loading={deletingSession}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingSwitchSessionId)}
+        onClose={() => setPendingSwitchSessionId(null)}
+        onConfirm={() => {
+          if (pendingSwitchSessionId) {
+            setSelectedSessionId(pendingSwitchSessionId);
+          }
+          setPendingSwitchSessionId(null);
+        }}
+        title="Chưa lưu thay đổi điểm danh"
+        message="Bạn có thay đổi trạng thái điểm danh chưa nhấn Lưu. Chuyển sang buổi khác sẽ hủy các thay đổi chưa lưu này. Bạn có muốn chuyển buổi không?"
+        confirmLabel="Chuyển buổi"
+        confirmVariant="primary"
       />
     </div>
   );
