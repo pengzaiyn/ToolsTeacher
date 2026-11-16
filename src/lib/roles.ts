@@ -22,9 +22,12 @@ export function isStudent(role?: UserRole | null): boolean {
   return role === 'student';
 }
 
+const HIDDEN_FROM_CLASS_STATUSES = new Set(['thôi học', 'nghỉ học dài ngày']);
+
 export function isDroppedOutStudent(
   student?: { academic_status?: string | null } | null
 ): boolean {
-  return (student?.academic_status ?? '').trim().toLowerCase() === 'thôi học';
+  const status = (student?.academic_status ?? '').trim().toLowerCase();
+  return HIDDEN_FROM_CLASS_STATUSES.has(status);
 }
 
