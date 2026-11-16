@@ -287,6 +287,9 @@ export function MysteryCardsStage({
     };
   }, [cards, shuffling]);
 
+  const isDense = cards.length > 30;
+  const isCompact = cards.length > 16;
+
   const gridColsClass =
     cards.length === 1
       ? 'mx-auto w-full max-w-xs grid-cols-1'
@@ -294,7 +297,11 @@ export function MysteryCardsStage({
         ? 'mx-auto w-full max-w-lg grid-cols-2'
         : cards.length === 3
           ? 'grid-cols-2 sm:grid-cols-3'
-          : 'grid-cols-2 sm:grid-cols-4';
+          : isDense
+            ? 'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8'
+            : isCompact
+              ? 'grid-cols-3 sm:grid-cols-5 lg:grid-cols-6'
+              : 'grid-cols-2 sm:grid-cols-4';
 
   return (
     <div className="flex flex-col gap-4">
@@ -334,9 +341,9 @@ export function MysteryCardsStage({
         </div>
       )}
 
-      {totalAvailable > cards.length && cards.length > 0 && (
+      {cards.length > 0 && (
         <p className="text-xs font-normal text-ink-muted">
-          Đang bày ngẫu nhiên {cards.length} thẻ (còn {totalAvailable} SV chưa gọi). Bấm &quot;Xào thẻ&quot; để đổi bộ thẻ khác.
+          Đang bày toàn bộ {cards.length} thẻ ({totalAvailable} SV chưa gọi). Bấm &quot;Xào thẻ&quot; để tráo lại vị trí.
         </p>
       )}
 
@@ -345,7 +352,9 @@ export function MysteryCardsStage({
           Không còn sinh viên nào trong lượt chọn ngẫu nhiên. Bấm &quot;Làm mới phiên&quot; để nạp lại danh sách.
         </p>
       ) : (
-        <div className={`grid gap-4 ${gridColsClass}`}>
+        <div
+          className={`grid ${isDense ? 'max-h-[520px] gap-2.5 overflow-y-auto pr-1' : isCompact ? 'gap-3' : 'gap-4'} ${gridColsClass}`}
+        >
           {cards.map((student, idx) => {
             const isCurrent = activeStudentId === student.id;
             const isDone = noRepeat && !isCurrent && calledStudentIds.has(student.id);
@@ -361,7 +370,13 @@ export function MysteryCardsStage({
                 type="button"
                 disabled={!canPick || drawing || shuffling || isRevealed}
                 onClick={() => onPickCard(student)}
-                className={`relative flex min-h-[112px] min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border p-4 text-center ${
+                className={`relative flex min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border text-center ${
+                  isDense
+                    ? 'min-h-[68px] gap-1 p-2'
+                    : isCompact
+                      ? 'min-h-[84px] gap-1.5 p-2.5'
+                      : 'min-h-[112px] gap-2 p-4'
+                } ${
                   shuffling ? 'shadow-md' : 'transition-all'
                 } ${
                   isCurrent
@@ -376,20 +391,24 @@ export function MysteryCardsStage({
                 {isRevealed ? (
                   <>
                     <span
-                      className={`whitespace-nowrap text-xs font-bold uppercase ${
+                      className={`whitespace-nowrap font-bold uppercase ${
+                        isDense ? 'text-[10px]' : 'text-xs'
+                      } ${
                         isCurrent ? 'text-brand-red' : 'text-ink-muted'
                       }`}
                     >
-                      {isCurrent ? `Thẻ #${idx + 1} · Đang gọi` : `Thẻ #${idx + 1} · Đã gọi`}
+                      {isCurrent ? `#${idx + 1} · Đang gọi` : `#${idx + 1} · Đã gọi`}
                     </span>
                     <span
-                      className={`line-clamp-2 break-words text-sm font-bold leading-snug ${
+                      className={`line-clamp-2 break-words font-bold leading-snug ${
+                        isDense ? 'text-xs' : 'text-sm'
+                      } ${
                         isCurrent ? 'text-brand-navy' : 'text-ink-secondary'
                       }`}
                     >
                       {student.name}
                     </span>
-                    {student.code && (
+                    {student.code && !isDense && (
                       <span className="max-w-full truncate text-xs font-normal tabular-nums text-ink-muted">
                         {student.code}
                       </span>
@@ -397,10 +416,23 @@ export function MysteryCardsStage({
                   </>
                 ) : (
                   <>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                      <HelpCircle className="h-4 w-4 text-white" aria-hidden="true" />
+                    <div
+                      className={`flex items-center justify-center rounded-full bg-white/15 ${
+                        isDense ? 'h-6 w-6' : 'h-8 w-8'
+                      }`}
+                    >
+                      <HelpCircle
+                        className={isDense ? 'h-3.5 w-3.5 text-white' : 'h-4 w-4 text-white'}
+                        aria-hidden="true"
+                      />
                     </div>
-                    <span className="whitespace-nowrap text-base font-bold">Thẻ #{idx + 1}</span>
+                    <span
+                      className={`whitespace-nowrap font-bold ${
+                        isDense ? 'text-xs' : isCompact ? 'text-sm' : 'text-base'
+                      }`}
+                    >
+                      Thẻ #{idx + 1}
+                    </span>
                   </>
                 )}
               </button>

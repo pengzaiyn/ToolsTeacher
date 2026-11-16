@@ -14,11 +14,13 @@ describe('email & student code rules', () => {
     expect(slug('Nguyễn Thị Ánh')).toBe('nguyenthianh');
   });
 
-  it('normalizes 7-digit or 11-digit 6111 student codes', () => {
+  it('normalizes 7-digit shorthand and 6-20 char alphanumeric student codes', () => {
     expect(normalizeStudentCode('2600001')).toBe('61112600001');
     expect(normalizeStudentCode('61112600001')).toBe('61112600001');
-    expect(normalizeStudentCode('61122600001')).toBeNull();
+    expect(normalizeStudentCode('51112610044')).toBe('51112610044');
+    expect(normalizeStudentCode('n8112400001')).toBe('N8112400001');
     expect(normalizeStudentCode('12345')).toBeNull();
+    expect(normalizeStudentCode('ABC-123')).toBeNull();
   });
 
   it('generates student school email from given name and last 8 digits', () => {

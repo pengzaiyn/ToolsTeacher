@@ -199,28 +199,43 @@ export function StudentImportModal({
           await manageUsers({
             action: 'create_student',
             full_name: row.fullName,
-            gender: row.gender as Gender,
-            date_of_birth: row.dateOfBirth,
+            email: row.emailPreview || undefined,
+            gender: row.gender ? (row.gender as Gender) : undefined,
+            date_of_birth: row.dateOfBirth || undefined,
             student_code: task.useAutoCode ? undefined : row.studentCode || undefined,
             class_name: row.className || undefined,
             admissions_advisor: row.admissionsAdvisor || undefined,
+            education_system: row.educationSystem || undefined,
+            major: row.major || undefined,
+            cohort: row.cohort || undefined,
+            initial_cohort: row.initialCohort || undefined,
+            academic_status: row.academicStatus || undefined,
+            status_reason: row.statusReason || undefined,
+            status_note: row.statusNote || undefined,
+            is_active: row.isActive,
           });
           created += 1;
         } else if (row.existingStudentId) {
           const cleanClass = row.className.trim().replace(/\s+/g, ' ');
           const cleanAdvisor = row.admissionsAdvisor.trim().replace(/\s+/g, ' ');
-          const updatePayload: Record<string, string | null> = {
+          const updatePayload: Record<string, string | boolean | null> = {
             full_name: row.fullName,
-            gender: row.gender as Gender,
-            date_of_birth: row.dateOfBirth,
+            is_active: row.isActive,
           };
+          if (row.gender) updatePayload.gender = row.gender as Gender;
+          if (row.dateOfBirth) updatePayload.date_of_birth = row.dateOfBirth;
           if (cleanClass) {
             updatePayload.class_name = cleanClass;
             updatePayload.class_key = classKey(cleanClass);
           }
-          if (cleanAdvisor) {
-            updatePayload.admissions_advisor = cleanAdvisor;
-          }
+          if (cleanAdvisor) updatePayload.admissions_advisor = cleanAdvisor;
+          if (row.educationSystem) updatePayload.education_system = row.educationSystem;
+          if (row.major) updatePayload.major = row.major;
+          if (row.cohort) updatePayload.cohort = row.cohort;
+          if (row.initialCohort) updatePayload.initial_cohort = row.initialCohort;
+          if (row.academicStatus) updatePayload.academic_status = row.academicStatus;
+          if (row.statusReason) updatePayload.status_reason = row.statusReason;
+          if (row.statusNote) updatePayload.status_note = row.statusNote;
           const { error } = await supabase
             .from('profiles')
             .update(updatePayload)
@@ -285,11 +300,22 @@ export function StudentImportModal({
     },
     {
       key: 'bio',
-      header: 'Giới tính / Ngày sinh',
+      header: 'Thông tin đào tạo',
       render: (r) => (
-        <span className="text-xs text-ink-secondary">
-          {r.gender || '—'} • {r.dateOfBirth ? formatDateVi(r.dateOfBirth) : '—'}
-        </span>
+        <div className="text-xs text-ink-secondary">
+          {r.major || r.educationSystem ? (
+            <>
+              <div className="font-medium text-ink-primary">{r.major || '—'}</div>
+              <div className="text-ink-muted">
+                {[r.educationSystem, r.cohort, r.academicStatus].filter(Boolean).join(' • ') || '—'}
+              </div>
+            </>
+          ) : (
+            <span>
+              {r.gender || '—'} • {r.dateOfBirth ? formatDateVi(r.dateOfBirth) : '—'}
+            </span>
+          )}
+        </div>
       ),
     },
     {

@@ -29,13 +29,20 @@ const slug = (s: string) =>
 // Khóa so khớp tên lớp/tên giáo viên (phải giống hàm classKey ở frontend)
 const classKey = (s: string) => s.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
 
-// Email sinh viên = tên + 8 số cuối của MSV + đuôi trường
+// Email sinh viên = tên + tối đa 8 ký tự cuối của MSV + đuôi trường
 function studentEmail(fullName: string, code: string): string | null {
   const parts = fullName.trim().split(/\s+/);
   const given = slug(parts[parts.length - 1] ?? "");
-  const digits = code.replace(/\D/g, "");
-  if (!given || digits.length < 8) return null;
-  return `${given}${digits.slice(-8)}${DOMAIN}`;
+  const cleanCode = slug(code);
+  if (!given || cleanCode.length < 6) return null;
+  return `${given}${cleanCode.slice(-8)}${DOMAIN}`;
+}
+
+const PLACEHOLDER_CLASSES = new Set(["chưa phân lớp", "chờ", "---", ""]);
+function normalizeClassName(raw: string): string | null {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  if (!cleaned || PLACEHOLDER_CLASSES.has(cleaned.toLowerCase())) return null;
+  return cleaned;
 }
 
 function validDob(value: string): boolean {
@@ -48,10 +55,18 @@ function validDob(value: string): boolean {
 type Extra = {
   student_code?: string;
   subject?: string;
-  gender?: string;
-  date_of_birth?: string;
+  gender?: string | null;
+  date_of_birth?: string | null;
   admissions_advisor?: string;
-  class_name?: string;
+  class_name?: string | null;
+  education_system?: string | null;
+  major?: string | null;
+  cohort?: string | null;
+  initial_cohort?: string | null;
+  academic_status?: string | null;
+  status_reason?: string | null;
+  status_note?: string | null;
+  is_active?: boolean;
 };
 
 Deno.serve(async (req: Request) => {
@@ -82,11 +97,13 @@ Deno.serve(async (req: Request) => {
 
   // Tạo auth user + profile, hoàn tác nếu profile lỗi
   async function createAccount(email: string, fullName: string, role: "student" | "teacher", extra: Extra) {
+    const isActive = extra.is_active !== false;
     const { data: created, error } = await admin.auth.admin.createUser({
       email,
       password: DEFAULT_PASSWORD,
       email_confirm: true,
       app_metadata: { role },
+      ban_duration: isActive ? "none" : "876000h",
     });
     if (error || !created.user) {
       const dup = error?.message?.toLowerCase().includes("already");
@@ -97,7 +114,7 @@ Deno.serve(async (req: Request) => {
       email,
       full_name: fullName,
       role,
-      is_active: true,
+      is_active: isActive,
       student_code: extra.student_code ?? null,
       subject: extra.subject ?? null,
       gender: extra.gender ?? null,
@@ -105,6 +122,13 @@ Deno.serve(async (req: Request) => {
       admissions_advisor: extra.admissions_advisor || null,
       class_name: extra.class_name || null,
       class_key: extra.class_name ? classKey(extra.class_name) : null,
+      education_system: extra.education_system || null,
+      major: extra.major || null,
+      cohort: extra.cohort || null,
+      initial_cohort: extra.initial_cohort || null,
+      academic_status: extra.academic_status || null,
+      status_reason: extra.status_reason || null,
+      status_note: extra.status_note || null,
     };
     const { error: pErr } = await admin.from("profiles").insert(profile);
     if (pErr) {
@@ -122,31 +146,32 @@ Deno.serve(async (req: Request) => {
   const action = body.action;
 
   if (action === "create_student") {
-    const rawCode = String(body.student_code ?? "").trim();
+    const rawCode = String(body.student_code ?? "").trim().replace(/\s+/g, "");
     const fullName = String(body.full_name ?? "").trim();
-    const gender = String(body.gender ?? "");
-    const dob = String(body.date_of_birth ?? "");
+    const gender = String(body.gender ?? "").trim();
+    const dob = String(body.date_of_birth ?? "").trim();
+    const customEmail = String(body.email ?? "").trim().toLowerCase();
     if (!fullName) return fail("Vui lòng nhập họ tên sinh viên");
-    if (!GENDERS.includes(gender)) return fail("Vui lòng chọn giới tính");
-    if (!validDob(dob)) return fail("Ngày sinh không hợp lệ");
+    if (gender && !GENDERS.includes(gender)) return fail("Giới tính không hợp lệ");
+    if (dob && !validDob(dob)) return fail("Ngày sinh không hợp lệ");
 
     const normalizedCode = !rawCode
       ? ""
       : /^\d{7}$/.test(rawCode)
         ? `6111${rawCode}`
-        : /^6111\d{7}$/.test(rawCode)
-          ? rawCode
+        : /^[A-Za-z0-9]{6,20}$/.test(rawCode)
+          ? rawCode.toUpperCase()
           : null;
     if (normalizedCode === null) {
-      return fail("Mã sinh viên phải bắt đầu bằng 6111 và gồm 11 chữ số (hoặc nhập 7 số cuối)");
+      return fail("Mã sinh viên phải gồm 6–20 ký tự chữ/số (hoặc nhập 7 số cuối)");
     }
 
     let code = normalizedCode;
     let email: string | null = null;
 
     if (code) {
-      email = studentEmail(fullName, code);
-      if (!email) return fail("Họ tên không hợp lệ");
+      email = customEmail && customEmail.includes("@") ? customEmail : studentEmail(fullName, code);
+      if (!email) return fail("Họ tên hoặc email không hợp lệ");
       if (await isTaken(code, email)) return fail("Mã sinh viên hoặc email đã tồn tại, vui lòng điều chỉnh mã", 409);
     } else {
       // Không nhập mã: hệ thống tự cấp mã 11 chữ số (6111 + YY + 5 số), thử lại nếu trùng
@@ -154,7 +179,7 @@ Deno.serve(async (req: Request) => {
         const { data, error } = await admin.rpc("next_student_code");
         if (error || !data) return fail("Không tạo được mã sinh viên, vui lòng thử lại", 500);
         const candidate = String(data);
-        const candidateEmail = studentEmail(fullName, candidate);
+        const candidateEmail = customEmail && customEmail.includes("@") ? customEmail : studentEmail(fullName, candidate);
         if (!candidateEmail) return fail("Họ tên không hợp lệ");
         if (!(await isTaken(candidate, candidateEmail))) {
           code = candidate;
@@ -166,10 +191,18 @@ Deno.serve(async (req: Request) => {
 
     const res = await createAccount(email, fullName, "student", {
       student_code: code,
-      gender,
-      date_of_birth: dob,
+      gender: gender || null,
+      date_of_birth: dob || null,
       admissions_advisor: String(body.admissions_advisor ?? "").trim(),
-      class_name: String(body.class_name ?? "").trim(),
+      class_name: normalizeClassName(String(body.class_name ?? "")),
+      education_system: String(body.education_system ?? "").trim() || null,
+      major: String(body.major ?? "").trim() || null,
+      cohort: String(body.cohort ?? "").trim() || null,
+      initial_cohort: String(body.initial_cohort ?? "").trim() || null,
+      academic_status: String(body.academic_status ?? "").trim() || null,
+      status_reason: String(body.status_reason ?? "").trim() || null,
+      status_note: String(body.status_note ?? "").trim() || null,
+      is_active: body.is_active === false ? false : true,
     });
     if ("error" in res) return fail(res.error!, res.status);
     return json({ user: res.profile }, 201);

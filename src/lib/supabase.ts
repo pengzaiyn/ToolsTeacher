@@ -56,11 +56,20 @@ export type ManageUsersRequest =
   | {
       action: 'create_student';
       full_name: string;
-      gender: Gender;
-      date_of_birth: string;
+      email?: string;
+      gender?: Gender;
+      date_of_birth?: string;
       student_code?: string;
       admissions_advisor?: string;
       class_name?: string;
+      education_system?: string;
+      major?: string;
+      cohort?: string;
+      initial_cohort?: string;
+      academic_status?: string;
+      status_reason?: string;
+      status_note?: string;
+      is_active?: boolean;
     }
   | {
       action: 'create_teacher';
@@ -132,5 +141,35 @@ export async function manageUsers(payload: ManageUsersRequest): Promise<ManageUs
   }
 
   return data ?? { ok: true };
+}
+
+/** Tải toàn bộ các trang dữ liệu vượt ngưỡng 1.000 dòng bằng Promise.all song song */
+export async function fetchAllPages<T>(
+  fetchPage: (
+    from: number,
+    to: number,
+    withCount: boolean
+  ) => PromiseLike<{ data: T[] | null; count?: number | null; error: { message: string } | null }>,
+  pageSize = 1000
+): Promise<T[]> {
+  const first = await fetchPage(0, pageSize - 1, true);
+  if (first.error) throw new Error(first.error.message);
+  const firstRows = first.data ?? [];
+  const total = first.count ?? firstRows.length;
+  if (firstRows.length < pageSize || total <= pageSize) {
+    return firstRows;
+  }
+
+  const promises: ReturnType<typeof fetchPage>[] = [];
+  for (let from = pageSize; from < total; from += pageSize) {
+    promises.push(fetchPage(from, from + pageSize - 1, false));
+  }
+  const rest = await Promise.all(promises);
+  const all = [...firstRows];
+  for (const res of rest) {
+    if (res.error) throw new Error(res.error.message);
+    if (res.data) all.push(...res.data);
+  }
+  return all;
 }
 

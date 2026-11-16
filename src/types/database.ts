@@ -17,6 +17,13 @@ export interface Profile {
   admissions_advisor: string | null;
   class_name: string | null;
   class_key: string | null;
+  education_system: string | null;
+  major: string | null;
+  cohort: string | null;
+  initial_cohort: string | null;
+  academic_status: string | null;
+  status_reason: string | null;
+  status_note: string | null;
 }
 
 export interface TimetableEntry {

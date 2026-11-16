@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { CursorEffectProvider } from '@/context/CursorEffectContext';
@@ -9,27 +10,29 @@ import { AssistantWidget } from '@/components/AssistantWidget';
 import { SettingsModal } from '@/components/SettingsModal';
 import { CustomDecorationsOverlay } from '@/components/custom-theme/CustomDecorationsOverlay';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { LoadingState } from '@/components/ui/Spinner';
 import { ToastProvider } from '@/components/ui/Toast';
-import { ClassDetail } from '@/pages/ClassDetail';
-import { ClassroomKit } from '@/pages/ClassroomKit';
-import { Classes } from '@/pages/Classes';
-import { Login } from '@/pages/Login';
-import { Profile } from '@/pages/Profile';
-import { ResetPassword } from '@/pages/ResetPassword';
-import { Settings } from '@/pages/Settings';
-import { TeacherAttendance } from '@/pages/TeacherAttendance';
-import { TeacherGradebook } from '@/pages/TeacherGradebook';
-import { TeacherSchedule } from '@/pages/TeacherSchedule';
-import { TeacherTools } from '@/pages/TeacherTools';
-import { Timetable } from '@/pages/Timetable';
-import { TimetableUpload } from '@/pages/TimetableUpload';
-import { Tools } from '@/pages/Tools';
-import { AdminAnnouncements } from '@/pages/admin/AdminAnnouncements';
-import { AdminClassDetail } from '@/pages/admin/AdminClassDetail';
-import { AdminClasses } from '@/pages/admin/AdminClasses';
-import { AdminDashboard } from '@/pages/admin/AdminDashboard';
-import { AdminStudents } from '@/pages/admin/AdminStudents';
-import { AdminTeachers } from '@/pages/admin/AdminTeachers';
+
+const ClassDetail = lazy(() => import('@/pages/ClassDetail').then((m) => ({ default: m.ClassDetail })));
+const ClassroomKit = lazy(() => import('@/pages/ClassroomKit').then((m) => ({ default: m.ClassroomKit })));
+const Classes = lazy(() => import('@/pages/Classes').then((m) => ({ default: m.Classes })));
+const Login = lazy(() => import('@/pages/Login').then((m) => ({ default: m.Login })));
+const Profile = lazy(() => import('@/pages/Profile').then((m) => ({ default: m.Profile })));
+const ResetPassword = lazy(() => import('@/pages/ResetPassword').then((m) => ({ default: m.ResetPassword })));
+const Settings = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.Settings })));
+const TeacherAttendance = lazy(() => import('@/pages/TeacherAttendance').then((m) => ({ default: m.TeacherAttendance })));
+const TeacherGradebook = lazy(() => import('@/pages/TeacherGradebook').then((m) => ({ default: m.TeacherGradebook })));
+const TeacherSchedule = lazy(() => import('@/pages/TeacherSchedule').then((m) => ({ default: m.TeacherSchedule })));
+const TeacherTools = lazy(() => import('@/pages/TeacherTools').then((m) => ({ default: m.TeacherTools })));
+const Timetable = lazy(() => import('@/pages/Timetable').then((m) => ({ default: m.Timetable })));
+const TimetableUpload = lazy(() => import('@/pages/TimetableUpload').then((m) => ({ default: m.TimetableUpload })));
+const Tools = lazy(() => import('@/pages/Tools').then((m) => ({ default: m.Tools })));
+const AdminAnnouncements = lazy(() => import('@/pages/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements })));
+const AdminClassDetail = lazy(() => import('@/pages/admin/AdminClassDetail').then((m) => ({ default: m.AdminClassDetail })));
+const AdminClasses = lazy(() => import('@/pages/admin/AdminClasses').then((m) => ({ default: m.AdminClasses })));
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminStudents = lazy(() => import('@/pages/admin/AdminStudents').then((m) => ({ default: m.AdminStudents })));
+const AdminTeachers = lazy(() => import('@/pages/admin/AdminTeachers').then((m) => ({ default: m.AdminTeachers })));
 
 export function App() {
   return (
@@ -40,6 +43,7 @@ export function App() {
             <ToastProvider>
               <AuthProvider>
                 <SettingsModalProvider>
+                  <Suspense fallback={<div className="p-8"><LoadingState message="Đang tải trang..." /></div>}>
                   <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -190,6 +194,7 @@ export function App() {
             <Route path="/" element={<Navigate to="/tools" replace />} />
             <Route path="*" element={<Navigate to="/tools" replace />} />
           </Routes>
+                  </Suspense>
                   <SettingsModal />
                   <AssistantWidget />
                 </SettingsModalProvider>

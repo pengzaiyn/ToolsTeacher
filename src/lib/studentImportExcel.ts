@@ -1,5 +1,10 @@
 import * as XLSX from 'xlsx';
-import { normalizeStudentCode, studentEmail } from '@/lib/email';
+import {
+  isPlaceholderClassName,
+  normalizeStudentCode,
+  sanitizeImportEmail,
+  studentEmail,
+} from '@/lib/email';
 import type { Gender, Profile } from '@/types/database';
 
 export type StudentDuplicateType =
@@ -9,6 +14,19 @@ export type StudentDuplicateType =
   | 'system_email'
   | 'file_email';
 
+const INACTIVE_STATUSES = new Set([
+  'thôi học',
+  'đã tốt nghiệp',
+  'đình chỉ tạm thời',
+  'nghỉ học dài ngày',
+  'hoàn thành vhpt',
+]);
+
+export function isInactiveAcademicStatus(status: string | null | undefined): boolean {
+  const s = (status ?? '').trim().toLowerCase();
+  return INACTIVE_STATUSES.has(s);
+}
+
 export interface StudentImportRow {
   rowNumber: number;
   fullName: string;
@@ -17,6 +35,14 @@ export interface StudentImportRow {
   studentCode: string;
   className: string;
   admissionsAdvisor: string;
+  educationSystem: string;
+  major: string;
+  cohort: string;
+  initialCohort: string;
+  academicStatus: string;
+  statusReason: string;
+  statusNote: string;
+  isActive: boolean;
   emailPreview: string | null;
   error: string | null;
   duplicateType: StudentDuplicateType;
@@ -96,7 +122,26 @@ function parseExcelDate(value: unknown): string | null {
 }
 
 function findColumnIndex(headers: string[], aliases: string[]): number {
-  return headers.findIndex((h) => aliases.some((alias) => h === alias || h.includes(alias)));
+  const exact = headers.findIndex((h) => aliases.includes(h));
+  if (exact !== -1) return exact;
+  return headers.findIndex((h) => aliases.some((alias) => h.includes(alias)));
+}
+
+function findLatestStatusColumn(headers: string[]): number {
+  let bestIdx = -1;
+  let bestScore = -1;
+  headers.forEach((h, idx) => {
+    const m = /^thang\s+(\d{1,2})\s+(\d{4})$/.exec(h);
+    if (m) {
+      const score = Number(m[2]) * 100 + Number(m[1]);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = idx;
+      }
+    }
+  });
+  if (bestIdx !== -1) return bestIdx;
+  return findColumnIndex(headers, ['trang thai', 'tinh trang', 'status']);
 }
 
 export async function parseStudentImportWorkbook(
@@ -107,6 +152,7 @@ export async function parseStudentImportWorkbook(
   const wb = XLSX.read(buffer, { type: 'array' });
 
   const sheetName =
+    wb.SheetNames.find((name) => normalizeHeader(name).includes('thong ke')) ??
     wb.SheetNames.find((name) => normalizeHeader(name).includes('danhsach')) ??
     wb.SheetNames.find((name) => !normalizeHeader(name).includes('huongdan')) ??
     wb.SheetNames[0];
@@ -124,8 +170,9 @@ export async function parseStudentImportWorkbook(
   for (let i = 0; i < Math.min(rawRows.length, 15); i += 1) {
     const candidate = (rawRows[i] ?? []).map(normalizeHeader);
     const hasName = findColumnIndex(candidate, ['ho va ten', 'ho ten', 'full name']) !== -1;
-    const hasDob = findColumnIndex(candidate, ['ngay sinh', 'dob', 'date of birth']) !== -1;
-    if (hasName && (hasDob || candidate.some((c) => c.includes('gioi tinh')))) {
+    const hasIdentity =
+      findColumnIndex(candidate, ['ma sinh vien', 'msv', 'ma sv', 'lop', 'ngay sinh', 'email']) !== -1;
+    if (hasName && hasIdentity) {
       headerRowIndex = i;
       headers = candidate;
       break;
@@ -134,7 +181,7 @@ export async function parseStudentImportWorkbook(
 
   if (headerRowIndex === -1) {
     throw new Error(
-      'Không tìm thấy dòng tiêu đề hợp lệ (cần có cột "Họ và tên", "Giới tính", "Ngày sinh").'
+      'Không tìm thấy dòng tiêu đề hợp lệ (cần có cột "Họ và tên" và "Mã sinh viên" / "Lớp").'
     );
   }
 
@@ -142,6 +189,7 @@ export async function parseStudentImportWorkbook(
   const colGender = findColumnIndex(headers, ['gioi tinh', 'gender']);
   const colDob = findColumnIndex(headers, ['ngay sinh', 'dob', 'date of birth']);
   const colCode = findColumnIndex(headers, ['ma sinh vien', 'msv', 'ma sv', 'student code']);
+  const colEmail = findColumnIndex(headers, ['email']);
   const colClass = findColumnIndex(headers, ['lop hoc', 'lop', 'class']);
   const colAdvisor = findColumnIndex(headers, [
     'tu van tuyen sinh',
@@ -149,11 +197,18 @@ export async function parseStudentImportWorkbook(
     'tu van',
     'advisor',
   ]);
+  const colEduSystem = findColumnIndex(headers, ['he dao tao', 'he']);
+  const colMajor = findColumnIndex(headers, ['nganh dao tao', 'nganh']);
+  const colCohort = findColumnIndex(headers, ['khoa']);
+  const colInitialCohort = findColumnIndex(headers, ['khoa ban dau']);
+  const colStatus = findLatestStatusColumn(headers);
+  const colReason = findColumnIndex(headers, ['ly do']);
+  const colNote = findColumnIndex(headers, ['ghi chu']);
 
   const existingByCode = new Map<string, Profile>();
   const existingByEmail = new Map<string, Profile>();
   existingStudents.forEach((s) => {
-    const code = s.student_code?.trim();
+    const code = s.student_code?.trim().toUpperCase();
     if (code) existingByCode.set(code, s);
     existingByEmail.set(s.email.toLowerCase(), s);
   });
@@ -166,23 +221,37 @@ export async function parseStudentImportWorkbook(
   for (let i = headerRowIndex + 1; i < rawRows.length; i += 1) {
     const raw = rawRows[i] ?? [];
     const rowNumber = i + 1;
-    const fullName = String(raw[colName] ?? '')
-      .trim()
-      .replace(/\s+/g, ' ');
+    const fullName = String(raw[colName] ?? '').trim().replace(/\s+/g, ' ');
     const rawGender = colGender >= 0 ? raw[colGender] : '';
     const rawDob = colDob >= 0 ? raw[colDob] : '';
     const rawCode = colCode >= 0 ? String(raw[colCode] ?? '').trim() : '';
-    const className =
+    const rawEmail = colEmail >= 0 ? String(raw[colEmail] ?? '').trim() : '';
+    const rawClassName =
       colClass >= 0 ? String(raw[colClass] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const className = isPlaceholderClassName(rawClassName) ? '' : rawClassName;
     const admissionsAdvisor =
       colAdvisor >= 0 ? String(raw[colAdvisor] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const educationSystem =
+      colEduSystem >= 0 ? String(raw[colEduSystem] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const major =
+      colMajor >= 0 ? String(raw[colMajor] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const cohort =
+      colCohort >= 0 ? String(raw[colCohort] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const initialCohort =
+      colInitialCohort >= 0 ? String(raw[colInitialCohort] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const academicStatus =
+      colStatus >= 0 ? String(raw[colStatus] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const statusReason =
+      colReason >= 0 ? String(raw[colReason] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const statusNote =
+      colNote >= 0 ? String(raw[colNote] ?? '').trim() : '';
 
     const hasAnyValue =
       Boolean(fullName) ||
       Boolean(String(rawGender ?? '').trim()) ||
       Boolean(String(rawDob ?? '').trim()) ||
       Boolean(rawCode) ||
-      Boolean(className);
+      Boolean(rawClassName);
 
     if (!hasAnyValue) continue;
 
@@ -191,13 +260,13 @@ export async function parseStudentImportWorkbook(
       errors.push('Thiếu họ tên');
     }
 
-    const parsedGender = normalizeGender(rawGender);
-    if (!parsedGender) {
+    const parsedGender = String(rawGender ?? '').trim() ? normalizeGender(rawGender) : null;
+    if (String(rawGender ?? '').trim() && !parsedGender) {
       errors.push('Giới tính phải là Nam, Nữ hoặc Khác');
     }
 
-    const parsedDob = parseExcelDate(rawDob);
-    if (!parsedDob) {
+    const parsedDob = String(rawDob ?? '').trim() ? parseExcelDate(rawDob) : null;
+    if (String(rawDob ?? '').trim() && !parsedDob) {
       errors.push('Ngày sinh không hợp lệ (dùng DD/MM/YYYY hoặc YYYY-MM-DD)');
     }
 
@@ -209,14 +278,14 @@ export async function parseStudentImportWorkbook(
     if (rawCode) {
       const codeResult = normalizeStudentCode(rawCode);
       if (!codeResult) {
-        errors.push('MSV phải đủ 11 số đầu 6111 hoặc 7 số cuối');
+        errors.push('MSV phải gồm 6–20 ký tự chữ/số (hoặc 7 số cuối)');
       } else {
         normalizedCode = codeResult;
         const fileRow = seenCodeRow.get(normalizedCode);
         const sysMatch = existingByCode.get(normalizedCode);
         if (fileRow !== undefined) {
           duplicateType = 'file_code';
-          duplicateReason = `Trùng MSV ${normalizedCode} với dòng ${fileRow} trong file`;
+          duplicateReason = `Trùng MSV ${normalizedCode} với dòng ${fileRow} (nhiều lớp)`;
         } else {
           seenCodeRow.set(normalizedCode, rowNumber);
           if (sysMatch) {
@@ -228,8 +297,9 @@ export async function parseStudentImportWorkbook(
       }
     }
 
-    const emailPreview =
-      fullName && normalizedCode ? studentEmail(fullName, normalizedCode) : null;
+    const sanitizedEmail = rawEmail ? sanitizeImportEmail(rawEmail) : null;
+    const fallbackEmail = fullName && normalizedCode ? studentEmail(fullName, normalizedCode) : null;
+    let emailPreview = sanitizedEmail ?? fallbackEmail;
 
     if (normalizedCode && !emailPreview) {
       errors.push('Không tạo được email từ họ tên và MSV');
@@ -238,7 +308,9 @@ export async function parseStudentImportWorkbook(
       const fileEmailRow = seenEmailRow.get(lowerEmail);
       const sysEmailMatch = existingByEmail.get(lowerEmail);
       if (fileEmailRow !== undefined) {
-        if (duplicateType === 'none') {
+        if (duplicateType === 'none' && fallbackEmail && fallbackEmail.toLowerCase() !== lowerEmail) {
+          emailPreview = fallbackEmail;
+        } else if (duplicateType === 'none') {
           duplicateType = 'file_email';
           duplicateReason = `Trùng email ${emailPreview} với dòng ${fileEmailRow} trong file`;
         }
@@ -260,6 +332,14 @@ export async function parseStudentImportWorkbook(
       studentCode: normalizedCode,
       className,
       admissionsAdvisor,
+      educationSystem,
+      major,
+      cohort,
+      initialCohort,
+      academicStatus,
+      statusReason,
+      statusNote,
+      isActive: !isInactiveAcademicStatus(academicStatus),
       emailPreview,
       error: errors.length > 0 ? errors.join('; ') : null,
       duplicateType,
@@ -289,61 +369,76 @@ export function downloadStudentImportTemplate() {
   const sampleRows = [
     [
       'STT',
-      'Mã sinh viên',
       'Họ và tên',
-      'Giới tính',
-      'Ngày sinh',
+      'Mã sinh viên',
+      'Email',
+      'Hệ đào tạo',
+      'Ngành đào tạo',
+      'Khóa',
+      'Khóa ban đầu',
       'Lớp',
-      'Tư vấn tuyển sinh',
-      'Email trường (tham khảo)',
+      'Trạng thái',
+      'Lý do',
+      'Ghi chú',
     ],
     [
       1,
-      '61112600001',
       'Nguyễn Văn An',
-      'Nam',
-      '2006-02-14',
-      'CNTT-K18A',
-      'Cô Hương',
+      '61112600001',
       'an12600001@caodangvietmyhanoi.edu.vn',
+      'CAO ĐẲNG CHÍNH QUY',
+      'Công nghệ thông tin (UDPM)',
+      'K26',
+      'K26',
+      'UDPM26A-01',
+      'Đang học',
+      '',
+      '',
     ],
     [
       2,
-      '',
       'Trần Thị Bình',
-      'Nữ',
-      '21/05/2006',
-      'CNTT-K18A',
       '',
-      '(Để trống MSV hệ thống sẽ tự cấp)',
+      '',
+      '9+ 7 MÔN',
+      'Thiết kế đồ hoạ (VIG)',
+      'K26',
+      'K26',
+      '10A4',
+      'Đang học',
+      '',
+      '(Để trống MSV hệ thống tự cấp)',
     ],
   ];
 
   const wsData = XLSX.utils.aoa_to_sheet(sampleRows);
   wsData['!cols'] = [
     { wch: 6 },
-    { wch: 15 },
     { wch: 24 },
+    { wch: 15 },
+    { wch: 36 },
+    { wch: 20 },
+    { wch: 26 },
+    { wch: 8 },
     { wch: 12 },
     { wch: 14 },
-    { wch: 14 },
-    { wch: 20 },
-    { wch: 36 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 26 },
   ];
   XLSX.utils.book_append_sheet(wb, wsData, 'DanhSachSinhVien');
 
   const guideRows = [
     ['HƯỚNG DẪN NHẬP SINH VIÊN TỪ FILE EXCEL'],
     [],
-    ['1. Cột bắt buộc: Họ và tên, Giới tính (Nam / Nữ / Khác), Ngày sinh (YYYY-MM-DD hoặc DD/MM/YYYY).'],
-    ['2. Mã sinh viên (tùy chọn): Nhập đủ 11 số bắt đầu bằng 6111, hoặc 7 số cuối, hoặc để trống để hệ thống tự cấp mã 6111 tiếp theo.'],
-    ['3. Lớp (tùy chọn): Tên lớp trùng khớp với Thời khóa biểu để hệ thống tự động xếp sinh viên vào lớp học.'],
-    ['4. Email trường: Hệ thống tự tạo theo quy chuẩn tên + 8 số cuối MSV + @caodangvietmyhanoi.edu.vn; cột Email trong file chỉ để tham khảo.'],
+    ['1. Cột bắt buộc: Họ và tên. Các cột khác (Mã sinh viên, Email, Hệ đào tạo, Ngành đào tạo, Khóa, Lớp, Trạng thái...) có thể tùy chọn.'],
+    ['2. Mã sinh viên: Nhập mã sinh viên của trường (5111..., 6111..., 8111..., 9111..., N811...), 7 số cuối, hoặc để trống để hệ thống tự cấp mã 6111 mới.'],
+    ['3. Nhiều lớp: Nếu một sinh viên xuất hiện ở 2 dòng với 2 lớp khác nhau (VD lớp văn hóa + lớp nghề), hệ thống sẽ gộp chung 1 tài khoản và ghi danh vào cả 2 lớp.'],
+    ['4. Trạng thái: Thôi học, Đã tốt nghiệp, Đình chỉ tạm thời, Nghỉ học dài ngày, Hoàn thành VHPT sẽ tự động khóa đăng nhập.'],
   ];
   const wsGuide = XLSX.utils.aoa_to_sheet(guideRows);
-  wsGuide['!cols'] = [{ wch: 96 }];
+  wsGuide['!cols'] = [{ wch: 100 }];
   XLSX.utils.book_append_sheet(wb, wsGuide, 'HuongDan');
 
   XLSX.writeFile(wb, 'mau-nhap-sinh-vien-avc.xlsx');
 }
-

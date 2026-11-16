@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   Download,
   FileSpreadsheet,
   Save,
   Search,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
@@ -67,6 +72,9 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'warning' | 'fail'>('all');
+  const [pageSize, setPageSize] = useState<10 | 25 | 0>(10);
+  const [page, setPage] = useState(1);
+  const [listCollapsed, setListCollapsed] = useState(false);
 
   const assignmentWeight = Math.max(0, 100 - attendanceWeight);
 
@@ -218,13 +226,27 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
       return (
         row.fullName.toLowerCase().includes(q) ||
         (row.studentCode ?? '').toLowerCase().includes(q) ||
-        (row.homeroomClass ?? '').toLowerCase().includes(q)
+        (row.homeroomClass ?? '').toLowerCase().includes(q) ||
+        row.classification.toLowerCase().includes(q)
       );
     });
   }, [gradebookRows, searchTerm, filterMode]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterMode, pageSize, classItem.id]);
+
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginatedRows = useMemo(() => {
+    if (pageSize === 0) return filteredRows;
+    const start = (safePage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, pageSize, safePage]);
+
   const stats = useMemo(() => {
     const warningCount = gradebookRows.filter((r) => r.isAttendanceWarning).length;
+    const failCount = gradebookRows.filter((r) => r.classification === 'Không đạt').length;
     const validFinals = gradebookRows.filter((r) => r.finalScore10 !== null);
     const avgFinal =
       validFinals.length > 0
@@ -237,6 +259,7 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
     const passCount = validFinals.filter((r) => (r.finalScore10 ?? 0) >= 5.0).length;
     return {
       warningCount,
+      failCount,
       avgFinal,
       gradedCount: validFinals.length,
       passCount,
@@ -452,50 +475,100 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-surface-card p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-64">
+      <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface-card p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-md">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-navy"
               aria-hidden="true"
             />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm tên hoặc mã sinh viên..."
-              className="h-9 w-full rounded-lg border border-line bg-surface-page pl-9 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none"
+              placeholder="Tìm tên, mã sinh viên, lớp hoặc xếp loại..."
+              className="h-10 w-full rounded-xl border border-line-strong bg-surface-page pl-10 pr-9 text-sm text-ink-primary placeholder:text-ink-muted transition-colors focus:border-brand-navy focus:bg-surface-card focus:outline-none focus:ring-2 focus:ring-brand-navy/15"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                aria-label="Xóa từ khóa tìm kiếm"
+                className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted hover:bg-surface-subtle hover:text-ink-primary"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
           </div>
 
-          <div className="w-44">
-            <Select
-              value={filterMode}
-              onChange={(e) => setFilterMode(e.target.value as 'all' | 'warning' | 'fail')}
-              options={[
-                { value: 'all', label: 'Tất cả sinh viên' },
-                { value: 'warning', label: 'Cảnh báo vắng' },
-                { value: 'fail', label: 'Xếp loại Không đạt' },
-              ]}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {canManage && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowConfig((prev) => !prev)}
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                <span>Cấu hình trọng số</span>
+              </Button>
+            )}
+            <Button variant="primary" size="sm" onClick={handleExportExcel}>
+              <Download className="h-4 w-4" aria-hidden="true" />
+              <span>Xuất sổ điểm Excel</span>
+            </Button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {canManage && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowConfig((prev) => !prev)}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                { key: 'all', label: `Tất cả (${gradebookRows.length})` },
+                { key: 'warning', label: `Cảnh báo vắng (${stats.warningCount})` },
+                { key: 'fail', label: `Không đạt (${stats.failCount})` },
+              ] as const
+            ).map((chip) => {
+              const active = filterMode === chip.key;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => setFilterMode(chip.key)}
+                  className={`inline-flex h-8 items-center rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                    active
+                      ? 'border-brand-navy bg-brand-navy text-white'
+                      : 'border-line bg-surface-page text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <span>
+              Khớp <strong className="text-ink-primary">{filteredRows.length}</strong> /{' '}
+              {gradebookRows.length} SV
+            </span>
+            <button
+              type="button"
+              onClick={() => setListCollapsed((prev) => !prev)}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-surface-page px-2.5 text-xs font-semibold text-brand-navy hover:bg-surface-subtle"
             >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-              <span>Cấu hình trọng số</span>
-            </Button>
-          )}
-          <Button variant="primary" size="sm" onClick={handleExportExcel}>
-            <Download className="h-4 w-4" aria-hidden="true" />
-            <span>Xuất sổ điểm Excel</span>
-          </Button>
+              {listCollapsed ? (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Mở rộng danh sách</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Thu gọn danh sách</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -602,13 +675,73 @@ export function ClassGradebookPanel({ classItem, canManage }: ClassGradebookPane
           title="Chưa có dữ liệu sổ điểm"
           description="Lớp học này chưa có sinh viên ghi danh."
         />
+      ) : listCollapsed ? (
+        <div className="flex items-center justify-between rounded-2xl border border-line bg-surface-card px-4 py-3 text-sm">
+          <span className="text-ink-secondary">
+            Danh sách điểm đang được thu gọn ({filteredRows.length} sinh viên phù hợp).
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => setListCollapsed(false)}>
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            <span>Hiện danh sách</span>
+          </Button>
+        </div>
       ) : (
-        <Table
-          columns={columns}
-          data={filteredRows}
-          rowKey={(r) => r.studentId}
-          caption="Sổ điểm tổng hợp lớp học"
-        />
+        <div className="flex flex-col gap-3">
+          <div className="max-h-[480px] overflow-y-auto rounded-2xl border border-line">
+            <Table
+              columns={columns}
+              data={paginatedRows}
+              rowKey={(r) => r.studentId}
+              caption="Sổ điểm tổng hợp lớp học"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-card px-4 py-2.5 text-xs">
+            <div className="flex items-center gap-2 text-ink-secondary">
+              <span>Hiển thị:</span>
+              {([10, 25, 0] as const).map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => setPageSize(size)}
+                  className={`rounded-lg border px-2.5 py-1 font-semibold transition-colors ${
+                    pageSize === size
+                      ? 'border-brand-navy bg-brand-navy text-white'
+                      : 'border-line bg-surface-page text-ink-secondary hover:bg-surface-subtle'
+                  }`}
+                >
+                  {size === 0 ? 'Tất cả' : `${size} dòng`}
+                </button>
+              ))}
+            </div>
+
+            {pageSize !== 0 && totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  <span>Trước</span>
+                </Button>
+                <span className="font-semibold text-ink-primary">
+                  Trang {safePage} / {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  <span>Sau</span>
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

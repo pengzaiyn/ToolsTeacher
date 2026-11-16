@@ -209,7 +209,7 @@ export function RandomPickerTab({
     setRecords([]);
     setActiveRecordId(null);
     setWheelSlots(buildWheelSlots(students));
-    setCardDeck(shuffleList(students).slice(0, 16));
+    setCardDeck(shuffleList(students));
     setAnswerTimerRunning(false);
     answerEndMsRef.current = null;
     setAnswerLeftSec(quickTimerSecRef.current);
@@ -281,7 +281,7 @@ export function RandomPickerTab({
   useEffect(() => {
     if (pendingTurnRecord || drawingCard || shufflingCards) return;
     if (cardsAvailableInDeck.length === 0 && availableStudents.length > 0) {
-      setCardDeck(shuffleList(availableStudents).slice(0, 16));
+      setCardDeck(shuffleList(availableStudents));
     }
   }, [
     pendingTurnRecord,
@@ -658,7 +658,7 @@ export function RandomPickerTab({
     setRecords([]);
     setActiveRecordId(null);
     setWheelSlots(buildWheelSlots(students));
-    setCardDeck(shuffleList(students).slice(0, 16));
+    setCardDeck(shuffleList(students));
     answerEndMsRef.current = null;
     setAnswerTimerRunning(false);
     setAnswerLeftSec(quickTimerSec);
@@ -760,7 +760,7 @@ export function RandomPickerTab({
       const visible = prev.filter(
         (s) => !absentStudentIds.has(s.id) && (!noRepeat || !calledIdSet.has(s.id))
       );
-      const base = visible.length > 1 ? visible : availableStudents.slice(0, 16);
+      const base = visible.length > 1 ? visible : availableStudents;
       return forceDifferentOrder(base);
     });
     if (soundEnabled) playWheelTick();
@@ -773,11 +773,7 @@ export function RandomPickerTab({
 
     // Nhịp 3: chốt vị trí cuối cùng
     const t3 = window.setTimeout(() => {
-      setCardDeck((prev) =>
-        availableStudents.length > 16
-          ? shuffleList(availableStudents).slice(0, 16)
-          : forceDifferentOrder(prev)
-      );
+      setCardDeck((prev) => forceDifferentOrder(prev));
       if (soundEnabled) playWheelTick();
     }, 560);
 
@@ -820,7 +816,7 @@ export function RandomPickerTab({
     const pickableCards =
       cardsAvailableInDeck.length > 0
         ? cardsAvailableInDeck
-        : shuffleList(availableStudents).slice(0, 16);
+        : shuffleList(availableStudents);
     if (cardsAvailableInDeck.length === 0) {
       setCardDeck(pickableCards);
     }
@@ -900,9 +896,7 @@ export function RandomPickerTab({
         prev.some((s) => s.id === target.student.id) ? prev : buildWheelSlots(restoredPool)
       );
       setCardDeck((prev) =>
-        prev.some((s) => s.id === target.student.id) || prev.length >= 16
-          ? prev
-          : [...prev, target.student]
+        prev.some((s) => s.id === target.student.id) ? prev : [...prev, target.student]
       );
     }
 

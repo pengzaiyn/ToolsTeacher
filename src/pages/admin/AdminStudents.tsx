@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { FileSpreadsheet, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { FileSpreadsheet, Globe, Pencil, Plus, RotateCcw, Search, Trash2, Users } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { normalizeStudentCode, studentEmail } from '@/lib/email';
-import { manageUsers, supabase } from '@/lib/supabase';
+import { fetchAllPages, manageUsers, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { Gender, Profile, TimetableClassSummary } from '@/types/database';
 import { AccountActions } from '@/components/AccountActions';
@@ -21,10 +21,49 @@ import { Table, type TableColumn } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/Toast';
 
 const GENDER_OPTIONS = [
+  { value: '', label: 'Chưa cập nhật' },
   { value: 'Nam', label: 'Nam' },
   { value: 'Nữ', label: 'Nữ' },
   { value: 'Khác', label: 'Khác' },
 ];
+
+const PAGE_SIZE = 50;
+
+type StudentTab = 'domestic' | 'foreign' | 'all';
+type SearchMode = 'all' | 'name' | 'code' | 'email' | 'class' | 'major';
+
+const SEARCH_MODE_OPTIONS: { value: SearchMode; label: string; placeholder: string }[] = [
+  { value: 'all', label: 'Tất cả thông tin', placeholder: 'Tìm tên (có/không dấu), MSV, email, lớp, ngành...' },
+  { value: 'name', label: 'Họ và tên', placeholder: 'Nhập họ tên có dấu hoặc không dấu (VD: nguyen van a)...' },
+  { value: 'code', label: 'Mã sinh viên', placeholder: 'Nhập MSV hoặc nhiều MSV cách nhau dấu phẩy (VD: 6111..., 5111...)...' },
+  { value: 'email', label: 'Email', placeholder: 'Nhập email hoặc phần tên email...' },
+  { value: 'class', label: 'Lớp học', placeholder: 'Nhập tên lớp (VD: 10A4, UDPM, SBS25)...' },
+  { value: 'major', label: 'Ngành đào tạo', placeholder: 'Nhập tên hoặc mã ngành (VD: Thiết kế, CNTT, Tiếng Nhật)...' },
+];
+
+const VN_SURNAME_RE =
+  /^(nguyen|tran|le|pham|hoang|huynh|phan|vu|vo|dang|bui|do|ho|ngo|duong|ly|dao|dinh|doan|truong|vuong|phung|mai|trinh|ta|ha|cao|chu|lam|luong|to|kieu|quach|tang|thach|mac|ninh|trieu|nghiem|nham|kim|la|thai|tong|uong|khong|khuat|lai|luu|lu|man|nguy|nong|sam|son|su|than|thieu|thinh|tu|vi|yen|au|bach|be|cam|chau|che|chi|cong|cung|dam|diep|giang|giap|hang|hau|hinh|khuong|khuc|lac|lan|lieu|loc|lo|luc|ma|mong|nghia|ngoc|nhu|ong|pho|phu|phuong|quang|quyen|tac|thao|thien|thoi|thuy|tieu|tinh|trang|tri|trung|tuy|ung|van|vien|vinh|xuan)\b/i;
+
+function stripVietnamese(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isForeignStudent(student: Profile): boolean {
+  const edu = (student.education_system ?? '').trim().toUpperCase();
+  const cls = (student.class_name ?? '').trim().toUpperCase();
+  const name = student.full_name.trim();
+  if (edu === 'SBS' || /^SBS/.test(cls) || /-MM\b/.test(cls)) return true;
+  if (name && !/[\u00C0-\u1EF9]/.test(name) && !VN_SURNAME_RE.test(name.toLowerCase())) {
+    return true;
+  }
+  return false;
+}
 
 export function AdminStudents() {
   const toast = useToast();
@@ -34,27 +73,40 @@ export function AdminStudents() {
   const [systemClasses, setSystemClasses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [studentTab, setStudentTab] = useState<StudentTab>('domestic');
+  const [searchMode, setSearchMode] = useState<SearchMode>('all');
   const [search, setSearch] = useState('');
   const [classFilter, setClassFilter] = useState('all');
+  const [eduFilter, setEduFilter] = useState('all');
+  const [cohortFilter, setCohortFilter] = useState('all');
+  const [academicFilter, setAcademicFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [page, setPage] = useState(1);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [gender, setGender] = useState<Gender>('Nam');
+  const [gender, setGender] = useState<Gender | ''>('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [studentCode, setStudentCode] = useState('');
   const [className, setClassName] = useState('');
   const [admissionsAdvisor, setAdmissionsAdvisor] = useState('');
+  const [educationSystem, setEducationSystem] = useState('');
+  const [major, setMajor] = useState('');
+  const [cohort, setCohort] = useState('');
 
   const [editing, setEditing] = useState<Profile | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editGender, setEditGender] = useState<Gender>('Nam');
+  const [editGender, setEditGender] = useState<Gender | ''>('');
   const [editDob, setEditDob] = useState('');
   const [editClass, setEditClass] = useState('');
   const [editAdvisor, setEditAdvisor] = useState('');
+  const [editEducationSystem, setEditEducationSystem] = useState('');
+  const [editMajor, setEditMajor] = useState('');
+  const [editCohort, setEditCohort] = useState('');
+  const [editAcademicStatus, setEditAcademicStatus] = useState('');
 
   const [deleting, setDeleting] = useState<Profile | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -63,19 +115,20 @@ export function AdminStudents() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data: stuRes, error: stuErr }, { data: ttData }, { data: clsData }] =
-          await Promise.all([
+        const [allStudents, { data: ttData }, { data: clsData }] = await Promise.all([
+          fetchAllPages<Profile>((from, to, withCount) =>
             supabase
               .from('profiles')
-              .select('*')
+              .select('*', withCount ? { count: 'exact' } : undefined)
               .eq('role', 'student')
               .order('created_at', { ascending: false })
-              .returns<Profile[]>(),
-            supabase.rpc('timetable_classes'),
-            supabase.from('classes').select('name').order('name', { ascending: true }),
-          ]);
-        if (stuErr) throw new Error(stuErr.message);
-        setStudents(stuRes ?? []);
+              .range(from, to)
+              .returns<Profile[]>()
+          ),
+          supabase.rpc('timetable_classes'),
+          supabase.from('classes').select('name').order('name', { ascending: true }),
+        ]);
+        setStudents(allStudents);
         const ttRows = (ttData as TimetableClassSummary[] | null) ?? [];
         setTimetableClasses(ttRows.map((r) => r.class_name));
         setSystemClasses(((clsData as { name: string }[] | null) ?? []).map((r) => r.name));
@@ -100,38 +153,176 @@ export function AdminStudents() {
     onRefresh: () => loadData(true),
   });
 
+  const tabCounts = useMemo(() => {
+    let foreign = 0;
+    for (const s of students) {
+      if (isForeignStudent(s)) foreign += 1;
+    }
+    return {
+      all: students.length,
+      foreign,
+      domestic: students.length - foreign,
+    };
+  }, [students]);
+
+  const tabStudents = useMemo(() => {
+    if (studentTab === 'all') return students;
+    return students.filter((s) =>
+      studentTab === 'foreign' ? isForeignStudent(s) : !isForeignStudent(s)
+    );
+  }, [students, studentTab]);
+
   const classSuggestions = useMemo(() => {
     const map = new Map<string, string>();
-    [...systemClasses, ...timetableClasses, ...students.map((s) => s.class_name ?? '')].forEach(
-      (name) => {
-        const cleaned = name.trim().replace(/\s+/g, ' ');
-        if (!cleaned) return;
-        const key = classKey(cleaned);
-        if (!map.has(key)) map.set(key, cleaned);
-      }
-    );
+    const sourceNames =
+      studentTab === 'all'
+        ? [...systemClasses, ...timetableClasses, ...tabStudents.map((s) => s.class_name ?? '')]
+        : tabStudents.map((s) => s.class_name ?? '');
+    sourceNames.forEach((name) => {
+      const cleaned = name.trim().replace(/\s+/g, ' ');
+      if (!cleaned) return;
+      const key = classKey(cleaned);
+      if (!map.has(key)) map.set(key, cleaned);
+    });
     return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [students, timetableClasses, systemClasses]);
+  }, [tabStudents, studentTab, timetableClasses, systemClasses]);
+
+  const eduOptions = useMemo(() => {
+    const set = new Set<string>();
+    tabStudents.forEach((s) => {
+      if (s.education_system?.trim()) set.add(s.education_system.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [tabStudents]);
+
+  const cohortOptions = useMemo(() => {
+    const set = new Set<string>();
+    tabStudents.forEach((s) => {
+      if (s.cohort?.trim()) set.add(s.cohort.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [tabStudents]);
+
+  const academicOptions = useMemo(() => {
+    const set = new Set<string>();
+    tabStudents.forEach((s) => {
+      if (s.academic_status?.trim()) set.add(s.academic_status.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [tabStudents]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return students.filter((s) => {
+    const rawQ = search.trim();
+    const qLower = rawQ.toLowerCase();
+    const qPlain = stripVietnamese(rawQ);
+    const codeTokens =
+      searchMode === 'code' && rawQ
+        ? rawQ
+            .split(/[\s,;]+/)
+            .map((t) => t.trim().toLowerCase())
+            .filter(Boolean)
+        : [];
+
+    return tabStudents.filter((s) => {
       if (statusFilter === 'active' && !s.is_active) return false;
       if (statusFilter === 'inactive' && s.is_active) return false;
       if (classFilter === 'unassigned' && s.class_key) return false;
       if (classFilter !== 'all' && classFilter !== 'unassigned' && s.class_key !== classFilter) {
         return false;
       }
-      if (!q) return true;
+      if (eduFilter !== 'all' && (s.education_system ?? '').trim() !== eduFilter) return false;
+      if (cohortFilter !== 'all' && (s.cohort ?? '').trim() !== cohortFilter) return false;
+      if (academicFilter !== 'all' && (s.academic_status ?? '').trim() !== academicFilter) {
+        return false;
+      }
+      if (!rawQ) return true;
+
+      const namePlain = stripVietnamese(s.full_name);
+      const codeLower = (s.student_code ?? '').toLowerCase();
+      const emailLower = s.email.toLowerCase();
+      const classPlain = stripVietnamese(s.class_name ?? '');
+      const majorPlain = stripVietnamese(s.major ?? '');
+
+      if (searchMode === 'name') {
+        return s.full_name.toLowerCase().includes(qLower) || namePlain.includes(qPlain);
+      }
+      if (searchMode === 'code') {
+        if (codeTokens.length > 1) {
+          return codeTokens.some((tok) => codeLower.includes(tok));
+        }
+        return codeLower.includes(qLower);
+      }
+      if (searchMode === 'email') {
+        return emailLower.includes(qLower);
+      }
+      if (searchMode === 'class') {
+        return (s.class_name ?? '').toLowerCase().includes(qLower) || classPlain.includes(qPlain);
+      }
+      if (searchMode === 'major') {
+        return (s.major ?? '').toLowerCase().includes(qLower) || majorPlain.includes(qPlain);
+      }
+
       return (
-        s.full_name.toLowerCase().includes(q) ||
-        s.email.toLowerCase().includes(q) ||
-        (s.student_code ?? '').toLowerCase().includes(q) ||
-        (s.class_name ?? '').toLowerCase().includes(q) ||
-        (s.admissions_advisor ?? '').toLowerCase().includes(q)
+        s.full_name.toLowerCase().includes(qLower) ||
+        namePlain.includes(qPlain) ||
+        emailLower.includes(qLower) ||
+        codeLower.includes(qLower) ||
+        (s.class_name ?? '').toLowerCase().includes(qLower) ||
+        classPlain.includes(qPlain) ||
+        majorPlain.includes(qPlain) ||
+        stripVietnamese(s.education_system ?? '').includes(qPlain) ||
+        (s.cohort ?? '').toLowerCase().includes(qLower) ||
+        stripVietnamese(s.academic_status ?? '').includes(qPlain) ||
+        stripVietnamese(s.admissions_advisor ?? '').includes(qPlain)
       );
     });
-  }, [students, search, classFilter, statusFilter]);
+  }, [
+    tabStudents,
+    search,
+    searchMode,
+    classFilter,
+    eduFilter,
+    cohortFilter,
+    academicFilter,
+    statusFilter,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [studentTab, search, searchMode, classFilter, eduFilter, cohortFilter, academicFilter, statusFilter]);
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    classFilter !== 'all' ||
+    eduFilter !== 'all' ||
+    cohortFilter !== 'all' ||
+    academicFilter !== 'all' ||
+    statusFilter !== 'all';
+
+  function resetAllFilters() {
+    setSearch('');
+    setSearchMode('all');
+    setClassFilter('all');
+    setEduFilter('all');
+    setCohortFilter('all');
+    setAcademicFilter('all');
+    setStatusFilter('all');
+  }
+
+  function handleTabChange(nextTab: StudentTab) {
+    setStudentTab(nextTab);
+    setClassFilter('all');
+    setEduFilter('all');
+    setCohortFilter('all');
+    setAcademicFilter('all');
+  }
 
   const emailPreview = useMemo(() => {
     const normalized = normalizeStudentCode(studentCode);
@@ -153,11 +344,14 @@ export function AdminStudents() {
 
   function resetCreateForm() {
     setFullName('');
-    setGender('Nam');
+    setGender('');
     setDateOfBirth('');
     setStudentCode('');
     setClassName('');
     setAdmissionsAdvisor('');
+    setEducationSystem('');
+    setMajor('');
+    setCohort('');
   }
 
   async function handleCreateStudent(event: FormEvent) {
@@ -166,14 +360,10 @@ export function AdminStudents() {
       toast.error('Vui lòng nhập họ tên sinh viên');
       return;
     }
-    if (!dateOfBirth) {
-      toast.error('Vui lòng chọn ngày sinh');
-      return;
-    }
     const trimmedCode = studentCode.trim();
     const normalizedCode = trimmedCode ? normalizeStudentCode(trimmedCode) : undefined;
     if (trimmedCode && !normalizedCode) {
-      toast.error('Mã sinh viên phải bắt đầu bằng 6111 và gồm 11 chữ số (hoặc nhập 7 số cuối)');
+      toast.error('Mã sinh viên phải gồm 6–20 ký tự chữ/số (hoặc nhập 7 số cuối)');
       return;
     }
 
@@ -182,11 +372,14 @@ export function AdminStudents() {
       const res = await manageUsers({
         action: 'create_student',
         full_name: fullName.trim(),
-        gender,
-        date_of_birth: dateOfBirth,
+        gender: gender || undefined,
+        date_of_birth: dateOfBirth || undefined,
         student_code: normalizedCode ?? undefined,
         class_name: className.trim() || undefined,
         admissions_advisor: admissionsAdvisor.trim() || undefined,
+        education_system: educationSystem.trim() || undefined,
+        major: major.trim() || undefined,
+        cohort: cohort.trim() || undefined,
       });
       toast.success(
         `Đã tạo tài khoản sinh viên ${res.user?.full_name ?? ''} (${res.user?.email ?? ''})`
@@ -204,10 +397,14 @@ export function AdminStudents() {
   function openEdit(student: Profile) {
     setEditing(student);
     setEditName(student.full_name);
-    setEditGender(student.gender ?? 'Nam');
+    setEditGender(student.gender ?? '');
     setEditDob(student.date_of_birth ?? '');
     setEditClass(student.class_name ?? '');
     setEditAdvisor(student.admissions_advisor ?? '');
+    setEditEducationSystem(student.education_system ?? '');
+    setEditMajor(student.major ?? '');
+    setEditCohort(student.cohort ?? '');
+    setEditAcademicStatus(student.academic_status ?? '');
   }
 
   async function handleSaveEdit(event: FormEvent) {
@@ -225,11 +422,15 @@ export function AdminStudents() {
         .from('profiles')
         .update({
           full_name: editName.trim(),
-          gender: editGender,
+          gender: editGender || null,
           date_of_birth: editDob || null,
           class_name: cleanClass || null,
           class_key: cleanClass ? classKey(cleanClass) : null,
           admissions_advisor: editAdvisor.trim() || null,
+          education_system: editEducationSystem.trim() || null,
+          major: editMajor.trim() || null,
+          cohort: editCohort.trim() || null,
+          academic_status: editAcademicStatus.trim() || null,
         })
         .eq('id', editing.id);
 
@@ -291,30 +492,32 @@ export function AdminStudents() {
     },
     {
       key: 'bio',
-      header: 'Giới tính / Ngày sinh',
+      header: 'Đào tạo / Ngành',
       render: (row) => (
         <div className="flex flex-col text-xs font-normal text-ink-secondary">
-          <span>{row.gender || '—'}</span>
-          <span>{row.date_of_birth ? formatDateVi(row.date_of_birth) : '—'}</span>
+          <span className="font-medium text-ink-primary">{row.major || '—'}</span>
+          <span>
+            {[row.education_system, row.cohort].filter(Boolean).join(' • ') ||
+              [row.gender, row.date_of_birth ? formatDateVi(row.date_of_birth) : null]
+                .filter(Boolean)
+                .join(' • ') ||
+              '—'}
+          </span>
         </div>
-      ),
-    },
-    {
-      key: 'advisor',
-      header: 'Tư vấn TS',
-      render: (row) => (
-        <span className="text-sm font-normal text-ink-secondary">
-          {row.admissions_advisor || '—'}
-        </span>
       ),
     },
     {
       key: 'status',
       header: 'Trạng thái',
       render: (row) => (
-        <Badge tone={row.is_active ? 'success' : 'danger'}>
-          {row.is_active ? 'Hoạt động' : 'Đã khóa'}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge tone={row.is_active ? 'success' : 'danger'}>
+            {row.is_active ? 'Hoạt động' : 'Đã khóa'}
+          </Badge>
+          {row.academic_status && (
+            <span className="text-xs text-ink-muted">{row.academic_status}</span>
+          )}
+        </div>
       ),
     },
     {
@@ -363,48 +566,180 @@ export function AdminStudents() {
           </div>
         </div>
 
-        <section className="grid grid-cols-1 gap-4 rounded-xl border border-line bg-surface-card p-4 md:grid-cols-4">
-          <div className="md:col-span-2">
-            <label htmlFor="student-search" className="mb-2 block text-sm font-semibold text-ink-primary">
-              Tìm kiếm sinh viên
-            </label>
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-4 top-3 h-4 w-4 text-ink-muted"
-                aria-hidden="true"
+        <div
+          role="tablist"
+          aria-label="Phân loại sinh viên"
+          className="flex flex-wrap items-center gap-2 border-b border-line pb-3"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={studentTab === 'domestic'}
+            onClick={() => handleTabChange('domestic')}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              studentTab === 'domestic'
+                ? 'bg-brand-navy text-white'
+                : 'bg-surface-card text-ink-secondary hover:bg-surface-page hover:text-ink-primary'
+            }`}
+          >
+            <Users className="h-4 w-4" aria-hidden="true" />
+            <span>Sinh viên Việt Nam</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                studentTab === 'domestic' ? 'bg-white/20 text-white' : 'bg-surface-page text-ink-muted'
+              }`}
+            >
+              {tabCounts.domestic}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={studentTab === 'foreign'}
+            onClick={() => handleTabChange('foreign')}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              studentTab === 'foreign'
+                ? 'bg-brand-red text-white'
+                : 'bg-surface-card text-ink-secondary hover:bg-surface-page hover:text-ink-primary'
+            }`}
+          >
+            <Globe className="h-4 w-4" aria-hidden="true" />
+            <span>Sinh viên nước ngoài</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                studentTab === 'foreign' ? 'bg-white/20 text-white' : 'bg-surface-page text-ink-muted'
+              }`}
+            >
+              {tabCounts.foreign}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={studentTab === 'all'}
+            onClick={() => handleTabChange('all')}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              studentTab === 'all'
+                ? 'bg-brand-navy text-white'
+                : 'bg-surface-card text-ink-secondary hover:bg-surface-page hover:text-ink-primary'
+            }`}
+          >
+            <span>Tất cả</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                studentTab === 'all' ? 'bg-white/20 text-white' : 'bg-surface-page text-ink-muted'
+              }`}
+            >
+              {tabCounts.all}
+            </span>
+          </button>
+        </div>
+
+        <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div>
+              <Select
+                label="Tìm theo"
+                value={searchMode}
+                onChange={(e) => setSearchMode(e.target.value as SearchMode)}
+                options={SEARCH_MODE_OPTIONS.map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                }))}
               />
-              <input
-                id="student-search"
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tên, mã sinh viên, email, lớp..."
-                className="h-10 w-full rounded-lg border border-line-strong bg-surface-card pl-10 pr-4 text-sm font-normal text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
-              />
+            </div>
+
+            <div className="md:col-span-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label htmlFor="student-search" className="block text-sm font-semibold text-ink-primary">
+                  Từ khóa tìm kiếm
+                </label>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-red hover:underline"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Xóa bộ lọc</span>
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-4 top-3 h-4 w-4 text-ink-muted"
+                  aria-hidden="true"
+                />
+                <input
+                  id="student-search"
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    SEARCH_MODE_OPTIONS.find((opt) => opt.value === searchMode)?.placeholder ??
+                    'Tìm kiếm sinh viên...'
+                  }
+                  className="h-10 w-full rounded-lg border border-line-strong bg-surface-card pl-10 pr-4 text-sm font-normal text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                />
+              </div>
             </div>
           </div>
 
-          <Select
-            label="Lọc theo lớp"
-            value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
-            options={[
-              { value: 'all', label: 'Tất cả lớp' },
-              { value: 'unassigned', label: 'Chưa gán lớp' },
-              ...classSuggestions.map((cls) => ({ value: classKey(cls), label: cls })),
-            ]}
-          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <Select
+              label="Lọc theo lớp"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tất cả lớp' },
+                { value: 'unassigned', label: 'Chưa gán lớp' },
+                ...classSuggestions.map((cls) => ({ value: classKey(cls), label: cls })),
+              ]}
+            />
 
-          <Select
-            label="Trạng thái"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-            options={[
-              { value: 'all', label: 'Tất cả' },
-              { value: 'active', label: 'Đang hoạt động' },
-              { value: 'inactive', label: 'Đã khóa' },
-            ]}
-          />
+            <Select
+              label="Hệ đào tạo"
+              value={eduFilter}
+              onChange={(e) => setEduFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tất cả hệ' },
+                ...eduOptions.map((edu) => ({ value: edu, label: edu })),
+              ]}
+            />
+
+            <Select
+              label="Khóa"
+              value={cohortFilter}
+              onChange={(e) => setCohortFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tất cả khóa' },
+                ...cohortOptions.map((c) => ({ value: c, label: c })),
+              ]}
+            />
+
+            <Select
+              label="Tình trạng học"
+              value={academicFilter}
+              onChange={(e) => setAcademicFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tất cả tình trạng' },
+                ...academicOptions.map((st) => ({ value: st, label: st })),
+              ]}
+            />
+
+            <Select
+              label="Tài khoản"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              options={[
+                { value: 'all', label: 'Tất cả' },
+                { value: 'active', label: 'Đang hoạt động' },
+                { value: 'inactive', label: 'Đã khóa' },
+              ]}
+            />
+          </div>
         </section>
 
         {loading ? (
@@ -420,12 +755,44 @@ export function AdminStudents() {
             }
           />
         ) : (
-          <Table
-            columns={columns}
-            data={filtered}
-            rowKey={(row) => row.id}
-            caption="Danh sách sinh viên"
-          />
+          <div className="flex flex-col gap-4">
+            <Table
+              columns={columns}
+              data={paginated}
+              rowKey={(row) => row.id}
+              caption="Danh sách sinh viên"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-secondary">
+              <span>
+                Hiển thị {(currentPage - 1) * PAGE_SIZE + 1}–
+                {Math.min(currentPage * PAGE_SIZE, filtered.length)} trên tổng{' '}
+                <strong className="text-ink-primary">{filtered.length}</strong> sinh viên
+              </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Trang trước
+                  </Button>
+                  <span className="font-semibold text-ink-primary">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Trang sau
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
@@ -453,33 +820,49 @@ export function AdminStudents() {
               required
             />
             <Select
-              label="Giới tính"
+              label="Giới tính (tùy chọn)"
               value={gender}
-              onChange={(e) => setGender(e.target.value as Gender)}
+              onChange={(e) => setGender(e.target.value as Gender | '')}
               options={GENDER_OPTIONS}
-              required
             />
             <Input
-              label="Ngày sinh"
+              label="Ngày sinh (tùy chọn)"
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              required
             />
             <Input
               label="Mã sinh viên (tùy chọn)"
               value={studentCode}
               onChange={(e) => setStudentCode(e.target.value)}
-              placeholder="VD: 2600002 hoặc 61112600002"
-              hint="Bắt buộc đầu 6111 + 7 số cuối (11 chữ số). Có thể nhập 7 số cuối để tự ghép 6111, hoặc để trống hệ thống tự cấp."
+              placeholder="VD: 61112600002, 5111..., N811..."
+              hint="Nhập mã sinh viên (6–20 ký tự), 7 số cuối, hoặc để trống hệ thống tự cấp."
             />
             <Input
               label="Lớp học"
               list="class-suggestions-list"
               value={className}
               onChange={(e) => setClassName(e.target.value)}
-              placeholder="VD: CNTT-K18A"
+              placeholder="VD: 10A4 hoặc UDPM26A-01"
               hint="Chọn lớp có sẵn hoặc nhập tên mới; sinh viên sẽ tự động được xếp vào lớp học và xem được TKB."
+            />
+            <Input
+              label="Hệ đào tạo"
+              value={educationSystem}
+              onChange={(e) => setEducationSystem(e.target.value)}
+              placeholder="VD: CAO ĐẲNG CHÍNH QUY / 9+ 7 MÔN"
+            />
+            <Input
+              label="Ngành đào tạo"
+              value={major}
+              onChange={(e) => setMajor(e.target.value)}
+              placeholder="VD: Công nghệ thông tin (UDPM)"
+            />
+            <Input
+              label="Khóa"
+              value={cohort}
+              onChange={(e) => setCohort(e.target.value)}
+              placeholder="VD: K26"
             />
             <Input
               label="Tư vấn tuyển sinh"
@@ -576,15 +959,35 @@ export function AdminStudents() {
               <Select
                 label="Giới tính"
                 value={editGender}
-                onChange={(e) => setEditGender(e.target.value as Gender)}
+                onChange={(e) => setEditGender(e.target.value as Gender | '')}
                 options={GENDER_OPTIONS}
-                required
               />
               <Input
                 label="Ngày sinh"
                 type="date"
                 value={editDob}
                 onChange={(e) => setEditDob(e.target.value)}
+              />
+              <Input
+                label="Hệ đào tạo"
+                value={editEducationSystem}
+                onChange={(e) => setEditEducationSystem(e.target.value)}
+              />
+              <Input
+                label="Ngành đào tạo"
+                value={editMajor}
+                onChange={(e) => setEditMajor(e.target.value)}
+              />
+              <Input
+                label="Khóa"
+                value={editCohort}
+                onChange={(e) => setEditCohort(e.target.value)}
+              />
+              <Input
+                label="Trạng thái học tập"
+                value={editAcademicStatus}
+                onChange={(e) => setEditAcademicStatus(e.target.value)}
+                placeholder="VD: Đang học, Bảo lưu, Thôi học..."
               />
             </div>
             <Input

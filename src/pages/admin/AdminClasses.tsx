@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BookOpen, Calendar } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
-import { supabase } from '@/lib/supabase';
+import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { CollegeClass, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
@@ -25,23 +25,28 @@ export function AdminClasses() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data, error }, { data: enrRows }, { data: ttRows }] = await Promise.all([
+        const [{ data, error }, enrRows, { data: ttRows }] = await Promise.all([
           supabase
             .from('classes')
             .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
             .order('created_at', { ascending: false })
             .returns<CollegeClass[]>(),
-          supabase.from('enrollments').select('class_id'),
+          fetchAllPages<{ class_id: string }>((from, to, withCount) =>
+            supabase
+              .from('enrollments')
+              .select('class_id', withCount ? { count: 'exact' } : undefined)
+              .range(from, to)
+          ),
           supabase.rpc('timetable_classes'),
         ]);
         if (error) throw new Error(error.message);
 
-        setClasses(data ?? []);
-
         const eMap = new Map<string, number>();
-        ((enrRows as { class_id: string }[] | null) ?? []).forEach((row) => {
+        enrRows.forEach((row) => {
           eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
         });
+
+        setClasses(data ?? []);
         setMemberCounts(eMap);
 
         const tMap = new Map<string, number>();

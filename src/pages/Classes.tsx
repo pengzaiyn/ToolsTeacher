@@ -7,6 +7,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   User,
@@ -17,7 +18,7 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { formatClassActionError } from '@/lib/classStorage';
 import { isAdmin, isStudent, isTeacher } from '@/lib/roles';
-import { supabase } from '@/lib/supabase';
+import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { CollegeClass, Profile, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
@@ -30,6 +31,26 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
+
+type ClassSearchMode = 'all' | 'name' | 'subject' | 'teacher';
+type ClassSortBy = 'newest' | 'name_asc' | 'students_desc' | 'students_asc';
+
+const CLASS_SEARCH_OPTIONS: { value: ClassSearchMode; label: string; placeholder: string }[] = [
+  { value: 'all', label: 'Tất cả thông tin', placeholder: 'Tìm tên lớp, môn học/ngành, giáo viên (có hoặc không dấu)...' },
+  { value: 'name', label: 'Tên lớp', placeholder: 'Nhập tên lớp hoặc nhiều lớp cách nhau dấu phẩy (VD: 10A4, UDPM)...' },
+  { value: 'subject', label: 'Môn học / Ngành', placeholder: 'Nhập tên môn học hoặc ngành đào tạo...' },
+  { value: 'teacher', label: 'Giáo viên', placeholder: 'Nhập tên giáo viên phụ trách...' },
+];
+
+function stripVietnamese(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function Classes() {
   const { profile } = useAuth();
@@ -45,7 +66,13 @@ export function Classes() {
   const [timetableCounts, setTimetableCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+
+  const [searchMode, setSearchMode] = useState<ClassSearchMode>('all');
   const [search, setSearch] = useState('');
+  const [teacherFilter, setTeacherFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [sizeFilter, setSizeFilter] = useState<'all' | 'has_students' | 'empty' | 'has_timetable'>('all');
+  const [sortBy, setSortBy] = useState<ClassSortBy>('newest');
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CollegeClass | null>(null);
@@ -62,37 +89,42 @@ export function Classes() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data: classData, error: cErr }, teacherRes, enrRes, ttRes] = await Promise.all([
-        supabase
-          .from('classes')
-          .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
-          .order('created_at', { ascending: false })
-          .returns<CollegeClass[]>(),
-        adminRole
-          ? supabase
-              .from('profiles')
-              .select('*')
-              .eq('role', 'teacher')
-              .eq('is_active', true)
-              .order('full_name', { ascending: true })
-              .returns<Profile[]>()
-          : Promise.resolve({ data: [] as Profile[], error: null }),
-        !studentRole
-          ? supabase.from('enrollments').select('class_id')
-          : Promise.resolve({ data: [] as { class_id: string }[], error: null }),
-        supabase.rpc('timetable_classes'),
-      ]);
-      if (cErr) throw new Error(cErr.message);
-      if (teacherRes.error) throw new Error(teacherRes.error.message);
+        const [{ data: classData, error: cErr }, teacherRes, enrRows, ttRes] = await Promise.all([
+          supabase
+            .from('classes')
+            .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
+            .order('created_at', { ascending: false })
+            .returns<CollegeClass[]>(),
+          adminRole
+            ? supabase
+                .from('profiles')
+                .select('*')
+                .eq('role', 'teacher')
+                .eq('is_active', true)
+                .order('full_name', { ascending: true })
+                .returns<Profile[]>()
+            : Promise.resolve({ data: [] as Profile[], error: null }),
+          !studentRole
+            ? fetchAllPages<{ class_id: string }>((from, to, withCount) =>
+                supabase
+                  .from('enrollments')
+                  .select('class_id', withCount ? { count: 'exact' } : undefined)
+                  .range(from, to)
+              )
+            : Promise.resolve([] as { class_id: string }[]),
+          supabase.rpc('timetable_classes'),
+        ]);
+        if (cErr) throw new Error(cErr.message);
+        if (teacherRes.error) throw new Error(teacherRes.error.message);
 
-      setClasses(classData ?? []);
-      setTeachers(teacherRes.data ?? []);
+        const eMap = new Map<string, number>();
+        enrRows.forEach((row) => {
+          eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
+        });
 
-      const eMap = new Map<string, number>();
-      ((enrRes.data as { class_id: string }[] | null) ?? []).forEach((row) => {
-        eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
-      });
-      setMemberCounts(eMap);
+        setClasses(classData ?? []);
+        setTeachers(teacherRes.data ?? []);
+        setMemberCounts(eMap);
 
       const tMap = new Map<string, number>();
       ((ttRes.data as TimetableClassSummary[] | null) ?? []).forEach((row) => {
@@ -130,15 +162,102 @@ export function Classes() {
   }, [teachers, classes]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return classes;
-    return classes.filter(
-      (cls) =>
-        cls.name.toLowerCase().includes(q) ||
-        (cls.subject ?? '').toLowerCase().includes(q) ||
-        (cls.teacher?.full_name ?? '').toLowerCase().includes(q)
-    );
-  }, [classes, search]);
+    const rawQ = search.trim();
+    const qLower = rawQ.toLowerCase();
+    const qPlain = stripVietnamese(rawQ);
+    const nameTokens =
+      searchMode === 'name' && rawQ
+        ? rawQ
+            .split(/[\s,;]+/)
+            .map((t) => stripVietnamese(t))
+            .filter(Boolean)
+        : [];
+
+    const list = classes.filter((cls) => {
+      const stuCount = memberCounts.get(cls.id) ?? 0;
+      const key = cls.class_key || classKey(cls.name);
+      const ttCount = timetableCounts.get(key) ?? 0;
+
+      if (teacherFilter === 'assigned' && !cls.teacher_id) return false;
+      if (teacherFilter === 'unassigned' && cls.teacher_id) return false;
+      if (subjectFilter !== 'all' && (cls.subject ?? '').trim() !== subjectFilter) return false;
+      if (sizeFilter === 'has_students' && stuCount === 0) return false;
+      if (sizeFilter === 'empty' && stuCount > 0) return false;
+      if (sizeFilter === 'has_timetable' && ttCount === 0) return false;
+
+      if (!rawQ) return true;
+
+      const namePlain = stripVietnamese(cls.name);
+      const subjectPlain = stripVietnamese(cls.subject ?? '');
+      const teacherPlain = stripVietnamese(cls.teacher?.full_name ?? '');
+      const descPlain = stripVietnamese(cls.description ?? '');
+
+      if (searchMode === 'name') {
+        if (nameTokens.length > 1) {
+          return nameTokens.some((tok) => namePlain.includes(tok));
+        }
+        return cls.name.toLowerCase().includes(qLower) || namePlain.includes(qPlain);
+      }
+      if (searchMode === 'subject') {
+        return (cls.subject ?? '').toLowerCase().includes(qLower) || subjectPlain.includes(qPlain);
+      }
+      if (searchMode === 'teacher') {
+        return (
+          (cls.teacher?.full_name ?? '').toLowerCase().includes(qLower) ||
+          teacherPlain.includes(qPlain)
+        );
+      }
+
+      return (
+        cls.name.toLowerCase().includes(qLower) ||
+        namePlain.includes(qPlain) ||
+        subjectPlain.includes(qPlain) ||
+        teacherPlain.includes(qPlain) ||
+        descPlain.includes(qPlain)
+      );
+    });
+
+    if (sortBy === 'name_asc') {
+      return [...list].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    }
+    if (sortBy === 'students_desc') {
+      return [...list].sort(
+        (a, b) => (memberCounts.get(b.id) ?? 0) - (memberCounts.get(a.id) ?? 0)
+      );
+    }
+    if (sortBy === 'students_asc') {
+      return [...list].sort(
+        (a, b) => (memberCounts.get(a.id) ?? 0) - (memberCounts.get(b.id) ?? 0)
+      );
+    }
+    return list;
+  }, [
+    classes,
+    search,
+    searchMode,
+    teacherFilter,
+    subjectFilter,
+    sizeFilter,
+    sortBy,
+    memberCounts,
+    timetableCounts,
+  ]);
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    teacherFilter !== 'all' ||
+    subjectFilter !== 'all' ||
+    sizeFilter !== 'all' ||
+    sortBy !== 'newest';
+
+  function resetFilters() {
+    setSearch('');
+    setSearchMode('all');
+    setTeacherFilter('all');
+    setSubjectFilter('all');
+    setSizeFilter('all');
+    setSortBy('newest');
+  }
 
   function openCreate() {
     setEditing(null);
@@ -265,18 +384,112 @@ export function Classes() {
           )}
         </div>
 
-        <section className="rounded-xl border border-line bg-surface-card p-4">
-          <div className="relative max-w-md">
-            <Search
-              className="pointer-events-none absolute left-4 top-3 h-4 w-4 text-ink-muted"
-              aria-hidden="true"
+        <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div>
+              <Select
+                label="Tìm theo"
+                value={searchMode}
+                onChange={(e) => setSearchMode(e.target.value as ClassSearchMode)}
+                options={CLASS_SEARCH_OPTIONS.map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                }))}
+              />
+            </div>
+
+            <div className="md:col-span-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label htmlFor="class-search" className="block text-sm font-semibold text-ink-primary">
+                  Từ khóa tìm kiếm
+                </label>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-red hover:underline"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Xóa bộ lọc</span>
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-4 top-3 h-4 w-4 text-ink-muted"
+                  aria-hidden="true"
+                />
+                <input
+                  id="class-search"
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    CLASS_SEARCH_OPTIONS.find((opt) => opt.value === searchMode)?.placeholder ??
+                    'Tìm kiếm lớp học...'
+                  }
+                  className="h-10 w-full rounded-lg border border-line-strong bg-surface-card pl-10 pr-4 text-sm font-normal text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Select
+              label="Giáo viên phụ trách"
+              value={teacherFilter}
+              onChange={(e) =>
+                setTeacherFilter(e.target.value as 'all' | 'assigned' | 'unassigned')
+              }
+              options={[
+                { value: 'all', label: 'Tất cả' },
+                { value: 'assigned', label: 'Đã phân công GV' },
+                { value: 'unassigned', label: 'Chưa có giáo viên' },
+              ]}
             />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên lớp, môn học, giáo viên..."
-              className="h-10 w-full rounded-lg border border-line-strong bg-surface-card pl-10 pr-4 text-sm font-normal text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+
+            <Select
+              label="Môn học / Ngành"
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tất cả môn / ngành' },
+                ...subjectSuggestions.map((sub) => ({ value: sub, label: sub })),
+              ]}
+            />
+
+            {!studentRole && (
+              <Select
+                label="Sĩ số / TKB"
+                value={sizeFilter}
+                onChange={(e) =>
+                  setSizeFilter(
+                    e.target.value as 'all' | 'has_students' | 'empty' | 'has_timetable'
+                  )
+                }
+                options={[
+                  { value: 'all', label: 'Tất cả lớp' },
+                  { value: 'has_students', label: 'Có sinh viên (> 0 SV)' },
+                  { value: 'empty', label: 'Chưa có sinh viên (0 SV)' },
+                  { value: 'has_timetable', label: 'Có lịch TKB' },
+                ]}
+              />
+            )}
+
+            <Select
+              label="Sắp xếp"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as ClassSortBy)}
+              options={[
+                { value: 'newest', label: 'Mới nhất' },
+                { value: 'name_asc', label: 'Tên lớp (A–Z)' },
+                ...(!studentRole
+                  ? [
+                      { value: 'students_desc', label: 'Sĩ số nhiều nhất' },
+                      { value: 'students_asc', label: 'Sĩ số ít nhất' },
+                    ]
+                  : []),
+              ]}
             />
           </div>
         </section>
