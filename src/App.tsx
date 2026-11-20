@@ -5,6 +5,7 @@ import { CursorEffectProvider } from '@/context/CursorEffectContext';
 import { CustomThemeProvider } from '@/context/CustomThemeContext';
 import { SettingsModalProvider } from '@/context/SettingsModalContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { UnreadAnnouncementsProvider } from '@/context/UnreadAnnouncementsContext';
 import { CursorEffectOverlay } from '@/components/CursorEffectOverlay';
 import { AssistantWidget } from '@/components/AssistantWidget';
 import { RealtimeAnnouncementPopup } from '@/components/RealtimeAnnouncementPopup';
@@ -42,6 +43,7 @@ export function App() {
           <CursorEffectProvider>
             <ToastProvider>
               <AuthProvider>
+                <UnreadAnnouncementsProvider>
                 <SettingsModalProvider>
                   <Suspense fallback={<div className="p-8"><LoadingState message="Đang tải trang..." /></div>}>
                   <Routes>
@@ -175,6 +177,7 @@ export function App() {
                   <RealtimeAnnouncementPopup />
                   <AssistantWidget />
                 </SettingsModalProvider>
+                </UnreadAnnouncementsProvider>
               </AuthProvider>
             </ToastProvider>
             <CustomDecorationsOverlay />

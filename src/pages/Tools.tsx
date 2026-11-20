@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Calendar, Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { getAnnouncementAudienceMeta } from '@/lib/announcements';
 import { quickClassifyAnnouncement } from '@/lib/announcementClassifier';
@@ -21,8 +22,15 @@ export { TOOLS, type ToolItem };
 
 export function Tools() {
   const { user, profile } = useAuth();
+  const { schoolUnreadCount, markSchoolSeen } = useUnreadAnnouncements();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  useEffect(() => {
+    if (schoolUnreadCount > 0) {
+      markSchoolSeen();
+    }
+  }, [schoolUnreadCount, markSchoolSeen]);
 
   const loadAnnouncements = useCallback(async (silent = false) => {
     if (!silent) setLoadingAnnouncements(true);

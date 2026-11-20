@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { UnreadBadge, useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { formatClassActionError } from '@/lib/classStorage';
@@ -54,6 +55,7 @@ function stripVietnamese(value: string): string {
 
 export function Classes() {
   const { profile } = useAuth();
+  const { getClassUnreadCount } = useUnreadAnnouncements();
   const toast = useToast();
 
   const adminRole = isAdmin(profile?.role);
@@ -552,14 +554,16 @@ export function Classes() {
               const key = cls.class_key || classKey(cls.name);
               const stuCount = memberCounts.get(cls.id) ?? 0;
               const ttCount = timetableCounts.get(key) ?? 0;
+              const unreadCount = getClassUnreadCount(cls.id);
               const canViewTimetable =
                 ttCount > 0 && (!studentRole || profile?.class_key === key);
 
               return (
                 <article
                   key={cls.id}
-                  className="flex flex-col justify-between gap-4 rounded-xl border border-line bg-surface-card p-6 transition-shadow hover:shadow-md"
+                  className="relative flex flex-col justify-between gap-4 rounded-xl border border-line bg-surface-card p-6 transition-shadow hover:shadow-md"
                 >
+                  {unreadCount > 0 && <UnreadBadge count={unreadCount} />}
                   <div className="flex flex-col gap-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-navySoft text-brand-navy">

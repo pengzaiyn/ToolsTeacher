@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   buildAnnouncementInsertPayload,
@@ -83,7 +84,14 @@ const TARGET_CARDS: TargetOptionCard[] = [
 
 export function AdminAnnouncements() {
   const { user } = useAuth();
+  const { schoolUnreadCount, markSchoolSeen } = useUnreadAnnouncements();
   const toast = useToast();
+
+  useEffect(() => {
+    if (schoolUnreadCount > 0) {
+      markSchoolSeen();
+    }
+  }, [schoolUnreadCount, markSchoolSeen]);
 
   const [items, setItems] = useState<Announcement[]>([]);
   const [classes, setClasses] = useState<Pick<CollegeClass, 'id' | 'name' | 'subject'>[]>([]);

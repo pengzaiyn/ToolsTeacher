@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSettingsModal } from '@/context/SettingsModalContext';
+import { UnreadBadge, useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { ROLE_LABELS, isAdmin, isStaff } from '@/lib/roles';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Badge } from '@/components/ui/Badge';
@@ -25,11 +26,13 @@ interface NavItem {
   label: string;
   icon: typeof Home;
   matchPrefixes?: string[];
+  badgeCount?: number;
 }
 
 export function Header() {
   const { profile, signOut } = useAuth();
   const { isOpen: isSettingsOpen, openSettings } = useSettingsModal();
+  const { schoolUnreadCount, totalClassUnreadCount } = useUnreadAnnouncements();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -54,9 +57,9 @@ export function Header() {
   }, [mobileOpen]);
 
   const navItems: NavItem[] = [
-    { to: '/tools', label: 'Trang chủ', icon: Home },
+    { to: '/tools', label: 'Trang chủ', icon: Home, badgeCount: schoolUnreadCount },
     { to: '/timetable', label: 'Thời khóa biểu', icon: Calendar },
-    { to: '/classes', label: 'Lớp học', icon: BookOpen },
+    { to: '/classes', label: 'Lớp học', icon: BookOpen, badgeCount: totalClassUnreadCount },
   ];
 
   if (isStaff(profile?.role)) {
@@ -70,7 +73,12 @@ export function Header() {
 
   if (isAdmin(profile?.role)) {
     navItems.push({ to: '/admin/teachers', label: 'Giáo viên', icon: UserCheck });
-    navItems.push({ to: '/admin/announcements', label: 'Thông báo', icon: Megaphone });
+    navItems.push({
+      to: '/admin/announcements',
+      label: 'Thông báo',
+      icon: Megaphone,
+      badgeCount: schoolUnreadCount,
+    });
   }
 
   async function handleSignOut() {
@@ -133,7 +141,7 @@ export function Header() {
                 onClick={onNavigate}
                 className={({ isActive }) => {
                   const active = isActive || prefixMatch;
-                  return `flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
+                  return `relative flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
                     active
                       ? 'bg-brand-navySoft text-brand-navy'
                       : 'text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
@@ -148,7 +156,10 @@ export function Header() {
                         className={`h-4 w-4 shrink-0 ${active ? 'text-brand-red' : ''}`}
                         aria-hidden="true"
                       />
-                      <span>{item.label}</span>
+                      <span className="truncate">{item.label}</span>
+                      {item.badgeCount && item.badgeCount > 0 ? (
+                        <UnreadBadge count={item.badgeCount} />
+                      ) : null}
                     </>
                   );
                 }}

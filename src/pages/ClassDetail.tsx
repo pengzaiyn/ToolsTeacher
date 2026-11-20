@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { UnreadBadge, useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { isAdmin, isDroppedOutStudent, isStudent } from '@/lib/roles';
@@ -44,6 +45,7 @@ export function ClassDetail() {
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab') as ClassTab | null;
   const { user, profile } = useAuth();
+  const { getClassUnreadCount, markClassSeen } = useUnreadAnnouncements();
   const toast = useToast();
 
   const [cls, setCls] = useState<CollegeClass | null>(null);
@@ -76,6 +78,14 @@ export function ClassDetail() {
       setActiveTab(requestedTab);
     }
   }, [requestedTab]);
+
+  const classUnreadCount = id ? getClassUnreadCount(id) : 0;
+
+  useEffect(() => {
+    if (id && activeTab === 'announcements' && classUnreadCount > 0) {
+      markClassSeen(id);
+    }
+  }, [id, activeTab, classUnreadCount, markClassSeen]);
 
   const studentView = isStudent(profile?.role);
 
@@ -236,18 +246,24 @@ export function ClassDetail() {
               </div>
             </section>
 
-            <div className="flex gap-2 overflow-x-auto border-b border-line pb-2" role="tablist">
+            <div className="flex gap-2 overflow-x-auto border-b border-line pb-2 pr-2 pt-2" role="tablist">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const selected = activeTab === tab.key;
+                const tabUnread = tab.key === 'announcements' ? classUnreadCount : 0;
                 return (
                   <button
                     key={tab.key}
                     type="button"
                     role="tab"
                     aria-selected={selected}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
+                    onClick={() => {
+                      setActiveTab(tab.key);
+                      if (tab.key === 'announcements' && id) {
+                        markClassSeen(id);
+                      }
+                    }}
+                    className={`relative inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
                       selected
                         ? 'bg-brand-navy text-white'
                         : 'bg-surface-card text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
@@ -255,6 +271,7 @@ export function ClassDetail() {
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
                     <span>{tab.label}</span>
+                    {tabUnread > 0 && <UnreadBadge count={tabUnread} />}
                   </button>
                 );
               })}
