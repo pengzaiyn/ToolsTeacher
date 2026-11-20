@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { isDroppedOutStudent } from '@/lib/roles';
-import { fetchAllPages, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
 import type { Enrollment, Profile } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +15,11 @@ import { LoadingState } from '@/components/ui/Spinner';
 import { Table, type TableColumn } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/Toast';
 
+type StudentCandidate = Pick<
+  Profile,
+  'id' | 'full_name' | 'email' | 'student_code' | 'class_name' | 'class_key' | 'academic_status'
+>;
+
 interface ClassMembersTabProps {
   classId: string;
   canManage: boolean;
@@ -24,11 +29,13 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
   const toast = useToast();
 
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [allStudents, setAllStudents] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [addOpen, setAddOpen] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
+  const [candidateStudents, setCandidateStudents] = useState<StudentCandidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [homeroomClasses, setHomeroomClasses] = useState<{ value: string; label: string }[]>([]);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [bulkClassKey, setBulkClassKey] = useState('');
   const [bulkAdding, setBulkAdding] = useState(false);
@@ -40,33 +47,18 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data: enrData, error: eErr }, stuData] = await Promise.all([
-          supabase
-            .from('enrollments')
-            .select(
-              '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active, academic_status)'
-            )
-            .eq('class_id', classId)
-            .order('enrolled_at', { ascending: false })
-            .returns<Enrollment[]>(),
-          canManage
-            ? fetchAllPages<Profile>((from, to, withCount) =>
-                supabase
-                  .from('profiles')
-                  .select('*', withCount ? { count: 'exact' } : undefined)
-                  .eq('role', 'student')
-                  .eq('is_active', true)
-                  .order('full_name', { ascending: true })
-                  .range(from, to)
-                  .returns<Profile[]>()
-              )
-            : Promise.resolve([] as Profile[]),
-        ]);
+        const { data: enrData, error: eErr } = await supabase
+          .from('enrollments')
+          .select(
+            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active, academic_status)'
+          )
+          .eq('class_id', classId)
+          .order('enrolled_at', { ascending: false })
+          .returns<Enrollment[]>();
 
         if (eErr) throw new Error(eErr.message);
 
         setEnrollments((enrData ?? []).filter((row) => !isDroppedOutStudent(row.student)));
-        setAllStudents(stuData.filter((s) => !isDroppedOutStudent(s)));
       } catch (err) {
         if (!silent) {
           toast.error(err instanceof Error ? err.message : 'Không tải được danh sách thành viên');
@@ -75,7 +67,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
         if (!silent) setLoading(false);
       }
     },
-    [classId, canManage, toast]
+    [classId, toast]
   );
 
   useEffect(() => {
@@ -84,42 +76,91 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
 
   useRealtimeRefresh({
     channelName: `class-members-${classId}`,
-    tables: [{ table: 'enrollments', filter: `class_id=eq.${classId}` }, { table: 'profiles' }],
+    tables: [{ table: 'enrollments', filter: `class_id=eq.${classId}` }],
     onRefresh: () => load(true),
   });
+
+  // Tải danh sách lớp hành chính 1 lần khi mở modal "Thêm sinh viên"
+  useEffect(() => {
+    if (!addOpen || !canManage || homeroomClasses.length > 0) return;
+    let cancelled = false;
+    supabase
+      .from('classes')
+      .select('class_key, name')
+      .order('name', { ascending: true })
+      .returns<{ class_key: string | null; name: string }[]>()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const map = new Map<string, string>();
+        data.forEach((cls) => {
+          if (cls.class_key && cls.name && !map.has(cls.class_key)) {
+            map.set(cls.class_key, cls.name);
+          }
+        });
+        setHomeroomClasses(
+          Array.from(map.entries())
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [addOpen, canManage, homeroomClasses.length]);
+
+  // Tìm kiếm sinh viên trực tiếp trên server (tối đa 60 kết quả/lần, không tải toàn bộ 5.700 SV)
+  useEffect(() => {
+    if (!addOpen || !canManage) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setLoadingCandidates(true);
+      try {
+        const q = studentSearch.trim().replace(/[,%()]/g, ' ').trim();
+        let query = supabase
+          .from('profiles')
+          .select('id, full_name, email, student_code, class_name, class_key, academic_status')
+          .eq('role', 'student')
+          .eq('is_active', true)
+          .order('full_name', { ascending: true })
+          .limit(60);
+
+        if (q) {
+          query = query.or(
+            `full_name.ilike.%${q}%,student_code.ilike.%${q}%,email.ilike.%${q}%,class_name.ilike.%${q}%`
+          );
+        }
+
+        const { data, error } = await query.returns<StudentCandidate[]>();
+        if (error) throw new Error(error.message);
+        if (!cancelled) {
+          setCandidateStudents((data ?? []).filter((s) => !isDroppedOutStudent(s)));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : 'Không tìm được sinh viên');
+        }
+      } finally {
+        if (!cancelled) setLoadingCandidates(false);
+      }
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [addOpen, canManage, studentSearch, toast]);
 
   const enrolledIds = useMemo(
     () => new Set(enrollments.map((item) => item.student_id)),
     [enrollments]
   );
 
-  const availableStudents = useMemo(() => {
-    const q = studentSearch.trim().toLowerCase();
-    return allStudents.filter((stu) => {
-      if (enrolledIds.has(stu.id)) return false;
-      if (!q) return true;
-      return (
-        stu.full_name.toLowerCase().includes(q) ||
-        stu.email.toLowerCase().includes(q) ||
-        (stu.student_code ?? '').toLowerCase().includes(q) ||
-        (stu.class_name ?? '').toLowerCase().includes(q)
-      );
-    });
-  }, [allStudents, enrolledIds, studentSearch]);
+  const availableStudents = useMemo(
+    () => candidateStudents.filter((stu) => !enrolledIds.has(stu.id)),
+    [candidateStudents, enrolledIds]
+  );
 
-  const homeroomClasses = useMemo(() => {
-    const map = new Map<string, string>();
-    allStudents.forEach((stu) => {
-      if (stu.class_key && stu.class_name && !map.has(stu.class_key)) {
-        map.set(stu.class_key, stu.class_name);
-      }
-    });
-    return Array.from(map.entries())
-      .map(([key, name]) => ({ value: key, label: name }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
-  }, [allStudents]);
-
-  async function handleAddStudent(student: Profile) {
+  async function handleAddStudent(student: StudentCandidate) {
     setAddingId(student.id);
     try {
       const { error } = await supabase.from('enrollments').insert({
@@ -128,7 +169,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
       });
       if (error) throw new Error(error.message);
       toast.success(`Đã thêm sinh viên ${student.full_name} vào lớp`);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(formatClassActionError(err, 'Không thêm được sinh viên'));
     } finally {
@@ -138,16 +179,26 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
 
   async function handleBulkAddByClass() {
     if (!bulkClassKey) return;
-    const candidates = allStudents.filter(
-      (stu) => stu.class_key === bulkClassKey && !enrolledIds.has(stu.id)
-    );
-    if (candidates.length === 0) {
-      toast.info('Tất cả sinh viên lớp này đã có trong danh sách');
-      return;
-    }
-
     setBulkAdding(true);
     try {
+      const { data: classStudents, error: fetchErr } = await supabase
+        .from('profiles')
+        .select('id, academic_status')
+        .eq('role', 'student')
+        .eq('is_active', true)
+        .eq('class_key', bulkClassKey)
+        .returns<{ id: string; academic_status: string | null }[]>();
+
+      if (fetchErr) throw new Error(fetchErr.message);
+
+      const candidates = (classStudents ?? []).filter(
+        (stu) => !isDroppedOutStudent(stu) && !enrolledIds.has(stu.id)
+      );
+      if (candidates.length === 0) {
+        toast.info('Tất cả sinh viên lớp này đã có trong danh sách');
+        return;
+      }
+
       const payload = candidates.map((stu) => ({
         class_id: classId,
         student_id: stu.id,
@@ -156,7 +207,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
       if (error) throw new Error(error.message);
       toast.success(`Đã thêm ${candidates.length} sinh viên vào lớp học`);
       setBulkClassKey('');
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(formatClassActionError(err, 'Không thêm được danh sách lớp'));
     } finally {
@@ -175,7 +226,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
       if (error) throw new Error(error.message);
       toast.success('Đã xóa sinh viên khỏi lớp');
       setRemoveTarget(null);
-      await load();
+      await load(true);
     } catch (err) {
       toast.error(formatClassActionError(err, 'Không xóa được sinh viên khỏi lớp'));
     } finally {
@@ -315,7 +366,9 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
               />
             </div>
 
-            {availableStudents.length === 0 ? (
+            {loadingCandidates ? (
+              <LoadingState message="Đang tìm sinh viên..." />
+            ) : availableStudents.length === 0 ? (
               <p className="py-4 text-center text-sm font-normal text-ink-muted">
                 Không còn sinh viên khả dụng khớp tìm kiếm.
               </p>
@@ -365,4 +418,3 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
     </div>
   );
 }
-

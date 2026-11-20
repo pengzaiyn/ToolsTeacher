@@ -50,11 +50,6 @@ type RawEnrollmentRow = {
   > | null;
 };
 
-type RawStudentProfile = Pick<
-  Profile,
-  'id' | 'full_name' | 'student_code' | 'class_name' | 'class_key' | 'is_active' | 'academic_status'
->;
-
 export function ClassroomKit() {
   const toast = useToast();
   const [searchParams] = useSearchParams();
@@ -93,7 +88,7 @@ export function ClassroomKit() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [clsRes, enrRows, stuRows] = await Promise.all([
+      const [clsRes, enrRows] = await Promise.all([
         supabase
           .from('classes')
           .select('id, name, class_key, subject')
@@ -109,26 +104,13 @@ export function ClassroomKit() {
             .range(from, to)
             .returns<RawEnrollmentRow[]>()
         ),
-        fetchAllPages<RawStudentProfile>((from, to, withCount) =>
-          supabase
-            .from('profiles')
-            .select(
-              'id, full_name, student_code, class_name, class_key, is_active, academic_status',
-              withCount ? { count: 'exact' } : undefined
-            )
-            .eq('role', 'student')
-            .eq('is_active', true)
-            .order('full_name', { ascending: true })
-            .range(from, to)
-            .returns<RawStudentProfile[]>()
-        ),
       ]);
 
       if (clsRes.error) throw new Error(clsRes.error.message);
 
       const enrolledByClassId = new Map<string, KitStudent[]>();
       enrRows.forEach((row) => {
-        if (!row.student || row.student.is_active === false || isDroppedOutStudent(row.student)) {
+        if (!row.student || isDroppedOutStudent(row.student)) {
           return;
         }
         const list = enrolledByClassId.get(row.class_id) ?? [];
@@ -139,25 +121,6 @@ export function ClassroomKit() {
           className: row.student.class_name,
         });
         enrolledByClassId.set(row.class_id, list);
-      });
-
-      const profilesByClassKey = new Map<string, { name: string; students: KitStudent[] }>();
-      stuRows.forEach((stu) => {
-        if (isDroppedOutStudent(stu)) return;
-        const cleanClassName = stu.class_name?.trim() ?? '';
-        const key = stu.class_key?.trim() || (cleanClassName ? classKey(cleanClassName) : '');
-        if (!key) return;
-        const entry = profilesByClassKey.get(key) ?? {
-          name: cleanClassName || key,
-          students: [],
-        };
-        entry.students.push({
-          id: stu.id,
-          name: stu.full_name,
-          code: stu.student_code,
-          className: cleanClassName || entry.name,
-        });
-        profilesByClassKey.set(key, entry);
       });
 
       const mergedMap = new Map<
@@ -176,23 +139,8 @@ export function ClassroomKit() {
         };
 
         (enrolledByClassId.get(cls.id) ?? []).forEach((s) => bucket.studentsById.set(s.id, s));
-        (profilesByClassKey.get(key)?.students ?? []).forEach((s) =>
-          bucket.studentsById.set(s.id, s)
-        );
 
         mergedMap.set(key, bucket);
-      });
-
-      profilesByClassKey.forEach((group, key) => {
-        if (mergedMap.has(key)) return;
-        const studentsById = new Map<string, KitStudent>();
-        group.students.forEach((s) => studentsById.set(s.id, s));
-        mergedMap.set(key, {
-          key,
-          name: group.name,
-          subject: null,
-          studentsById,
-        });
       });
 
       const sources: ClassSource[] = Array.from(mergedMap.values())

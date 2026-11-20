@@ -41,6 +41,15 @@ export interface TimetableEntry {
   note: string | null;
   date_from: string | null;
   date_to: string | null;
+  semester?: string | null;
+  semester_order?: number | null;
+  academic_year?: string | null;
+  time_range?: string | null;
+  exam_date?: string | null;
+  total_periods?: number | null;
+  periods_per_session?: number | null;
+  credits?: number | null;
+  is_internship?: boolean;
 }
 
 export interface TimetableEntryInput {
@@ -56,6 +65,15 @@ export interface TimetableEntryInput {
   note: string | null;
   date_from: string | null;
   date_to: string | null;
+  semester?: string | null;
+  semester_order?: number | null;
+  academic_year?: string | null;
+  time_range?: string | null;
+  exam_date?: string | null;
+  total_periods?: number | null;
+  periods_per_session?: number | null;
+  credits?: number | null;
+  is_internship?: boolean;
 }
 
 export interface TimetableClassSummary {

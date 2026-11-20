@@ -73,6 +73,7 @@ export function Classes() {
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState<'all' | 'has_students' | 'empty' | 'has_timetable'>('all');
   const [sortBy, setSortBy] = useState<ClassSortBy>('newest');
+  const [visibleCount, setVisibleCount] = useState(24);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CollegeClass | null>(null);
@@ -89,7 +90,7 @@ export function Classes() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data: classData, error: cErr }, teacherRes, enrRows, ttRes] = await Promise.all([
+        const [{ data: classData, error: cErr }, teacherRes, countRes, ttRes] = await Promise.all([
           supabase
             .from('classes')
             .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
@@ -98,69 +99,87 @@ export function Classes() {
           adminRole
             ? supabase
                 .from('profiles')
-                .select('*')
+                .select('id, full_name, email, subject')
                 .eq('role', 'teacher')
                 .eq('is_active', true)
                 .order('full_name', { ascending: true })
                 .returns<Profile[]>()
             : Promise.resolve({ data: [] as Profile[], error: null }),
           !studentRole
-            ? fetchAllPages<{
-                class_id: string;
-                student: { academic_status: string | null } | null;
-              }>((from, to, withCount) =>
-                supabase
-                  .from('enrollments')
-                  .select(
-                    'class_id, student:profiles!enrollments_student_id_fkey(academic_status)',
-                    withCount ? { count: 'exact' } : undefined
-                  )
-                  .range(from, to)
-                  .returns<
-                    {
-                      class_id: string;
-                      student: { academic_status: string | null } | null;
-                    }[]
-                  >()
-              )
-            : Promise.resolve(
-                [] as {
-                  class_id: string;
-                  student: { academic_status: string | null } | null;
-                }[]
-              ),
+            ? supabase.rpc('class_active_student_counts')
+            : Promise.resolve({ data: null, error: null }),
           supabase.rpc('timetable_classes'),
         ]);
         if (cErr) throw new Error(cErr.message);
         if (teacherRes.error) throw new Error(teacherRes.error.message);
 
-        const eMap = new Map<string, number>();
-        enrRows.forEach((row) => {
-          if (isDroppedOutStudent(row.student)) return;
-          eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
-        });
-
         setClasses(classData ?? []);
         setTeachers(teacherRes.data ?? []);
-        setMemberCounts(eMap);
 
-      const tMap = new Map<string, number>();
-      ((ttRes.data as TimetableClassSummary[] | null) ?? []).forEach((row) => {
-        tMap.set(row.class_key, Number(row.entries));
-      });
-      setTimetableCounts(tMap);
-    } catch (err) {
-      if (!silent) {
-        toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp học');
+        const tMap = new Map<string, number>();
+        ((ttRes.data as TimetableClassSummary[] | null) ?? []).forEach((row) => {
+          tMap.set(row.class_key, Number(row.entries));
+        });
+        setTimetableCounts(tMap);
+
+        if (!studentRole) {
+          if (!countRes.error && Array.isArray(countRes.data)) {
+            const eMap = new Map<string, number>();
+            (countRes.data as { class_id: string; student_count: number }[]).forEach((row) => {
+              eMap.set(row.class_id, Number(row.student_count));
+            });
+            setMemberCounts(eMap);
+          } else {
+            // Fallback không chặn hiển thị danh sách lớp nếu chưa chạy migration RPC
+            void fetchAllPages<{
+              class_id: string;
+              student: { academic_status: string | null } | null;
+            }>((from, to, withCount) =>
+              supabase
+                .from('enrollments')
+                .select(
+                  'class_id, student:profiles!enrollments_student_id_fkey(academic_status)',
+                  withCount ? { count: 'exact' } : undefined
+                )
+                .range(from, to)
+                .returns<
+                  {
+                    class_id: string;
+                    student: { academic_status: string | null } | null;
+                  }[]
+                >()
+            )
+              .then((enrRows) => {
+                const eMap = new Map<string, number>();
+                enrRows.forEach((row) => {
+                  if (isDroppedOutStudent(row.student)) return;
+                  eMap.set(row.class_id, (eMap.get(row.class_id) ?? 0) + 1);
+                });
+                setMemberCounts(eMap);
+              })
+              .catch(() => {
+                // Bỏ qua lỗi phụ khi fallback đếm sĩ số
+              });
+          }
+        }
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được danh sách lớp học');
+        }
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [adminRole, studentRole, toast]);
+    },
+    [adminRole, studentRole, toast]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [search, searchMode, teacherFilter, subjectFilter, sizeFilter, sortBy]);
 
   useRealtimeRefresh({
     channelName: 'classes-list-realtime',
@@ -527,8 +546,9 @@ export function Classes() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((cls) => {
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.slice(0, visibleCount).map((cls) => {
               const key = cls.class_key || classKey(cls.name);
               const stuCount = memberCounts.get(cls.id) ?? 0;
               const ttCount = timetableCounts.get(key) ?? 0;
@@ -631,6 +651,31 @@ export function Classes() {
                 </article>
               );
             })}
+            </div>
+
+            {filtered.length > visibleCount && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-card px-4 py-3">
+                <span className="text-xs font-semibold text-ink-secondary">
+                  Đang hiển thị {Math.min(visibleCount, filtered.length)} / {filtered.length} lớp học
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="navy"
+                    onClick={() => setVisibleCount((c) => c + 24)}
+                  >
+                    Xem thêm 24 lớp
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setVisibleCount(filtered.length)}
+                  >
+                    Hiển thị tất cả ({filtered.length})
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

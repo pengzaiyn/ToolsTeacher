@@ -160,15 +160,20 @@ export async function fetchAllPages<T>(
     return firstRows;
   }
 
-  const promises: ReturnType<typeof fetchPage>[] = [];
+  const ranges: Array<[number, number]> = [];
   for (let from = pageSize; from < total; from += pageSize) {
-    promises.push(fetchPage(from, from + pageSize - 1, false));
+    ranges.push([from, from + pageSize - 1]);
   }
-  const rest = await Promise.all(promises);
+
   const all = [...firstRows];
-  for (const res of rest) {
-    if (res.error) throw new Error(res.error.message);
-    if (res.data) all.push(...res.data);
+  const concurrency = 2;
+  for (let i = 0; i < ranges.length; i += concurrency) {
+    const batch = ranges.slice(i, i + concurrency);
+    const resList = await Promise.all(batch.map(([from, to]) => fetchPage(from, to, false)));
+    for (const res of resList) {
+      if (res.error) throw new Error(res.error.message);
+      if (res.data) all.push(...res.data);
+    }
   }
   return all;
 }

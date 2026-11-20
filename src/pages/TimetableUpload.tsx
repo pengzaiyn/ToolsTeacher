@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ClipboardPaste,
   Download,
   FileSpreadsheet,
   Upload,
@@ -11,6 +12,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import {
   downloadTimetableTemplate,
+  parseTimetableCsvText,
   parseTimetableWorkbook,
   type ParsedTimetableResult,
 } from '@/lib/timetableExcel';
@@ -29,7 +31,9 @@ export function TimetableUpload() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [sourceMode, setSourceMode] = useState<'file' | 'paste'>('file');
   const [fileName, setFileName] = useState<string>('');
+  const [csvText, setCsvText] = useState<string>('');
   const [parsed, setParsed] = useState<ParsedTimetableResult | null>(null);
   const [parsing, setParsing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -37,27 +41,62 @@ export function TimetableUpload() {
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
 
     setParsing(true);
     setFileName(file.name);
     try {
-      const buffer = await file.arrayBuffer();
-      const result = parseTimetableWorkbook(buffer);
+      let result: ParsedTimetableResult;
+      if (/\.csv$/i.test(file.name)) {
+        const text = await file.text();
+        result = parseTimetableCsvText(text);
+      } else {
+        const buffer = await file.arrayBuffer();
+        result = parseTimetableWorkbook(buffer);
+      }
       setParsed(result);
       if (result.errors.length === 0 && result.entries.length > 0) {
-        toast.info(`Đã đọc ${result.entries.length} buổi học từ ${file.name}`);
+        const semInfo =
+          result.semesters.length > 0 ? ` (${result.semesters.length} kỳ học)` : '';
+        toast.info(`Đã đọc ${result.entries.length} buổi học${semInfo} từ ${file.name}`);
       } else if (result.errors.length > 0) {
-        toast.error(`Phát hiện ${result.errors.length} lỗi trong file Excel`);
+        toast.error(`Phát hiện ${result.errors.length} lỗi trong file`);
       }
     } catch {
       setParsed({
         entries: [],
-        errors: ['Không đọc được file Excel. Vui lòng kiểm tra đúng định dạng .xlsx hoặc .xls'],
+        errors: ['Không đọc được file. Vui lòng kiểm tra đúng định dạng .xlsx, .xls hoặc .csv'],
         classes: [],
+        semesters: [],
+        format: 'school',
         totalRows: 0,
       });
-      toast.error('Không đọc được file Excel');
+      toast.error('Không đọc được file thời khóa biểu');
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function handleParsePastedCsv() {
+    if (!csvText.trim()) {
+      toast.error('Vui lòng dán nội dung CSV thời khóa biểu trước');
+      return;
+    }
+    setParsing(true);
+    setFileName('thoi-khoa-bieu-dan-truc-tiep.csv');
+    try {
+      const result = parseTimetableCsvText(csvText);
+      setParsed(result);
+      if (result.errors.length === 0 && result.entries.length > 0) {
+        toast.success(
+          `Đã phân tích ${result.entries.length} buổi học (${result.semesters.length} kỳ học)`
+        );
+      } else if (result.errors.length > 0) {
+        toast.error(`Phát hiện ${result.errors.length} lỗi trong dữ liệu dán`);
+      }
+    } catch {
+      toast.error('Không phân tích được dữ liệu dán');
     } finally {
       setParsing(false);
     }
@@ -89,39 +128,47 @@ export function TimetableUpload() {
 
   const previewColumns: TableColumn<TimetableEntryInput>[] = [
     {
+      key: 'semester',
+      header: 'Học kỳ',
+      render: (row) => (
+        <Badge tone="navy">{row.semester || '—'}</Badge>
+      ),
+    },
+    {
       key: 'class_name',
       header: 'Lớp',
       render: (row) => <span className="font-bold text-brand-navy">{row.class_name}</span>,
     },
     {
-      key: 'weekday',
-      header: 'Thứ',
-      render: (row) => <span className="whitespace-nowrap">{weekdayLabel(row.weekday)}</span>,
-    },
-    {
-      key: 'period',
-      header: 'Tiết',
+      key: 'subject',
+      header: 'Môn học',
       render: (row) => (
-        <Badge tone="navy">
-          {row.period_start}
-          {row.period_end > row.period_start ? `–${row.period_end}` : ''}
-        </Badge>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-semibold text-ink-primary">{row.subject}</span>
+          {row.is_internship && <Badge tone="warning">Thực tập</Badge>}
+        </div>
       ),
     },
     {
-      key: 'subject',
-      header: 'Môn học',
-      render: (row) => <span className="font-semibold text-ink-primary">{row.subject}</span>,
+      key: 'weekday',
+      header: 'Thứ',
+      render: (row) => (
+        <span className="whitespace-nowrap">
+          {row.is_internship ? 'Theo đợt' : weekdayLabel(row.weekday)}
+        </span>
+      ),
     },
     {
-      key: 'teacher_name',
-      header: 'Giáo viên',
-      render: (row) => <span>{row.teacher_name || '—'}</span>,
-    },
-    {
-      key: 'room',
-      header: 'Phòng',
-      render: (row) => <span>{row.room || '—'}</span>,
+      key: 'time',
+      header: 'Giờ học',
+      render: (row) => (
+        <Badge tone="red">
+          {row.is_internship
+            ? 'Thực tập'
+            : row.time_range ||
+              `Tiết ${row.period_start}${row.period_end > row.period_start ? `–${row.period_end}` : ''}`}
+        </Badge>
+      ),
     },
     {
       key: 'dates',
@@ -137,9 +184,33 @@ export function TimetableUpload() {
       ),
     },
     {
-      key: 'note',
-      header: 'Ghi chú',
-      render: (row) => <span className="text-xs text-ink-muted">{row.note || '—'}</span>,
+      key: 'room',
+      header: 'Phòng',
+      render: (row) => <span>{row.room || '—'}</span>,
+    },
+    {
+      key: 'teacher_name',
+      header: 'Giảng viên',
+      render: (row) => <span>{row.teacher_name || '—'}</span>,
+    },
+    {
+      key: 'exam_date',
+      header: 'Dự kiến thi',
+      render: (row) => (
+        <span className="whitespace-nowrap text-xs font-semibold text-brand-red">
+          {row.exam_date ? formatDateVi(row.exam_date) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'credits',
+      header: 'Tiết / TC',
+      render: (row) => (
+        <span className="whitespace-nowrap text-xs text-ink-secondary">
+          {row.total_periods ? `${row.total_periods}t` : '—'}
+          {row.credits ? ` • ${row.credits} TC` : ''}
+        </span>
+      ),
     },
   ];
 
@@ -157,76 +228,121 @@ export function TimetableUpload() {
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               <span>Quay lại thời khóa biểu</span>
             </Link>
-            <h1 className="text-2xl font-bold text-brand-navy">Tải thời khóa biểu từ Excel</h1>
+            <h1 className="text-2xl font-bold text-brand-navy">
+              Tải thời khóa biểu theo mẫu Phòng Đào tạo
+            </h1>
             <p className="text-sm font-normal text-ink-secondary">
-              Mỗi dòng tương ứng một buổi học. Hệ thống sẽ thay thế toàn bộ lịch cũ của các lớp có
-              mặt trong file và tự động đồng bộ danh sách sang Lớp học.
+              Hỗ trợ trực tiếp file Excel/CSV 7 kỳ học của từng lớp (HK1, HK2, HK3, HK4, HK5+6+7).
+              Hệ thống sẽ thay thế toàn bộ lịch cũ của lớp có trong file và tự đồng bộ sang Lớp học.
             </p>
           </div>
 
           <Button variant="navy" onClick={downloadTimetableTemplate}>
             <Download className="h-4 w-4" aria-hidden="true" />
-            <span>Tải file Excel mẫu</span>
+            <span>Tải file Excel mẫu 7 kỳ</span>
           </Button>
         </div>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-xl border border-line bg-surface-card p-6 lg:col-span-2">
-            <h2 className="mb-4 text-base font-bold text-ink-primary">Chọn file Excel (.xlsx, .xls)</h2>
-            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-line-strong bg-surface-page p-8 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-redSoft text-brand-red">
-                <FileSpreadsheet className="h-6 w-6" aria-hidden="true" />
-              </div>
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-semibold text-ink-primary">
-                  {fileName ? `Đang chọn: ${fileName}` : 'Chưa có file nào được chọn'}
-                </p>
-                <p className="text-xs font-normal text-ink-muted">
-                  Tối đa 5.000 dòng mỗi lần tải lên
-                </p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileChange}
-                className="sr-only"
-              />
+          <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-6 lg:col-span-2">
+            <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
               <Button
-                variant="primary"
-                loading={parsing}
-                onClick={() => fileInputRef.current?.click()}
+                size="sm"
+                variant={sourceMode === 'file' ? 'navy' : 'secondary'}
+                onClick={() => setSourceMode('file')}
               >
-                <Upload className="h-4 w-4" aria-hidden="true" />
-                <span>{fileName ? 'Chọn file khác' : 'Chọn file Excel'}</span>
+                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                <span>Tải file Excel / CSV</span>
+              </Button>
+              <Button
+                size="sm"
+                variant={sourceMode === 'paste' ? 'navy' : 'secondary'}
+                onClick={() => setSourceMode('paste')}
+              >
+                <ClipboardPaste className="h-4 w-4" aria-hidden="true" />
+                <span>Dán dữ liệu CSV trực tiếp</span>
               </Button>
             </div>
+
+            {sourceMode === 'file' ? (
+              <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-line-strong bg-surface-page p-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-redSoft text-brand-red">
+                  <FileSpreadsheet className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-semibold text-ink-primary">
+                    {fileName ? `Đang chọn: ${fileName}` : 'Chưa có file nào được chọn'}
+                  </p>
+                  <p className="text-xs font-normal text-ink-muted">
+                    Hỗ trợ .xlsx, .xls, .csv • Tối đa 5.000 dòng mỗi lần tải lên
+                  </p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileChange}
+                  className="sr-only"
+                />
+                <Button
+                  variant="primary"
+                  loading={parsing}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  <span>{fileName ? 'Chọn file khác' : 'Chọn file Excel / CSV'}</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <label htmlFor="timetable-csv-paste" className="text-sm font-semibold text-ink-primary">
+                  Dán toàn bộ nội dung CSV mẫu Phòng Đào tạo (HK1 → HK5+6+7)
+                </label>
+                <textarea
+                  id="timetable-csv-paste"
+                  rows={8}
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  placeholder="HK1,,,,,,,,,,,,,,&#10;TRƯỜNG CAO ĐẲNG VIỆT MỸ HÀ NỘI,,,,,THỜI KHÓA BIỂU..."
+                  className="w-full rounded-lg border border-line-strong bg-surface-page p-3 font-mono text-xs text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                />
+                <div className="flex justify-end">
+                  <Button variant="primary" loading={parsing} onClick={handleParsePastedCsv}>
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    <span>Phân tích dữ liệu dán</span>
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <aside className="rounded-xl border border-line bg-surface-card p-6">
-            <h2 className="mb-4 text-base font-bold text-ink-primary">Quy chuẩn cột Excel</h2>
+            <h2 className="mb-4 text-base font-bold text-ink-primary">
+              Định dạng hỗ trợ tự động
+            </h2>
             <ul className="flex flex-col gap-2 text-xs font-normal text-ink-secondary">
               <li>
-                <span className="font-semibold text-ink-primary">Lớp*</span>: Tên lớp (VD: CNTT-K18A)
+                <span className="font-semibold text-ink-primary">Mẫu chuẩn 7 kỳ của trường</span>:
+                Đọc nguyên file Phòng Đào tạo gồm HK1, HK2, HK3, HK4 và HK5+6+7 xếp dọc trong 1 sheet
+                hoặc nhiều sheet.
               </li>
               <li>
-                <span className="font-semibold text-ink-primary">Thứ*</span>: Số 2–8 (8 = Chủ nhật)
-                hoặc chữ Thứ 2..CN
+                <span className="font-semibold text-ink-primary">Nhiều thứ trong 1 ô</span>: Tự tách
+                các dòng như &ldquo;Thứ Ba / Thứ Năm&rdquo; thành 2 buổi học riêng trên lưới tuần.
               </li>
               <li>
-                <span className="font-semibold text-ink-primary">Từ tiết*, Đến tiết*</span>: Số
-                nguyên từ 1 đến 15
+                <span className="font-semibold text-ink-primary">Giờ học &amp; Ngày thi</span>: Giữ
+                nguyên giờ học thật (7:30-12:15, 13:00-17:00), Dự kiến ngày thi, Tổng số tiết và Số
+                tín chỉ.
               </li>
               <li>
-                <span className="font-semibold text-ink-primary">Môn học*</span>: Tên môn / học phần
+                <span className="font-semibold text-ink-primary">Môn Thực tập</span>: Tự nhận diện
+                các đợt Thực tập nhận thức / Thực tập tốt nghiệp không cố định thứ để hiển thị riêng
+                trong tuần.
               </li>
               <li>
-                <span className="font-semibold text-ink-primary">Giáo viên, Phòng học, Ghi chú</span>
-                : Không bắt buộc
-              </li>
-              <li>
-                <span className="font-semibold text-ink-primary">Từ ngày, Đến ngày</span>: Định dạng
-                YYYY-MM-DD hoặc DD/MM/YYYY
+                <span className="font-semibold text-ink-primary">Định dạng ngày</span>: Hỗ trợ cả
+                YYYY-MM-DD và DD/MM/YYYY trong cùng 1 file.
               </li>
             </ul>
           </aside>
@@ -236,20 +352,27 @@ export function TimetableUpload() {
           <EmptyState
             icon={FileSpreadsheet}
             title="Chưa có dữ liệu xem trước"
-            description="Hãy tải file Excel mẫu về tham khảo hoặc chọn file Excel thời khóa biểu để kiểm tra trước khi lưu."
+            description="Hãy chọn file Excel/CSV thời khóa biểu 7 kỳ của lớp hoặc dán trực tiếp nội dung CSV để kiểm tra trước khi lưu."
           />
         ) : (
           <section className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface-card p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="navy">Tổng dòng đọc: {parsed.totalRows}</Badge>
-                <Badge tone="success">Hợp lệ: {parsed.entries.length}</Badge>
+                <Badge tone="navy">
+                  {parsed.format === 'school' ? 'Mẫu Phòng Đào tạo' : 'Mẫu bảng phẳng'}
+                </Badge>
+                <Badge tone="success">Hợp lệ: {parsed.entries.length} buổi</Badge>
                 {parsed.errors.length > 0 && (
                   <Badge tone="danger">Lỗi: {parsed.errors.length}</Badge>
                 )}
                 {parsed.classes.map((cls) => (
                   <Badge key={cls.classKey} tone="neutral">
-                    {cls.className}: {cls.count} buổi
+                    Lớp {cls.className}: {cls.count} buổi
+                  </Badge>
+                ))}
+                {parsed.semesters.map((sem) => (
+                  <Badge key={`${sem.className}-${sem.semester}`} tone="navy">
+                    {sem.semester}: {sem.count}
                   </Badge>
                 ))}
               </div>
@@ -271,7 +394,7 @@ export function TimetableUpload() {
               >
                 <div className="flex items-center gap-2 text-sm font-bold">
                   <AlertCircle className="h-5 w-5" aria-hidden="true" />
-                  <span>Vui lòng sửa các lỗi sau trong file Excel trước khi tải lên:</span>
+                  <span>Vui lòng sửa các lỗi sau trước khi tải lên:</span>
                 </div>
                 <ul className="list-disc space-y-2 pl-6 text-xs font-normal">
                   {parsed.errors.slice(0, 20).map((err, idx) => (
@@ -301,18 +424,19 @@ export function TimetableUpload() {
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleConfirmUpload}
         loading={uploading}
-        confirmVariant="navy"
-        confirmLabel="Xác nhận cập nhật"
-        title="Xác nhận lưu thời khóa biểu"
+        confirmVariant="primary"
+        confirmLabel="Xác nhận lưu"
+        title="Xác nhận cập nhật thời khóa biểu"
         message={
           parsed
-            ? `Thao tác này sẽ ghi ${parsed.entries.length} buổi học và thay thế toàn bộ lịch cũ của ${parsed.classes
+            ? `Hệ thống sẽ thay thế toàn bộ thời khóa biểu cũ của ${parsed.classes
                 .map((c) => c.className)
-                .join(', ')}.`
+                .join(', ')} bằng ${parsed.entries.length} buổi học (${
+                parsed.semesters.length
+              } kỳ học) mới.`
             : ''
         }
       />
     </Layout>
   );
 }
-

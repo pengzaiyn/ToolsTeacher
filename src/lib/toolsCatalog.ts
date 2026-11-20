@@ -4,13 +4,11 @@ import {
   CalendarClock,
   CheckSquare,
   FileSpreadsheet,
+  ListChecks,
   Shuffle,
   Sparkles,
   Timer,
-  User,
   UserCheck,
-  Users,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import type { UserRole } from '@/types/database';
@@ -52,16 +50,6 @@ export const TOOLS: ToolItem[] = [
     category: 'general',
   },
   {
-    id: 'teacher-tools-hub',
-    title: 'Công cụ giảng dạy',
-    description: 'Mở kho tiện ích đứng lớp: lịch dạy cá nhân, mini game trả bài, chia nhóm, đếm giờ.',
-    to: '/teacher/tools',
-    icon: Wrench,
-    roles: ['teacher', 'admin'],
-    accent: 'red',
-    category: 'general',
-  },
-  {
     id: 'teacher-schedule',
     title: 'Lịch dạy cá nhân',
     description: 'Xem lịch giảng dạy hôm nay và theo tuần, tổng hợp số tiết và xuất file Excel.',
@@ -92,6 +80,18 @@ export const TOOLS: ToolItem[] = [
     accent: 'red',
     category: 'teaching',
     badge: 'Đợt 2',
+  },
+  {
+    id: 'exam-mixer',
+    title: 'Trộn đề thi trắc nghiệm',
+    description:
+      'Nhập câu hỏi từ văn bản hoặc Excel, đảo thứ tự câu và đáp án thành nhiều mã đề, xuất Word A4 và Excel đáp án.',
+    to: '/teacher/exam-mixer',
+    icon: ListChecks,
+    roles: ['teacher', 'admin'],
+    accent: 'red',
+    category: 'teaching',
+    badge: 'Mới',
   },
   {
     id: 'classroom-kit-game',
@@ -137,16 +137,6 @@ export const TOOLS: ToolItem[] = [
     category: 'teaching',
   },
   {
-    id: 'admin-students',
-    title: 'Quản lý sinh viên',
-    description: 'Tạo tài khoản sinh viên, gán lớp học, khóa/mở khóa, đặt lại mật khẩu và xóa.',
-    to: '/admin/students',
-    icon: Users,
-    roles: ['admin'],
-    accent: 'navy',
-    category: 'admin',
-  },
-  {
     id: 'admin-teachers',
     title: 'Quản lý giáo viên',
     description: 'Tạo tài khoản giảng viên, cập nhật chủ nhiệm môn và quản lý trạng thái.',
@@ -155,16 +145,6 @@ export const TOOLS: ToolItem[] = [
     roles: ['admin'],
     category: 'admin',
     accent: 'navy',
-  },
-  {
-    id: 'profile',
-    title: 'Hồ sơ cá nhân',
-    description: 'Xem thông tin tài khoản nhà trường và đổi mật khẩu đăng nhập.',
-    to: '/profile',
-    icon: User,
-    roles: ['student', 'teacher', 'admin'],
-    accent: 'navy',
-    category: 'general',
   },
 ];
 

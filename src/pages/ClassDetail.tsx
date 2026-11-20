@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   BookOpen,
@@ -41,6 +41,8 @@ type ClassTab =
 
 export function ClassDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab') as ClassTab | null;
   const { user, profile } = useAuth();
   const toast = useToast();
 
@@ -48,9 +50,32 @@ export function ClassDetail() {
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [timetableCount, setTimetableCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ClassTab>(() =>
-    isAdmin(profile?.role) ? 'members' : 'assignments'
-  );
+  const [activeTab, setActiveTab] = useState<ClassTab>(() => {
+    const validTabs: ClassTab[] = [
+      'assignments',
+      'materials',
+      'announcements',
+      'members',
+      'attendance',
+      'grades',
+    ];
+    if (requestedTab && validTabs.includes(requestedTab)) return requestedTab;
+    return isAdmin(profile?.role) ? 'members' : 'assignments';
+  });
+
+  useEffect(() => {
+    const validTabs: ClassTab[] = [
+      'assignments',
+      'materials',
+      'announcements',
+      'members',
+      'attendance',
+      'grades',
+    ];
+    if (requestedTab && validTabs.includes(requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
 
   const studentView = isStudent(profile?.role);
 

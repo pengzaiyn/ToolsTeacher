@@ -103,11 +103,139 @@ export function groupEntriesByWeekday(
   const map = new Map<number, TimetableEntry[]>();
   weekDays.forEach((day) => {
     const dayEntries = entries.filter(
-      (e) => e.weekday === day.weekday && isEntryActiveOnDate(e, day.isoDate)
+      (e) => !e.is_internship && e.weekday === day.weekday && isEntryActiveOnDate(e, day.isoDate)
     );
     map.set(day.weekday, dayEntries);
   });
   return map;
+}
+
+export function getActiveInternshipsForWeek(
+  entries: readonly TimetableEntry[],
+  weekDays: readonly WeekDayInfo[]
+): TimetableEntry[] {
+  if (weekDays.length === 0) return [];
+  const weekStart = weekDays[0].isoDate;
+  const weekEnd = weekDays[weekDays.length - 1].isoDate;
+  return entries.filter((e) => {
+    if (!e.is_internship) return false;
+    if (e.date_from && weekEnd < e.date_from) return false;
+    if (e.date_to && weekStart > e.date_to) return false;
+    return true;
+  });
+}
+
+export interface WeekExamNotice {
+  key: string;
+  subject: string;
+  examDate: string;
+  className: string;
+  teacherName: string | null;
+  room: string | null;
+  semester: string | null;
+}
+
+export function getExamsInWeek(
+  entries: readonly TimetableEntry[],
+  weekDays: readonly WeekDayInfo[]
+): WeekExamNotice[] {
+  if (weekDays.length === 0) return [];
+  const weekStart = weekDays[0].isoDate;
+  const weekEnd = weekDays[weekDays.length - 1].isoDate;
+  const seen = new Set<string>();
+  const list: WeekExamNotice[] = [];
+
+  for (const e of entries) {
+    if (!e.exam_date) continue;
+    if (e.exam_date < weekStart || e.exam_date > weekEnd) continue;
+    const dedupeKey = `${e.class_key}|${e.semester ?? ''}|${e.subject}|${e.exam_date}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    list.push({
+      key: dedupeKey,
+      subject: e.subject,
+      examDate: e.exam_date,
+      className: e.class_name,
+      teacherName: e.teacher_name,
+      room: e.room,
+      semester: e.semester ?? null,
+    });
+  }
+
+  return list.sort((a, b) => a.examDate.localeCompare(b.examDate));
+}
+
+export interface TimetableSemesterSummary {
+  key: string;
+  label: string;
+  order: number;
+  academicYear: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  count: number;
+  isCurrent: boolean;
+}
+
+export function summarizeSemesters(
+  entries: readonly TimetableEntry[],
+  todayIso: string
+): TimetableSemesterSummary[] {
+  const map = new Map<string, TimetableSemesterSummary>();
+
+  for (const e of entries) {
+    const label = e.semester?.trim();
+    if (!label) continue;
+    const order = e.semester_order ?? 99;
+    const existing = map.get(label);
+    if (!existing) {
+      map.set(label, {
+        key: label,
+        label,
+        order,
+        academicYear: e.academic_year ?? null,
+        dateFrom: e.date_from ?? null,
+        dateTo: e.date_to ?? null,
+        count: 1,
+        isCurrent: false,
+      });
+    } else {
+      existing.count += 1;
+      if (order < existing.order) existing.order = order;
+      if (!existing.academicYear && e.academic_year) existing.academicYear = e.academic_year;
+      if (e.date_from && (!existing.dateFrom || e.date_from < existing.dateFrom)) {
+        existing.dateFrom = e.date_from;
+      }
+      if (e.date_to && (!existing.dateTo || e.date_to > existing.dateTo)) {
+        existing.dateTo = e.date_to;
+      }
+    }
+  }
+
+  const list = Array.from(map.values()).sort(
+    (a, b) => a.order - b.order || a.label.localeCompare(b.label)
+  );
+
+  for (const sem of list) {
+    if (sem.dateFrom && sem.dateTo && todayIso >= sem.dateFrom && todayIso <= sem.dateTo) {
+      sem.isCurrent = true;
+    }
+  }
+
+  return list;
+}
+
+export function pickDefaultSemesterKey(
+  semesters: readonly TimetableSemesterSummary[],
+  todayIso: string
+): string {
+  if (semesters.length === 0) return 'all';
+  const active = semesters.find((s) => s.isCurrent);
+  if (active) return active.key;
+  // Nếu đang ở giữa 2 kỳ hoặc trước kỳ 1, chọn kỳ sắp diễn ra gần nhất
+  const upcoming = semesters.find((s) => s.dateFrom && s.dateFrom >= todayIso);
+  if (upcoming) return upcoming.key;
+  // Nếu tất cả đã kết thúc, chọn kỳ cuối cùng
+  return semesters[semesters.length - 1].key;
 }
 
 export function countEntriesInMap(map: ReadonlyMap<number, readonly TimetableEntry[]>): number {
@@ -121,14 +249,30 @@ export function countEntriesInMap(map: ReadonlyMap<number, readonly TimetableEnt
 export type DaySession = 'morning' | 'afternoon' | 'evening';
 
 export function getPeriodSession(periodStart: number): DaySession {
-  if (periodStart <= 5) return 'morning';
-  if (periodStart <= 10) return 'afternoon';
+  if (periodStart <= 6) return 'morning';
+  if (periodStart <= 12) return 'afternoon';
   return 'evening';
 }
 
+export function getEntrySession(
+  entry: Pick<TimetableEntry, 'period_start' | 'time_range'>
+): DaySession {
+  const timeRange = entry.time_range?.trim();
+  if (timeRange) {
+    const match = /^(\d{1,2})\s*[:h.]\s*(\d{2})/i.exec(timeRange);
+    if (match) {
+      const hour = Number(match[1]);
+      if (hour < 12) return 'morning';
+      if (hour < 18) return 'afternoon';
+      return 'evening';
+    }
+  }
+  return getPeriodSession(entry.period_start);
+}
+
 export const SESSION_LABELS: Record<DaySession, { title: string; range: string }> = {
-  morning: { title: 'Buổi sáng', range: 'Tiết 1 – 5' },
-  afternoon: { title: 'Buổi chiều', range: 'Tiết 6 – 10' },
-  evening: { title: 'Buổi tối', range: 'Tiết 11 – 15' },
+  morning: { title: 'Buổi sáng', range: '7:30 – 12:15' },
+  afternoon: { title: 'Buổi chiều', range: '13:00 – 17:30' },
+  evening: { title: 'Buổi tối', range: '18:00 – 21:30' },
 };
 

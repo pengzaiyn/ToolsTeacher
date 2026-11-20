@@ -7,6 +7,7 @@ import { SettingsModalProvider } from '@/context/SettingsModalContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { CursorEffectOverlay } from '@/components/CursorEffectOverlay';
 import { AssistantWidget } from '@/components/AssistantWidget';
+import { RealtimeAnnouncementPopup } from '@/components/RealtimeAnnouncementPopup';
 import { SettingsModal } from '@/components/SettingsModal';
 import { CustomDecorationsOverlay } from '@/components/custom-theme/CustomDecorationsOverlay';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -21,17 +22,13 @@ const Profile = lazy(() => import('@/pages/Profile').then((m) => ({ default: m.P
 const ResetPassword = lazy(() => import('@/pages/ResetPassword').then((m) => ({ default: m.ResetPassword })));
 const Settings = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.Settings })));
 const TeacherAttendance = lazy(() => import('@/pages/TeacherAttendance').then((m) => ({ default: m.TeacherAttendance })));
+const TeacherExamMixer = lazy(() => import('@/pages/TeacherExamMixer').then((m) => ({ default: m.TeacherExamMixer })));
 const TeacherGradebook = lazy(() => import('@/pages/TeacherGradebook').then((m) => ({ default: m.TeacherGradebook })));
 const TeacherSchedule = lazy(() => import('@/pages/TeacherSchedule').then((m) => ({ default: m.TeacherSchedule })));
 const TeacherTools = lazy(() => import('@/pages/TeacherTools').then((m) => ({ default: m.TeacherTools })));
 const Timetable = lazy(() => import('@/pages/Timetable').then((m) => ({ default: m.Timetable })));
 const TimetableUpload = lazy(() => import('@/pages/TimetableUpload').then((m) => ({ default: m.TimetableUpload })));
 const Tools = lazy(() => import('@/pages/Tools').then((m) => ({ default: m.Tools })));
-const AdminAnnouncements = lazy(() => import('@/pages/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements })));
-const AdminClassDetail = lazy(() => import('@/pages/admin/AdminClassDetail').then((m) => ({ default: m.AdminClassDetail })));
-const AdminClasses = lazy(() => import('@/pages/admin/AdminClasses').then((m) => ({ default: m.AdminClasses })));
-const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
-const AdminStudents = lazy(() => import('@/pages/admin/AdminStudents').then((m) => ({ default: m.AdminStudents })));
 const AdminTeachers = lazy(() => import('@/pages/admin/AdminTeachers').then((m) => ({ default: m.AdminTeachers })));
 
 export function App() {
@@ -112,6 +109,14 @@ export function App() {
               }
             />
             <Route
+              path="/teacher/exam-mixer"
+              element={
+                <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+                  <TeacherExamMixer />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/classes"
               element={
                 <ProtectedRoute>
@@ -144,50 +149,10 @@ export function App() {
               }
             />
             <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/students"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminStudents />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/admin/teachers"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminTeachers />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/announcements"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminAnnouncements />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/classes"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminClasses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/classes/:id"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminClassDetail />
                 </ProtectedRoute>
               }
             />
@@ -196,6 +161,7 @@ export function App() {
           </Routes>
                   </Suspense>
                   <SettingsModal />
+                  <RealtimeAnnouncementPopup />
                   <AssistantWidget />
                 </SettingsModalProvider>
               </AuthProvider>

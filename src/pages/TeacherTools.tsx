@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ListChecks,
   Search,
   Shuffle,
   Wrench,
@@ -13,16 +12,6 @@ import { ToolCard } from '@/components/ToolCard';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-
-const UPCOMING_TOOLS = [
-  {
-    id: 'quiz-builder',
-    title: 'Nhập nhanh & Trộn đề trắc nghiệm',
-    description: 'Nhập câu hỏi từ Excel/văn bản, trộn nhiều mã đề và giao trực tiếp cho lớp học.',
-    icon: ListChecks,
-    phase: 'Đợt 3',
-  },
-];
 
 export function TeacherTools() {
   const { profile } = useAuth();
@@ -106,42 +95,6 @@ export function TeacherTools() {
               ))}
             </div>
           )}
-        </section>
-
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-bold text-ink-primary">Lộ trình mở rộng</h2>
-            <span className="text-xs font-normal text-ink-muted">
-              Các công cụ tiếp theo sẽ tự động cập nhật tại đây
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {UPCOMING_TOOLS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <article
-                  key={item.id}
-                  className="flex flex-col justify-between gap-4 rounded-xl border border-dashed border-line-strong bg-surface-page p-6"
-                >
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-card text-ink-muted">
-                        <Icon className="h-6 w-6" aria-hidden="true" />
-                      </div>
-                      <Badge tone="neutral">{item.phase} • Sắp ra mắt</Badge>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <h3 className="text-base font-bold text-ink-primary">{item.title}</h3>
-                      <p className="text-sm font-normal leading-relaxed text-ink-secondary">
-                        {item.description}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
         </section>
       </div>
     </Layout>

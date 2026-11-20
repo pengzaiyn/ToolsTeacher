@@ -8,7 +8,6 @@ import {
   Menu,
   SlidersHorizontal,
   User,
-  Users,
   UserCheck,
   Wrench,
   X,
@@ -69,10 +68,7 @@ export function Header() {
   }
 
   if (isAdmin(profile?.role)) {
-    navItems.push(
-      { to: '/admin/students', label: 'Sinh viên', icon: Users },
-      { to: '/admin/teachers', label: 'Giáo viên', icon: UserCheck }
-    );
+    navItems.push({ to: '/admin/teachers', label: 'Giáo viên', icon: UserCheck });
   }
 
   async function handleSignOut() {

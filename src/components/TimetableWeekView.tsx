@@ -1,10 +1,20 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Clock, MapPin, Shuffle, UserCheck } from 'lucide-react';
+import {
+  BookOpen,
+  Briefcase,
+  CalendarCheck2,
+  Clock,
+  MapPin,
+  Shuffle,
+  UserCheck,
+} from 'lucide-react';
 import {
   SESSION_LABELS,
-  getPeriodSession,
+  formatDateVi,
+  getEntrySession,
   type DaySession,
   type WeekDayInfo,
+  type WeekExamNotice,
 } from '@/lib/week';
 import type { TimetableEntry } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
@@ -17,13 +27,18 @@ interface TimetableWeekViewProps {
   todayIso: string;
   mode: 'class' | 'teacher';
   classIdByKey?: ReadonlyMap<string, string>;
+  activeInternships?: readonly TimetableEntry[];
+  examsInWeek?: readonly WeekExamNotice[];
 }
 
-function PeriodLabel({ start, end }: { start: number; end: number }) {
+function SessionTimeLabel({ item }: { item: TimetableEntry }) {
+  if (item.time_range) {
+    return <>{item.time_range}</>;
+  }
   return (
     <>
-      Tiết {start}
-      {end > start ? `–${end}` : ''}
+      Tiết {item.period_start}
+      {item.period_end > item.period_start ? `–${item.period_end}` : ''}
     </>
   );
 }
@@ -34,16 +49,83 @@ export function TimetableWeekView({
   todayIso,
   mode,
   classIdByKey,
+  activeInternships = [],
+  examsInWeek = [],
 }: TimetableWeekViewProps) {
   return (
-    <>
+    <div className="flex flex-col gap-4">
+      {/* Lịch thi dự kiến & Đợt thực tập đang diễn ra trong tuần */}
+      {(examsInWeek.length > 0 || activeInternships.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {examsInWeek.length > 0 && (
+            <section className="flex flex-col gap-3 rounded-xl border border-brand-red/30 bg-brand-redSoft/40 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-brand-red">
+                <CalendarCheck2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Lịch thi dự kiến trong tuần ({examsInWeek.length})</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {examsInWeek.map((exam) => (
+                  <div
+                    key={exam.key}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-red/20 bg-surface-card px-3 py-2 text-xs"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-bold text-ink-primary">{exam.subject}</span>
+                      <span className="text-ink-secondary">
+                        {mode === 'teacher' ? `Lớp ${exam.className}` : ''}
+                        {mode === 'teacher' && exam.room ? ' • ' : ''}
+                        {exam.room ? `Phòng ${exam.room}` : ''}
+                        {exam.teacherName && mode === 'class' ? `GV: ${exam.teacherName}` : ''}
+                      </span>
+                    </div>
+                    <Badge tone="red">Thi: {formatDateVi(exam.examDate)}</Badge>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {activeInternships.length > 0 && (
+            <section className="flex flex-col gap-3 rounded-xl border border-brand-navy/25 bg-brand-navySoft/50 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-brand-navy">
+                <Briefcase className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Đợt thực tập đang diễn ra ({activeInternships.length})</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {activeInternships.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-navy/15 bg-surface-card px-3 py-2 text-xs"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-ink-primary">{item.subject}</span>
+                        {item.semester && <Badge tone="navy">{item.semester}</Badge>}
+                      </div>
+                      <span className="text-ink-secondary">
+                        {item.room ? `Địa điểm: ${item.room}` : 'Theo kế hoạch khoa / doanh nghiệp'}
+                        {item.teacher_name ? ` • GVHD: ${item.teacher_name}` : ''}
+                      </span>
+                    </div>
+                    <span className="whitespace-nowrap font-semibold text-brand-navy">
+                      {item.date_from ? formatDateVi(item.date_from) : '...'} –{' '}
+                      {item.date_to ? formatDateVi(item.date_to) : '...'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
       {/* Giao diện lưới theo buổi cho màn hình từ tablet/desktop trở lên */}
       <div className="hidden overflow-x-auto rounded-xl border border-line bg-surface-card lg:block">
         <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="border-b border-line bg-surface-subtle">
               <th className="w-36 border-r border-line p-4 text-left text-xs font-bold uppercase text-ink-secondary">
-                Buổi / Tiết
+                Buổi / Giờ học
               </th>
               {weekDays.map((day) => {
                 const isToday = day.isoDate === todayIso;
@@ -78,7 +160,7 @@ export function TimetableWeekView({
                   </td>
                   {weekDays.map((day) => {
                     const cellItems = (entriesByWeekday.get(day.weekday) ?? []).filter(
-                      (e) => getPeriodSession(e.period_start) === sessionKey
+                      (e) => getEntrySession(e) === sessionKey
                     );
                     const isToday = day.isoDate === todayIso;
                     return (
@@ -96,13 +178,13 @@ export function TimetableWeekView({
                                 key={item.id}
                                 className="flex flex-col gap-2 rounded-lg border border-brand-navy/20 bg-brand-navySoft p-2 text-left"
                               >
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-1">
                                   <Badge tone="red">
-                                    <PeriodLabel start={item.period_start} end={item.period_end} />
+                                    <SessionTimeLabel item={item} />
                                   </Badge>
                                   {item.room && (
                                     <span className="text-xs font-semibold text-brand-navy">
-                                      {item.room}
+                                      P.{item.room}
                                     </span>
                                   )}
                                 </div>
@@ -117,19 +199,19 @@ export function TimetableWeekView({
                                         to={`/teacher/classroom-kit?class=${encodeURIComponent(
                                           item.class_key
                                         )}`}
-                                        className="inline-flex items-center gap-2 text-xs font-semibold text-brand-navy hover:underline"
+                                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-navy hover:underline"
                                         title="Điều phối lớp học này"
                                       >
-                                        <Shuffle className="h-4 w-4" aria-hidden="true" />
+                                        <Shuffle className="h-3.5 w-3.5" aria-hidden="true" />
                                         <span>Điều phối</span>
                                       </Link>
                                       {linkedClassId && (
                                         <Link
                                           to={`/classes/${linkedClassId}`}
-                                          className="inline-flex items-center gap-2 text-xs font-semibold text-brand-red hover:underline"
+                                          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-red hover:underline"
                                           title="Mở lớp học"
                                         >
-                                          <BookOpen className="h-4 w-4" aria-hidden="true" />
+                                          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                                           <span>Lớp</span>
                                         </Link>
                                       )}
@@ -141,6 +223,18 @@ export function TimetableWeekView({
                                       GV: {item.teacher_name}
                                     </p>
                                   )
+                                )}
+                                {(item.semester || item.exam_date) && (
+                                  <div className="flex flex-wrap items-center gap-1 text-[11px] text-ink-muted">
+                                    {item.semester && (
+                                      <span className="rounded bg-surface-card px-1.5 py-0.5 font-semibold text-brand-navy">
+                                        {item.semester}
+                                      </span>
+                                    )}
+                                    {item.exam_date && (
+                                      <span>Thi: {formatDateVi(item.exam_date)}</span>
+                                    )}
+                                  </div>
                                 )}
                                 {item.note && (
                                   <p className="text-xs font-normal text-ink-muted">{item.note}</p>
@@ -193,14 +287,17 @@ export function TimetableWeekView({
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-2 text-xs font-bold text-brand-red">
                           <Clock className="h-4 w-4" aria-hidden="true" />
-                          <PeriodLabel start={item.period_start} end={item.period_end} />
+                          <SessionTimeLabel item={item} />
                         </span>
-                        {item.room && (
-                          <span className="inline-flex items-center gap-2 text-xs font-semibold text-brand-navy">
-                            <MapPin className="h-4 w-4" aria-hidden="true" />
-                            {item.room}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {item.semester && <Badge tone="navy">{item.semester}</Badge>}
+                          {item.room && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-navy">
+                              <MapPin className="h-4 w-4" aria-hidden="true" />
+                              {item.room}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p className="text-base font-bold text-ink-primary">{item.subject}</p>
                       {mode === 'teacher' ? (
@@ -235,6 +332,11 @@ export function TimetableWeekView({
                           </p>
                         )
                       )}
+                      {item.exam_date && (
+                        <p className="text-xs font-semibold text-brand-red">
+                          Dự kiến thi: {formatDateVi(item.exam_date)}
+                        </p>
+                      )}
                       {item.note && (
                         <p className="text-xs font-normal text-ink-muted">{item.note}</p>
                       )}
@@ -246,6 +348,6 @@ export function TimetableWeekView({
           );
         })}
       </div>
-    </>
+    </div>
   );
 }

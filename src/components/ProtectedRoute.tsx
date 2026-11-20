@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { LoadingState } from '@/components/ui/Spinner';
@@ -13,6 +13,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, profile, loading, isPasswordRecovery } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -29,7 +30,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (!user || !profile) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: `${location.pathname}${location.search}` }}
+        replace
+      />
+    );
   }
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {

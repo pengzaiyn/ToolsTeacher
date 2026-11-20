@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Megaphone, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
 import type { Announcement } from '@/types/database';
@@ -32,27 +33,38 @@ export function ClassAnnouncementsTab({ classId, canManage }: ClassAnnouncements
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false })
-        .returns<Announcement[]>();
-      if (error) throw new Error(error.message);
-      setItems(data ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không tải được thông báo lớp');
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, toast]);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false })
+          .returns<Announcement[]>();
+        if (error) throw new Error(error.message);
+        setItems(data ?? []);
+      } catch (err) {
+        if (!silent) {
+          toast.error(err instanceof Error ? err.message : 'Không tải được thông báo lớp');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [classId, toast]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useRealtimeRefresh({
+    channelName: `class-announcements-${classId}`,
+    tables: [{ table: 'announcements', filter: `class_id=eq.${classId}` }],
+    onRefresh: () => load(true),
+  });
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();

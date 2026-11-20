@@ -26,6 +26,7 @@ const MAX_CAPTCHA_ATTEMPTS = 5;
 const CAPTCHA_COOLDOWN_SECONDS = 5;
 
 interface LoginLocationState {
+  from?: string;
   recoveredEmail?: string;
   recoverySuccess?: string;
 }
@@ -89,8 +90,15 @@ export function Login() {
     return <Navigate to="/reset-password" replace />;
   }
 
+  const redirectTarget =
+    locationState?.from &&
+    locationState.from.startsWith('/') &&
+    !locationState.from.startsWith('/login')
+      ? locationState.from
+      : '/tools';
+
   if (user && profile && !isPasswordRecovery) {
-    return <Navigate to="/tools" replace />;
+    return <Navigate to={redirectTarget} replace />;
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -139,7 +147,7 @@ export function Login() {
     try {
       await signIn(normalizedEmail, password);
       clearFailedLoginAttempts(normalizedEmail);
-      navigate('/tools', { replace: true });
+      navigate(redirectTarget, { replace: true });
     } catch (err) {
       if (err instanceof AuthSignInError && err.code === 'invalid_credentials') {
         const nextAttempts = recordFailedLoginAttempt(normalizedEmail);
