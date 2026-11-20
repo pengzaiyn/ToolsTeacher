@@ -5,6 +5,7 @@ import {
   CheckSquare,
   FileSpreadsheet,
   ListChecks,
+  Megaphone,
   Shuffle,
   Sparkles,
   Timer,
@@ -145,6 +146,17 @@ export const TOOLS: ToolItem[] = [
     roles: ['admin'],
     category: 'admin',
     accent: 'navy',
+  },
+  {
+    id: 'admin-announcements',
+    title: 'Quản lý thông báo',
+    description: 'Đăng thông báo toàn trường, gửi riêng từng lớp học hoặc gửi riêng cho giáo viên.',
+    to: '/admin/announcements',
+    icon: Megaphone,
+    roles: ['admin'],
+    category: 'admin',
+    accent: 'red',
+    badge: 'Quản trị',
   },
 ];
 

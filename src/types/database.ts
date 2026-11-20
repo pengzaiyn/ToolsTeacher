@@ -96,9 +96,13 @@ export interface TimetableUpload {
   created_at: string;
 }
 
+export type AnnouncementTargetType = 'all' | 'class' | 'all_teachers' | 'teacher';
+
 export interface Announcement {
   id: string;
   class_id: string | null;
+  target_type?: AnnouncementTargetType;
+  target_user_id?: string | null;
   title: string;
   content: string | null;
   created_by: string;

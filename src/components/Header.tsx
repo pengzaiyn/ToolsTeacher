@@ -5,6 +5,7 @@ import {
   Calendar,
   Home,
   LogOut,
+  Megaphone,
   Menu,
   SlidersHorizontal,
   User,
@@ -69,6 +70,7 @@ export function Header() {
 
   if (isAdmin(profile?.role)) {
     navItems.push({ to: '/admin/teachers', label: 'Giáo viên', icon: UserCheck });
+    navItems.push({ to: '/admin/announcements', label: 'Thông báo', icon: Megaphone });
   }
 
   async function handleSignOut() {

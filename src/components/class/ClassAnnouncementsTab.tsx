@@ -76,7 +76,9 @@ export function ClassAnnouncementsTab({ classId, canManage }: ClassAnnouncements
     setSaving(true);
     try {
       const { error } = await supabase.from('announcements').insert({
+        target_type: 'class',
         class_id: classId,
+        target_user_id: null,
         title: title.trim(),
         content: content.trim() || null,
         created_by: user.id,

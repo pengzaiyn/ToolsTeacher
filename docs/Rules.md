@@ -17,7 +17,7 @@
   - Bấm nút mở menu sẽ hiện ngăn kéo trượt từ cạnh trái (`w-64`, `max-w-[80vw]`) kèm nền phủ tối, hỗ trợ đóng bằng phím `ESC`, bấm ra ngoài hoặc chọn liên kết.
 - **Cấu trúc thanh điều hướng (`Header.tsx`):**
   - Đầu thanh: Logo trường Cao đẳng Việt Mỹ Hà Nội (`logo-light.png` / `logo-dark.png` ở thanh bên, `logo-mark-*` trên thanh di động, không kèm tên web thừa).
-  - Giữa thanh (cuộn dọc được): Các mục điều hướng theo vai trò (`Trang chủ`, `Thời khóa biểu`, `Lớp học`, `Công cụ giảng dạy` cho GV/HT dẫn tới trang tập hợp công cụ giảng dạy, `Sinh viên` & `Giáo viên` cho HT).
+  - Giữa thanh (cuộn dọc được): Các mục điều hướng theo vai trò (`Trang chủ`, `Thời khóa biểu`, `Lớp học`, `Công cụ giảng dạy` cho GV/HT dẫn tới trang tập hợp công cụ giảng dạy, `Giáo viên` & `Thông báo` cho HT).
   - Phía trên chân thanh (`shrink-0 border-t border-line px-4 py-2`): Liên kết `Cài đặt` (`/settings` — trang Cài đặt có navbar điều hướng riêng gắn bên trái trên desktop và tab ngang trên di động) cùng nút chuyển nhanh Sáng/Tối cho tất cả người dùng.
   - Đáy thanh (`shrink-0 border-t border-line p-4`): Thẻ hồ sơ cá nhân (`/profile`) và nút `Đăng xuất`.
 

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Calendar, Megaphone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, Calendar, Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
-import { ROLE_LABELS } from '@/lib/roles';
+import { getAnnouncementAudienceMeta } from '@/lib/announcements';
+import { quickClassifyAnnouncement } from '@/lib/announcementClassifier';
+import { isAdmin, ROLE_LABELS } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { TOOLS, type ToolItem } from '@/lib/toolsCatalog';
 import { formatDateVi } from '@/lib/week';
@@ -10,13 +13,14 @@ import type { Announcement } from '@/types/database';
 import { Layout } from '@/components/Layout';
 import { ToolCard } from '@/components/ToolCard';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/Spinner';
 
 export { TOOLS, type ToolItem };
 
 export function Tools() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
 
@@ -28,7 +32,7 @@ export function Tools() {
         .select('*')
         .is('class_id', null)
         .order('created_at', { ascending: false })
-        .limit(3)
+        .limit(5)
         .returns<Announcement[]>();
       setAnnouncements(data ?? []);
     } finally {
@@ -94,9 +98,19 @@ export function Tools() {
         </section>
 
         <section className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-brand-red" aria-hidden="true" />
-            <h2 className="text-lg font-bold text-ink-primary">Thông báo toàn trường</h2>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5 text-brand-red" aria-hidden="true" />
+              <h2 className="text-lg font-bold text-ink-primary">Thông báo nhà trường</h2>
+            </div>
+            {isAdmin(profile?.role) && (
+              <Link to="/admin/announcements">
+                <Button size="sm" variant="secondary">
+                  <Plus className="h-4 w-4 text-brand-red" aria-hidden="true" />
+                  <span>Quản lý & đăng thông báo</span>
+                </Button>
+              </Link>
+            )}
           </div>
 
           {loadingAnnouncements ? (
@@ -109,24 +123,43 @@ export function Tools() {
             />
           ) : (
             <div className="flex flex-col gap-4">
-              {announcements.map((item) => (
-                <article
-                  key={item.id}
-                  className="flex flex-col gap-2 rounded-xl border border-line bg-surface-card p-6"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-base font-bold text-ink-primary">{item.title}</h3>
-                    <span className="text-xs font-normal text-ink-muted">
-                      {formatDateVi(item.created_at)}
-                    </span>
-                  </div>
-                  {item.content && (
-                    <p className="whitespace-pre-line text-sm font-normal text-ink-secondary">
-                      {item.content}
-                    </p>
-                  )}
-                </article>
-              ))}
+              {announcements.map((item) => {
+                const audience = getAnnouncementAudienceMeta(item, {
+                  currentUserId: user?.id ?? null,
+                });
+                const isWarning = quickClassifyAnnouncement(item.title, item.content) === 'warning';
+                return (
+                  <article
+                    key={item.id}
+                    className={`flex flex-col gap-2 rounded-xl border p-6 ${
+                      isWarning
+                        ? 'border-status-dangerBorder bg-status-dangerBg/40'
+                        : 'border-line bg-surface-card'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={audience.tone}>{audience.label}</Badge>
+                        {isWarning && (
+                          <Badge tone="danger" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                            <span>Cảnh báo</span>
+                          </Badge>
+                        )}
+                        <h3 className="text-base font-bold text-ink-primary">{item.title}</h3>
+                      </div>
+                      <span className="text-xs font-normal text-ink-muted">
+                        {formatDateVi(item.created_at)}
+                      </span>
+                    </div>
+                    {item.content && (
+                      <p className="whitespace-pre-line text-sm font-normal text-ink-secondary">
+                        {item.content}
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

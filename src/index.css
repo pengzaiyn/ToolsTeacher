@@ -376,6 +376,48 @@
     animation: unoChosenPulse 2s ease-in-out infinite;
   }
 
+  @keyframes avcAnnouncementCountdown {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  .avc-announcement-countdown {
+    transform-origin: left center;
+    animation: avcAnnouncementCountdown 5000ms linear forwards;
+  }
+
+  @keyframes avcAnnouncementSlideShake {
+    0% {
+      opacity: 0;
+      transform: translateX(110%);
+    }
+    55% {
+      opacity: 1;
+      transform: translateX(-8px);
+    }
+    70% {
+      transform: translateX(5px);
+    }
+    82% {
+      transform: translateX(-3px);
+    }
+    92% {
+      transform: translateX(2px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .avc-announcement-enter {
+    animation: avcAnnouncementSlideShake 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
   /* Hoạt ảnh thú cưng đồng hành (Custom Theme) */
   @keyframes petIdleBob {
     0%,

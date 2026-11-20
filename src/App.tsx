@@ -29,6 +29,9 @@ const TeacherTools = lazy(() => import('@/pages/TeacherTools').then((m) => ({ de
 const Timetable = lazy(() => import('@/pages/Timetable').then((m) => ({ default: m.Timetable })));
 const TimetableUpload = lazy(() => import('@/pages/TimetableUpload').then((m) => ({ default: m.TimetableUpload })));
 const Tools = lazy(() => import('@/pages/Tools').then((m) => ({ default: m.Tools })));
+const AdminAnnouncements = lazy(() =>
+  import('@/pages/admin/AdminAnnouncements').then((m) => ({ default: m.AdminAnnouncements }))
+);
 const AdminTeachers = lazy(() => import('@/pages/admin/AdminTeachers').then((m) => ({ default: m.AdminTeachers })));
 
 export function App() {
@@ -153,6 +156,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminTeachers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/announcements"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminAnnouncements />
                 </ProtectedRoute>
               }
             />
