@@ -140,7 +140,7 @@ export function Tools() {
                 </h2>
                 <Badge tone="red">{pendingSuggestions.length} chờ duyệt</Badge>
               </div>
-              <Link to="/hsk-tower?tab=suggestions">
+              <Link to="/games?tab=suggestions">
                 <Button size="sm" variant="primary">
                   <span>Xem & duyệt đề xuất</span>
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />

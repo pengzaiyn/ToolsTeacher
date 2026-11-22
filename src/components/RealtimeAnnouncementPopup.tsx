@@ -245,7 +245,7 @@ export function RealtimeAnnouncementPopup() {
             classId: null,
             badgeText: 'Đề xuất trò chơi',
             audienceLabel: row.major_name || 'Ngành học',
-            actionTo: '/hsk-tower?tab=suggestions',
+            actionTo: '/games?tab=suggestions',
             actionLabel: 'Xem & duyệt',
             title: `${row.game_title}${row.created_by_name ? ` — ${row.created_by_name}` : ''}`,
             content: row.description ?? null,

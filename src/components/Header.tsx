@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
+  Gamepad2,
   Home,
   LogOut,
   Megaphone,
@@ -60,6 +61,12 @@ export function Header() {
     { to: '/tools', label: 'Trang chủ', icon: Home, badgeCount: schoolUnreadCount },
     { to: '/timetable', label: 'Thời khóa biểu', icon: Calendar },
     { to: '/classes', label: 'Lớp học', icon: BookOpen, badgeCount: totalClassUnreadCount },
+    {
+      to: '/games',
+      label: 'Trò chơi',
+      icon: Gamepad2,
+      matchPrefixes: ['/games', '/hsk-tower'],
+    },
   ];
 
   if (isStaff(profile?.role)) {

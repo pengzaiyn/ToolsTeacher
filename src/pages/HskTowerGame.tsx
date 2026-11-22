@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import {
   AlertTriangle,
   ArrowLeft,
-  CheckCircle2,
   Clock,
   Copy,
   Crown,
-  Lightbulb,
   Maximize2,
   Play,
   Plus,
   QrCode,
+  Search,
   Send,
   Sparkles,
   Trash2,
@@ -74,27 +73,25 @@ interface HskRoomRow {
   created_at: string;
 }
 
-interface GameSuggestionRow {
-  id: string;
-  major_name: string;
-  game_title: string;
-  description: string;
-  status: 'pending' | 'reviewing' | 'planned' | 'done';
-  admin_note: string | null;
-  created_by: string;
-  created_by_name: string;
-  created_at: string;
+function stripVi(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-const SUGGESTION_STATUS_META: Record<
-  GameSuggestionRow['status'],
-  { label: string; tone: 'neutral' | 'warning' | 'navy' | 'success' }
-> = {
-  pending: { label: 'Chờ Hiệu trưởng xem', tone: 'warning' },
-  reviewing: { label: 'Đang xem xét', tone: 'navy' },
-  planned: { label: 'Đã lên kế hoạch', tone: 'navy' },
-  done: { label: 'Đã triển khai', tone: 'success' },
-};
+function toLocalDateKey(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 export function HskTowerGame() {
   const { user, profile } = useAuth();
@@ -104,22 +101,11 @@ export function HskTowerGame() {
   const staffRole = isStaff(profile?.role);
   const adminRole = isAdmin(profile?.role);
 
-  const [mainTab, setMainTab] = useState<'rooms' | 'suggestions'>(() =>
-    searchParams.get('tab') === 'suggestions' ? 'suggestions' : 'rooms'
-  );
-
-  useEffect(() => {
-    if (searchParams.get('tab') === 'suggestions') {
-      setMainTab('suggestions');
-      setActiveRoomId(null);
-    }
-  }, [searchParams]);
   const [tablesReady, setTablesReady] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const [rooms, setRooms] = useState<HskRoomRow[]>([]);
   const [roomCounts, setRoomCounts] = useState<Map<string, number>>(new Map());
-  const [suggestions, setSuggestions] = useState<GameSuggestionRow[]>([]);
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [activePlayers, setActivePlayers] = useState<HskRoomPlayerRow[]>([]);
@@ -154,40 +140,31 @@ export function HskTowerGame() {
   const [deleteRoomTarget, setDeleteRoomTarget] = useState<HskRoomRow | null>(null);
   const [deletingRoom, setDeletingRoom] = useState(false);
 
-  // Đề xuất trò chơi theo ngành gửi Hiệu trưởng
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [suggesting, setSuggesting] = useState(false);
-  const [suggestMajor, setSuggestMajor] = useState('');
-  const [suggestTitle, setSuggestTitle] = useState('');
-  const [suggestDesc, setSuggestDesc] = useState('');
+  // Bộ lọc tìm kiếm chung (tên phòng, mã phòng, tên ngành, ngày chơi)
+  const [lobbySearch, setLobbySearch] = useState('');
+  const [lobbyDate, setLobbyDate] = useState('');
+  const [roomTab, setRoomTab] = useState<'open' | 'finished'>('open');
 
   const loadLobby = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [roomRes, playerRes, suggestRes] = await Promise.all([
+        const [roomRes, playerRes] = await Promise.all([
           supabase
             .from('hsk_rooms')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(20)
+            .limit(100)
             .returns<HskRoomRow[]>(),
           supabase
             .from('hsk_room_players')
             .select('room_id')
             .returns<{ room_id: string }[]>(),
-          supabase
-            .from('game_suggestions')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(30)
-            .returns<GameSuggestionRow[]>(),
         ]);
 
         if (roomRes.error) {
           setTablesReady(false);
           setRooms([]);
-          setSuggestions([]);
           return;
         }
 
@@ -199,10 +176,6 @@ export function HskTowerGame() {
           counts.set(p.room_id, (counts.get(p.room_id) ?? 0) + 1);
         }
         setRoomCounts(counts);
-
-        if (!suggestRes.error) {
-          setSuggestions(suggestRes.data ?? []);
-        }
       } finally {
         if (!silent) setLoading(false);
       }
@@ -236,7 +209,7 @@ export function HskTowerGame() {
 
   useRealtimeRefresh({
     channelName: `hsk-tower-realtime-${activeRoomId ?? 'lobby'}`,
-    tables: [{ table: 'hsk_rooms' }, { table: 'hsk_room_players' }, { table: 'game_suggestions' }],
+    tables: [{ table: 'hsk_rooms' }, { table: 'hsk_room_players' }],
     onRefresh: () => {
       void loadLobby(true);
       if (activeRoomId) void loadActivePlayers(activeRoomId);
@@ -247,6 +220,35 @@ export function HskTowerGame() {
     () => rooms.find((r) => r.id === activeRoomId) ?? null,
     [rooms, activeRoomId]
   );
+
+  const filteredRooms = useMemo(() => {
+    const q = stripVi(lobbySearch);
+    return rooms.filter((room) => {
+      if (lobbyDate) {
+        const playDay = toLocalDateKey(room.started_at || room.created_at);
+        if (playDay !== lobbyDate) return false;
+      }
+      if (!q) return true;
+      const themeLabel = HSK_THEME_INFO[room.theme]?.label ?? '';
+      const topicLabel = HSK_TOPIC_LABELS[room.topic] ?? '';
+      const haystack = stripVi(
+        `${room.title} ${room.code} ${themeLabel} ${topicLabel} tieng trung hsk`
+      );
+      return haystack.includes(q);
+    });
+  }, [rooms, lobbySearch, lobbyDate]);
+
+  const filteredOpenRooms = useMemo(
+    () => filteredRooms.filter((r) => r.status === 'waiting' || r.status === 'playing'),
+    [filteredRooms]
+  );
+
+  const filteredFinishedRooms = useMemo(
+    () => filteredRooms.filter((r) => r.status === 'finished'),
+    [filteredRooms]
+  );
+
+  const visibleRooms = roomTab === 'open' ? filteredOpenRooms : filteredFinishedRooms;
 
   const myPlayer = useMemo(
     () => activePlayers.find((p) => p.user_id === user?.id) ?? null,
@@ -342,7 +344,7 @@ export function HskTowerGame() {
 
   const roomJoinUrl = useMemo(() => {
     if (!activeRoom || typeof window === 'undefined') return '';
-    return `${window.location.origin}/hsk-tower?room=${encodeURIComponent(activeRoom.code)}`;
+    return `${window.location.origin}/games/hsk-tower?room=${encodeURIComponent(activeRoom.code)}`;
   }, [activeRoom]);
 
   // Tạo mã QR ngay trên trình duyệt (không cần mạng ngoài)
@@ -709,53 +711,6 @@ export function HskTowerGame() {
     } finally {
       setDeletingRoom(false);
     }
-  }
-
-  async function handleSubmitSuggestion(event: FormEvent) {
-    event.preventDefault();
-    if (!user || !profile) return;
-    if (!suggestMajor.trim() || !suggestTitle.trim() || !suggestDesc.trim()) {
-      toast.error('Vui lòng điền đầy đủ ngành học, tên trò chơi và mô tả ý tưởng');
-      return;
-    }
-    setSuggesting(true);
-    try {
-      const { error } = await supabase.from('game_suggestions').insert({
-        major_name: suggestMajor.trim(),
-        game_title: suggestTitle.trim(),
-        description: suggestDesc.trim(),
-        created_by: user.id,
-        created_by_name: profile.full_name,
-      });
-      if (error) throw new Error(error.message);
-      toast.success('Đã gửi đề xuất trò chơi tới Hiệu trưởng!');
-      setSuggestOpen(false);
-      setSuggestMajor('');
-      setSuggestTitle('');
-      setSuggestDesc('');
-      setMainTab('suggestions');
-      await loadLobby(true);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không gửi được đề xuất');
-    } finally {
-      setSuggesting(false);
-    }
-  }
-
-  async function handleUpdateSuggestionStatus(
-    id: string,
-    status: GameSuggestionRow['status']
-  ) {
-    const { error } = await supabase
-      .from('game_suggestions')
-      .update({ status })
-      .eq('id', id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success('Đã cập nhật trạng thái đề xuất');
-    await loadLobby(true);
   }
 
   return (
@@ -1141,25 +1096,31 @@ export function HskTowerGame() {
             )}
           </div>
         ) : (
-          /* SẢNH CHÍNH: Danh sách phòng đấu + Tab Đề xuất trò chơi theo ngành */
+          /* SẢNH PHÒNG LEO THÁP HSK 1 */
           <>
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3">
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold text-brand-navy">
-                    Leo Tháp HSK — Tiếng Trung
-                  </h1>
-                  <Badge tone="red">Tối đa 5 người / phòng</Badge>
-                </div>
-                <p className="mt-1 text-sm font-normal text-ink-secondary">
-                  Tranh suất vào phòng, bầu phiếu chọn chế độ gõ Pinyin / Chữ Hán và đua leo đỉnh tháp nhận điểm thưởng!
-                </p>
+                <Link
+                  to="/games"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-secondary transition-colors hover:text-brand-navy"
+                >
+                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  <span>Danh sách trò chơi</span>
+                </Link>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" onClick={() => setSuggestOpen(true)}>
-                  <Lightbulb className="h-4 w-4 text-brand-red" aria-hidden="true" />
-                  <span>Đề xuất trò chơi cho ngành</span>
-                </Button>
+
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-bold text-brand-navy">
+                      Leo Tháp HSK 1 — Tiếng Trung
+                    </h1>
+                    <Badge tone="red">Tối đa 5 người / phòng</Badge>
+                  </div>
+                  <p className="mt-1 text-sm font-normal text-ink-secondary">
+                    Tranh suất vào phòng, bầu phiếu chọn chế độ gõ Pinyin / Chữ Hán và đua leo đỉnh tháp nhận điểm thưởng!
+                  </p>
+                </div>
                 {staffRole && (
                   <Button variant="primary" onClick={() => setCreateOpen(true)}>
                     <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1169,239 +1130,225 @@ export function HskTowerGame() {
               </div>
             </div>
 
-            {/* Chuyển tab Phòng đấu / Đề xuất trò chơi */}
-            <div className="flex gap-2 border-b border-line pb-2" role="tablist">
+            {/* Thanh tìm kiếm phòng: tên phòng, mã phòng, chủ đề, ngày chơi */}
+            <section className="grid grid-cols-1 gap-3 rounded-2xl border border-line bg-surface-card p-4 md:grid-cols-12">
+              <div className="relative md:col-span-7">
+                <Search
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={lobbySearch}
+                  onChange={(e) => setLobbySearch(e.target.value)}
+                  placeholder="Tìm theo tên phòng, mã phòng, tên ngành hoặc chủ đề..."
+                  aria-label="Tìm kiếm phòng thi đấu"
+                  className="h-10 w-full rounded-lg border border-line-strong bg-surface-page pl-10 pr-4 text-sm font-normal text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                />
+              </div>
+              <div className="md:col-span-3">
+                <input
+                  type="date"
+                  value={lobbyDate}
+                  onChange={(e) => setLobbyDate(e.target.value)}
+                  aria-label="Lọc theo ngày chơi"
+                  className="h-10 w-full rounded-lg border border-line-strong bg-surface-page px-3 text-sm font-normal text-ink-primary focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                />
+              </div>
+              <div className="flex items-center md:col-span-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={!lobbySearch && !lobbyDate}
+                  onClick={() => {
+                    setLobbySearch('');
+                    setLobbyDate('');
+                  }}
+                >
+                  Xóa lọc
+                </Button>
+              </div>
+            </section>
+
+            {/* Nhập mã phòng nhanh & chọn nhân vật trước khi tranh suất */}
+            <section className="flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface-card p-4 lg:flex-row lg:items-center">
+              <form onSubmit={handleJoinByCode} className="flex flex-1 gap-2">
+                <input
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="Nhập mã phòng (VD: HSK82) để tranh suất nhanh..."
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-line-strong bg-surface-page px-4 text-sm font-semibold uppercase text-ink-primary placeholder:normal-case placeholder:font-normal placeholder:text-ink-muted focus:border-brand-navy focus:outline-none"
+                />
+                <Button type="submit" variant="navy" loading={joining}>
+                  Vào phòng
+                </Button>
+              </form>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-ink-muted">Nhân vật:</span>
+                {HSK_AVATARS.map((av) => (
+                  <button
+                    key={av.id}
+                    type="button"
+                    onClick={() => setSelectedAvatar(av.id)}
+                    title={av.name}
+                    className={`rounded-lg border p-1 transition-colors ${
+                      selectedAvatar === av.id
+                        ? 'border-brand-red bg-brand-redSoft'
+                        : 'border-line bg-surface-page hover:border-brand-navy'
+                    }`}
+                  >
+                    <HskCharacterAvatar avatarId={av.id} size={28} />
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Phân tách Phòng đang mở / Phòng đã kết thúc */}
+            <div className="flex flex-wrap gap-2 border-b border-line pb-2" role="tablist">
               <button
                 type="button"
                 role="tab"
-                aria-selected={mainTab === 'rooms'}
-                onClick={() => setMainTab('rooms')}
+                aria-selected={roomTab === 'open'}
+                onClick={() => setRoomTab('open')}
                 className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
-                  mainTab === 'rooms'
+                  roomTab === 'open'
+                    ? 'bg-brand-navy text-white'
+                    : 'bg-surface-card text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
+                }`}
+              >
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                <span>Phòng đang mở ({filteredOpenRooms.length})</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={roomTab === 'finished'}
+                onClick={() => setRoomTab('finished')}
+                className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
+                  roomTab === 'finished'
                     ? 'bg-brand-navy text-white'
                     : 'bg-surface-card text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
                 }`}
               >
                 <Trophy className="h-4 w-4" aria-hidden="true" />
-                <span>Phòng thi đấu ({rooms.length})</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mainTab === 'suggestions'}
-                onClick={() => setMainTab('suggestions')}
-                className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
-                  mainTab === 'suggestions'
-                    ? 'bg-brand-navy text-white'
-                    : 'bg-surface-card text-ink-secondary hover:bg-surface-subtle hover:text-ink-primary'
-                }`}
-              >
-                <Lightbulb className="h-4 w-4" aria-hidden="true" />
-                <span>Đề xuất trò chơi các ngành ({suggestions.length})</span>
+                <span>Phòng đã kết thúc ({filteredFinishedRooms.length})</span>
               </button>
             </div>
 
-            {mainTab === 'rooms' ? (
-              <>
-                {/* Nhập mã phòng nhanh & chọn nhân vật trước khi tranh suất */}
-                <section className="flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface-card p-4 lg:flex-row lg:items-center">
-                  <form onSubmit={handleJoinByCode} className="flex flex-1 gap-2">
-                    <input
-                      type="text"
-                      value={joinCode}
-                      onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                      placeholder="Nhập mã phòng (VD: HSK82) để tranh suất nhanh..."
-                      className="h-10 min-w-0 flex-1 rounded-lg border border-line-strong bg-surface-page px-4 text-sm font-semibold uppercase text-ink-primary placeholder:normal-case placeholder:font-normal placeholder:text-ink-muted focus:border-brand-navy focus:outline-none"
-                    />
-                    <Button type="submit" variant="navy" loading={joining}>
-                      Vào phòng
-                    </Button>
-                  </form>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-ink-muted">Nhân vật:</span>
-                    {HSK_AVATARS.map((av) => (
-                      <button
-                        key={av.id}
-                        type="button"
-                        onClick={() => setSelectedAvatar(av.id)}
-                        title={av.name}
-                        className={`rounded-lg border p-1 transition-colors ${
-                          selectedAvatar === av.id
-                            ? 'border-brand-red bg-brand-redSoft'
-                            : 'border-line bg-surface-page hover:border-brand-navy'
-                        }`}
-                      >
-                        <HskCharacterAvatar avatarId={av.id} size={28} />
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                {loading ? (
-                  <LoadingState message="Đang tải danh sách phòng đấu HSK..." />
-                ) : rooms.length === 0 ? (
-                  <EmptyState
-                    icon={Trophy}
-                    title="Chưa có phòng thi đấu nào"
-                    description={
-                      staffRole
+            {loading ? (
+              <LoadingState message="Đang tải danh sách phòng đấu HSK..." />
+            ) : visibleRooms.length === 0 ? (
+              <EmptyState
+                icon={roomTab === 'open' ? Sparkles : Trophy}
+                title={
+                  roomTab === 'open'
+                    ? 'Hiện chưa có phòng nào đang mở'
+                    : 'Chưa có phòng nào đã kết thúc'
+                }
+                description={
+                  lobbySearch || lobbyDate
+                    ? 'Không tìm thấy phòng khớp với từ khóa hoặc ngày chơi đã chọn.'
+                    : roomTab === 'open'
+                      ? staffRole
                         ? 'Nhấn "Tạo phòng thi đấu" để mở phòng HSK 1 cho sinh viên tranh suất vào chơi.'
                         : 'Chờ giáo viên mở phòng thi đấu HSK 1 để tham gia nhé!'
-                    }
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {rooms.map((room) => {
-                      const count = roomCounts.get(room.id) ?? 0;
-                      const isFull = count >= room.max_players;
-                      const canDelete = adminRole || room.host_id === user?.id;
-
-                      return (
-                        <article
-                          key={room.id}
-                          className="flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface-card p-6"
-                        >
-                          <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <Badge tone="navy">{room.code}</Badge>
-                              <Badge
-                                tone={
-                                  room.status === 'waiting'
-                                    ? 'success'
-                                    : room.status === 'playing'
-                                      ? 'red'
-                                      : 'neutral'
-                                }
-                              >
-                                {room.status === 'waiting'
-                                  ? 'Đang mở tranh suất'
-                                  : room.status === 'playing'
-                                    ? 'Đang thi đấu'
-                                    : 'Đã kết thúc'}
-                              </Badge>
-                            </div>
-                            <h2 className="text-base font-bold text-ink-primary">{room.title}</h2>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
-                              <span>{HSK_THEME_INFO[room.theme]?.label}</span>
-                              <span>•</span>
-                              <span>{room.target_steps} nấc</span>
-                              <span>•</span>
-                              <span className="inline-flex items-center gap-1 font-semibold text-brand-navy">
-                                <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                                {count}/{room.max_players}
-                              </span>
-                            </div>
-                            <span className="text-[11px] text-ink-muted">
-                              Tạo lúc: {formatDateTimeVi(room.created_at)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-2 border-t border-line pt-4">
-                            {room.status === 'waiting' && !isFull ? (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={() => void handleJoinRoom(room.id)}
-                                loading={joining}
-                              >
-                                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                                <span>Tranh suất ({count}/{room.max_players})</span>
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="navy"
-                                onClick={() => void handleJoinRoom(room.id, true)}
-                              >
-                                <span>
-                                  {room.status === 'finished' ? 'Xem bục vinh danh' : 'Xem trực tiếp'}
-                                </span>
-                              </Button>
-                            )}
-
-                            {canDelete && (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => setDeleteRoomTarget(room)}
-                                aria-label={`Xóa phòng ${room.code}`}
-                              >
-                                <Trash2 className="h-4 w-4 text-brand-red" aria-hidden="true" />
-                              </Button>
-                            )}
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
+                      : 'Các phòng thi đấu sau khi hoàn thành sẽ được lưu tại đây để xem lại bục vinh danh.'
+                }
+                action={
+                  roomTab === 'open' && filteredFinishedRooms.length > 0 ? (
+                    <Button variant="secondary" onClick={() => setRoomTab('finished')}>
+                      Xem {filteredFinishedRooms.length} phòng đã kết thúc
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
-              /* TAB ĐỀ XUẤT TRÒ CHƠI CHO CÁC NGÀNH GỬI HIỆU TRƯỞNG */
-              <div className="flex flex-col gap-4">
-                {suggestions.length === 0 ? (
-                  <EmptyState
-                    icon={Lightbulb}
-                    title="Chưa có đề xuất trò chơi nào"
-                    description="Hãy là người đầu tiên đề xuất ý tưởng trò chơi học tập cho ngành của bạn gửi tới Hiệu trưởng!"
-                    action={
-                      <Button variant="primary" onClick={() => setSuggestOpen(true)}>
-                        Gửi đề xuất ngay
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {suggestions.map((item) => {
-                      const meta = SUGGESTION_STATUS_META[item.status] ?? SUGGESTION_STATUS_META.pending;
-                      return (
-                        <article
-                          key={item.id}
-                          className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-surface-card p-6"
-                        >
-                          <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <Badge tone="red">{item.major_name}</Badge>
-                              <Badge tone={meta.tone}>{meta.label}</Badge>
-                            </div>
-                            <h3 className="text-base font-bold text-ink-primary">
-                              {item.game_title}
-                            </h3>
-                            <p className="whitespace-pre-line text-sm font-normal text-ink-secondary">
-                              {item.description}
-                            </p>
-                            <span className="text-xs text-ink-muted">
-                              Đề xuất bởi <strong>{item.created_by_name}</strong> ·{' '}
-                              {formatDateTimeVi(item.created_at)}
-                            </span>
-                          </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {visibleRooms.map((room) => {
+                  const count = roomCounts.get(room.id) ?? 0;
+                  const isFull = count >= room.max_players;
+                  const canDelete = adminRole || room.host_id === user?.id;
 
-                          {adminRole && (
-                            <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                              <span className="text-xs font-semibold text-ink-muted">
-                                Hiệu trưởng duyệt:
-                              </span>
-                              {(['reviewing', 'planned', 'done'] as const).map((st) => (
-                                <Button
-                                  key={st}
-                                  size="sm"
-                                  variant={item.status === st ? 'navy' : 'secondary'}
-                                  onClick={() => void handleUpdateSuggestionStatus(item.id, st)}
-                                >
-                                  {st === 'done' && (
-                                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                                  )}
-                                  <span>{SUGGESTION_STATUS_META[st].label}</span>
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
+                  return (
+                    <article
+                      key={room.id}
+                      className="flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface-card p-6"
+                    >
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Badge tone="navy">{room.code}</Badge>
+                          <Badge
+                            tone={
+                              room.status === 'waiting'
+                                ? 'success'
+                                : room.status === 'playing'
+                                  ? 'red'
+                                  : 'neutral'
+                            }
+                          >
+                            {room.status === 'waiting'
+                              ? 'Đang mở tranh suất'
+                              : room.status === 'playing'
+                                ? 'Đang thi đấu'
+                                : 'Đã kết thúc'}
+                          </Badge>
+                        </div>
+                        <h2 className="text-base font-bold text-ink-primary">{room.title}</h2>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+                          <span>{HSK_THEME_INFO[room.theme]?.label}</span>
+                          <span>•</span>
+                          <span>{room.target_steps} nấc</span>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-brand-navy">
+                            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                            {count}/{room.max_players}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-ink-muted">
+                          Tạo lúc: {formatDateTimeVi(room.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 border-t border-line pt-4">
+                        {room.status === 'waiting' && !isFull ? (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => void handleJoinRoom(room.id)}
+                            loading={joining}
+                          >
+                            <Sparkles className="h-4 w-4" aria-hidden="true" />
+                            <span>Tranh suất ({count}/{room.max_players})</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="navy"
+                            onClick={() => void handleJoinRoom(room.id, true)}
+                          >
+                            <span>
+                              {room.status === 'finished' ? 'Xem bục vinh danh' : 'Xem trực tiếp'}
+                            </span>
+                          </Button>
+                        )}
+
+                        {canDelete && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setDeleteRoomTarget(room)}
+                            aria-label={`Xóa phòng ${room.code}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-brand-red" aria-hidden="true" />
+                          </Button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </>
@@ -1472,56 +1419,6 @@ export function HskTowerGame() {
             <Button type="submit" variant="primary" loading={creating}>
               <Crown className="h-4 w-4" aria-hidden="true" />
               <span>Mở phòng ngay</span>
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal đề xuất trò chơi cho ngành gửi Hiệu trưởng */}
-      <Modal
-        open={suggestOpen}
-        onClose={() => {
-          if (!suggesting) setSuggestOpen(false);
-        }}
-        title="Đề xuất trò chơi học tập cho ngành của bạn"
-        size="md"
-      >
-        <form onSubmit={handleSubmitSuggestion} className="flex flex-col gap-4">
-          <Input
-            label="Ngành học / Bộ môn"
-            value={suggestMajor}
-            onChange={(e) => setSuggestMajor(e.target.value)}
-            placeholder="VD: Công nghệ Thông tin, Công nghệ Ô tô, Tiếng Nhật, Chăm sóc sắc đẹp..."
-            required
-          />
-          <Input
-            label="Tên trò chơi đề xuất"
-            value={suggestTitle}
-            onChange={(e) => setSuggestTitle(e.target.value)}
-            placeholder="VD: Đua gõ phím lệnh Linux, Ghép linh kiện PC, Đấu từ vựng N5..."
-            required
-          />
-          <div className="flex flex-col gap-2">
-            <label htmlFor="suggest-desc" className="text-sm font-semibold text-ink-primary">
-              Mô tả cách chơi mong muốn <span className="text-brand-red">*</span>
-            </label>
-            <textarea
-              id="suggest-desc"
-              rows={4}
-              value={suggestDesc}
-              onChange={(e) => setSuggestDesc(e.target.value)}
-              placeholder="Mô tả ngắn luật chơi, số người chơi và lợi ích cho buổi học..."
-              required
-              className="w-full rounded-lg border border-line-strong bg-surface-card p-4 text-sm font-normal text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
-            />
-          </div>
-          <div className="flex justify-end gap-2 border-t border-line pt-4">
-            <Button variant="secondary" onClick={() => setSuggestOpen(false)} disabled={suggesting}>
-              Hủy
-            </Button>
-            <Button type="submit" variant="primary" loading={suggesting}>
-              <Send className="h-4 w-4" aria-hidden="true" />
-              <span>Gửi tới Hiệu trưởng</span>
             </Button>
           </div>
         </form>
