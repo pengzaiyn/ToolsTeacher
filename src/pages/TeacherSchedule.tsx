@@ -45,7 +45,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { LoadingState } from '@/components/ui/Spinner';
 import { Table, type TableColumn } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/Toast';
@@ -391,11 +391,12 @@ export function TeacherSchedule() {
 
         <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-4 sm:p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Select
+            <SearchableSelect
               label="Giảng viên"
               value={selectedTeacherKey}
-              onChange={(e) => setSelectedTeacherKey(e.target.value)}
+              onChange={setSelectedTeacherKey}
               disabled={loading || visibleTeacherOptions.length === 0}
+              searchPlaceholder="Tìm tên giảng viên..."
               placeholder={
                 visibleTeacherOptions.length === 0
                   ? 'Chưa có tài khoản giảng viên'

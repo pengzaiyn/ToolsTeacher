@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { LoadingState } from '@/components/ui/Spinner';
 import { Table, type TableColumn } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/Toast';
@@ -385,16 +385,17 @@ export function Timetable() {
         <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-4 sm:p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {staff && (
-              <Select
+              <SearchableSelect
                 label="Chọn lớp"
                 value={selectedClassKey}
-                onChange={(e) => setSelectedClassKey(e.target.value)}
+                onChange={setSelectedClassKey}
                 disabled={loadingClasses || classes.length === 0}
+                searchPlaceholder="Tìm tên lớp (VD: UDPM24-01)..."
                 options={classes.map((c) => ({
                   value: c.class_key,
                   label: `${c.class_name} (${c.entries} buổi)`,
                 }))}
-                placeholder={classes.length === 0 ? 'Chưa có lớp nào' : undefined}
+                placeholder={classes.length === 0 ? 'Chưa có lớp nào' : '-- Chọn lớp --'}
               />
             )}
 

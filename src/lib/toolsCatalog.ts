@@ -9,6 +9,7 @@ import {
   Shuffle,
   Sparkles,
   Timer,
+  Trophy,
   UserCheck,
   type LucideIcon,
 } from 'lucide-react';
@@ -49,6 +50,18 @@ export const TOOLS: ToolItem[] = [
     roles: ['student', 'teacher', 'admin'],
     accent: 'navy',
     category: 'general',
+  },
+  {
+    id: 'hsk-tower',
+    title: 'Leo Tháp HSK (Tiếng Trung)',
+    description:
+      'Đấu trường ghi từ vựng HSK 1 thời gian thực (5 suất/phòng), bầu phiếu Pinyin/Chữ Hán, bục vinh danh Top 3 và đề xuất trò chơi theo ngành.',
+    to: '/hsk-tower',
+    icon: Trophy,
+    roles: ['student', 'teacher', 'admin'],
+    accent: 'red',
+    category: 'general',
+    badge: 'Mới',
   },
   {
     id: 'teacher-schedule',

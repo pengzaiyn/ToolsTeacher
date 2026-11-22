@@ -10,7 +10,7 @@ import { ClassAttendancePanel } from '@/components/class/ClassAttendancePanel';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Select } from '@/components/ui/Select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 
@@ -110,10 +110,11 @@ export function TeacherAttendance() {
 
             {classes.length > 0 && (
               <div className="w-full lg:w-80">
-                <Select
+                <SearchableSelect
                   label="Lớp học đang điểm danh"
                   value={selectedClassId}
-                  onChange={(e) => handleClassChange(e.target.value)}
+                  onChange={handleClassChange}
+                  searchPlaceholder="Tìm tên lớp, môn học..."
                   options={classes.map((c) => ({
                     value: c.id,
                     label: `${c.name}${c.subject ? ` — ${c.subject}` : ''}`,

@@ -21,6 +21,9 @@ interface LiveAnnouncementItem {
   targetType: AnnouncementTargetType;
   classId: string | null;
   audienceLabel: string;
+  badgeText?: string;
+  actionTo?: string;
+  actionLabel?: string;
   title: string;
   content: string | null;
   createdAt: string;
@@ -214,6 +217,46 @@ export function RealtimeAnnouncementPopup() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'game_suggestions',
+        },
+        (payload) => {
+          if (profile.role !== 'admin') return;
+          const row = payload.new as {
+            id?: string;
+            major_name?: string;
+            game_title?: string;
+            description?: string;
+            created_by_name?: string;
+            created_at?: string;
+          } | null;
+          if (!row?.id || !row.game_title) return;
+          const dedupeId = `suggestion-${row.id}`;
+          if (seenIdsRef.current.has(dedupeId)) return;
+          seenIdsRef.current.add(dedupeId);
+
+          const nextItem: LiveAnnouncementItem = {
+            id: dedupeId,
+            targetType: 'all',
+            classId: null,
+            badgeText: 'Đề xuất trò chơi',
+            audienceLabel: row.major_name || 'Ngành học',
+            actionTo: '/hsk-tower?tab=suggestions',
+            actionLabel: 'Xem & duyệt',
+            title: `${row.game_title}${row.created_by_name ? ` — ${row.created_by_name}` : ''}`,
+            content: row.description ?? null,
+            createdAt: row.created_at ?? new Date().toISOString(),
+            severity: 'normal',
+          };
+
+          setItems((prev) => [nextItem, ...prev].slice(0, MAX_VISIBLE));
+          startCountdown(nextItem.id, AUTO_DISMISS_MS);
+        }
+      )
       .subscribe();
 
     const timersMap = timersRef.current;
@@ -286,7 +329,7 @@ export function RealtimeAnnouncementPopup() {
                         isWarning ? 'bg-status-dangerText' : 'bg-brand-red'
                       }`}
                     >
-                      {isWarning ? 'Cảnh báo' : 'Thông báo mới'}
+                      {isWarning ? 'Cảnh báo' : item.badgeText || 'Thông báo mới'}
                     </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -346,7 +389,9 @@ export function RealtimeAnnouncementPopup() {
                     type="button"
                     onClick={() => {
                       dismiss(item.id);
-                      if (item.classId) {
+                      if (item.actionTo) {
+                        navigate(item.actionTo);
+                      } else if (item.classId) {
                         navigate(`/classes/${item.classId}?tab=announcements`);
                       } else {
                         navigate('/tools');
@@ -358,7 +403,9 @@ export function RealtimeAnnouncementPopup() {
                         : 'text-brand-navy hover:text-brand-red'
                     }`}
                   >
-                    <span>{item.classId ? 'Xem thông báo' : 'Về Trang chủ'}</span>
+                    <span>
+                      {item.actionLabel || (item.classId ? 'Xem thông báo' : 'Về Trang chủ')}
+                    </span>
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </div>

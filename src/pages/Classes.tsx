@@ -21,7 +21,7 @@ import { formatClassActionError } from '@/lib/classStorage';
 import { isAdmin, isDroppedOutStudent, isStudent, isTeacher } from '@/lib/roles';
 import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
-import type { CollegeClass, Profile, TimetableClassSummary } from '@/types/database';
+import type { ClassSubjectTeacher, CollegeClass, Profile, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
@@ -63,6 +64,9 @@ export function Classes() {
   const studentRole = isStudent(profile?.role);
 
   const [classes, setClasses] = useState<CollegeClass[]>([]);
+  const [subjectTeachersByClass, setSubjectTeachersByClass] = useState<
+    Map<string, ClassSubjectTeacher[]>
+  >(new Map());
   const [teachers, setTeachers] = useState<Profile[]>([]);
   const [memberCounts, setMemberCounts] = useState<Map<string, number>>(new Map());
   const [timetableCounts, setTimetableCounts] = useState<Map<string, number>>(new Map());
@@ -92,31 +96,48 @@ export function Classes() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const [{ data: classData, error: cErr }, teacherRes, countRes, ttRes] = await Promise.all([
-          supabase
-            .from('classes')
-            .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
-            .order('created_at', { ascending: false })
-            .returns<CollegeClass[]>(),
-          adminRole
-            ? supabase
-                .from('profiles')
-                .select('id, full_name, email, subject')
-                .eq('role', 'teacher')
-                .eq('is_active', true)
-                .order('full_name', { ascending: true })
-                .returns<Profile[]>()
-            : Promise.resolve({ data: [] as Profile[], error: null }),
-          !studentRole
-            ? supabase.rpc('class_active_student_counts')
-            : Promise.resolve({ data: null, error: null }),
-          supabase.rpc('timetable_classes'),
-        ]);
+        const [{ data: classData, error: cErr }, teacherRes, countRes, ttRes, subTeacherRes] =
+          await Promise.all([
+            supabase
+              .from('classes')
+              .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
+              .order('created_at', { ascending: false })
+              .returns<CollegeClass[]>(),
+            adminRole
+              ? supabase
+                  .from('profiles')
+                  .select('id, full_name, email, subject')
+                  .eq('role', 'teacher')
+                  .eq('is_active', true)
+                  .order('full_name', { ascending: true })
+                  .returns<Profile[]>()
+              : Promise.resolve({ data: [] as Profile[], error: null }),
+            !studentRole
+              ? supabase.rpc('class_active_student_counts')
+              : Promise.resolve({ data: null, error: null }),
+            supabase.rpc('timetable_classes'),
+            supabase
+              .from('class_teachers')
+              .select(
+                'id, class_id, teacher_id, subject_name, created_at, teacher:profiles!class_teachers_teacher_id_fkey(id, full_name, email, subject)'
+              )
+              .returns<ClassSubjectTeacher[]>(),
+          ]);
         if (cErr) throw new Error(cErr.message);
         if (teacherRes.error) throw new Error(teacherRes.error.message);
 
         setClasses(classData ?? []);
         setTeachers(teacherRes.data ?? []);
+
+        const stMap = new Map<string, ClassSubjectTeacher[]>();
+        if (!subTeacherRes.error) {
+          for (const row of subTeacherRes.data ?? []) {
+            const list = stMap.get(row.class_id) ?? [];
+            list.push(row);
+            stMap.set(row.class_id, list);
+          }
+        }
+        setSubjectTeachersByClass(stMap);
 
         const tMap = new Map<string, number>();
         ((ttRes.data as TimetableClassSummary[] | null) ?? []).forEach((row) => {
@@ -588,11 +609,22 @@ export function Classes() {
                     <div className="flex flex-wrap items-center gap-2 text-xs font-normal text-ink-muted">
                       <User className="h-4 w-4 text-brand-navy" aria-hidden="true" />
                       <span>
-                        GV:{' '}
+                        GVCN:{' '}
                         <strong className="text-ink-primary">
-                          {cls.teacher?.full_name || 'Chưa có giáo viên'}
+                          {cls.teacher?.full_name || 'Chưa phân công'}
                         </strong>
                       </span>
+                      {(subjectTeachersByClass.get(cls.id)?.length ?? 0) > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>
+                            GV bộ môn:{' '}
+                            <strong className="text-ink-primary">
+                              {subjectTeachersByClass.get(cls.id)?.length}
+                            </strong>
+                          </span>
+                        </>
+                      )}
                       <span>•</span>
                       {!studentRole && (
                         <>
@@ -707,17 +739,18 @@ export function Classes() {
             required
           />
 
-          <Select
-            label="Giáo viên phụ trách"
+          <SearchableSelect
+            label="Giáo viên chủ nhiệm"
             value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)}
-            options={[
-              { value: '', label: '(Chưa có giáo viên)' },
-              ...teachers.map((t) => ({
-                value: t.id,
-                label: `${t.full_name}${t.subject ? ` — Chủ nhiệm: ${t.subject}` : ''}`,
-              })),
-            ]}
+            onChange={setTeacherId}
+            allowClear
+            placeholder="(Chưa có giáo viên)"
+            searchPlaceholder="Tìm tên, email hoặc bộ môn giáo viên..."
+            options={teachers.map((t) => ({
+              value: t.id,
+              label: `${t.full_name}${t.subject ? ` — ${t.subject}` : ''}`,
+              description: t.email,
+            }))}
           />
 
           <Input

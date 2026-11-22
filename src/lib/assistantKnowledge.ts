@@ -728,7 +728,7 @@ function buildSmallTalkReply(
 
   if (IDENTITY_PATTERNS.some((p) => normalized.includes(p)) && !isOverviewQuery(normalized)) {
     return {
-      reply: `Mình là Trợ lý AI của AVC Connect, người bạn đồng hành nhỏ trên màn hình của ${user} đây! ${self.charAt(0).toUpperCase()}${self.slice(1)} có thể trò chuyện, nghe bạn nói qua micro, đọc trả lời bằng giọng nói và hướng dẫn mọi tính năng trên website theo đúng tài khoản của ${user}. ${user.charAt(0).toUpperCase()}${user.slice(1)} thử hỏi ${self} một câu xem sao ${politeEnd}!`,
+      reply: `Mình là Trợ lý AI của AVC Connect, người bạn đồng hành nhỏ trên màn hình của ${user} đây! ${self.charAt(0).toUpperCase()}${self.slice(1)} có thể tra cứu nhanh dữ liệu lớp học, sĩ số, thông báo, lịch học và hướng dẫn mọi tính năng trên website theo đúng tài khoản của ${user}. ${user.charAt(0).toUpperCase()}${user.slice(1)} thử hỏi ${self} một câu xem sao ${politeEnd}!`,
       actions: defaultActions,
       matchedTopicIds: currentTopic ? [currentTopic.id] : [],
     };
@@ -736,8 +736,8 @@ function buildSmallTalkReply(
 
   if (shortGreeting || GREETING_PATTERNS.some((p) => normalized.includes(p))) {
     const contextHint = currentTopic
-      ? `Hiện ${user} đang ở mục ${currentTopic.title}, cần ${self} hỗ trợ gì về phần này hay việc khác cứ nhắn hoặc bấm micro nói chuyện với ${self} ${politeEnd}!`
-      : `Hôm nay ${user} muốn ${self} giúp việc gì trên AVC Connect nào? Cứ nhắn hoặc bấm micro nói tự nhiên với ${self} ${politeEnd}.`;
+      ? `Hiện ${user} đang ở mục ${currentTopic.title}, cần ${self} hỗ trợ gì về phần này hay tra cứu lớp học cứ nhắn cho ${self} ${politeEnd}!`
+      : `Hôm nay ${user} muốn ${self} giúp việc gì trên AVC Connect nào? Cứ nhắn tự nhiên cho ${self} ${politeEnd}.`;
 
     return {
       reply: `Chào ${user}! Rất vui được nói chuyện với ${user}. ${contextHint}`,

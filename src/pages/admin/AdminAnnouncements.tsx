@@ -40,6 +40,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/Spinner';
 import { Table, type TableColumn } from '@/components/ui/Table';
@@ -563,12 +564,13 @@ export function AdminAnnouncements() {
           </div>
 
           {targetType === 'class' && (
-            <Select
+            <SearchableSelect
               label="Chọn lớp học"
               required
               value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
+              onChange={setSelectedClassId}
               placeholder="-- Chọn lớp nhận thông báo --"
+              searchPlaceholder="Tìm tên lớp, chuyên ngành (VD: UDPM24-01)..."
               options={classOptions}
               hint={
                 classOptions.length === 0
@@ -579,12 +581,13 @@ export function AdminAnnouncements() {
           )}
 
           {targetType === 'teacher' && (
-            <Select
+            <SearchableSelect
               label="Chọn giáo viên"
               required
               value={selectedTeacherId}
-              onChange={(e) => setSelectedTeacherId(e.target.value)}
+              onChange={setSelectedTeacherId}
               placeholder="-- Chọn giáo viên nhận thông báo --"
+              searchPlaceholder="Tìm tên hoặc email giáo viên..."
               options={teacherOptions}
               hint={
                 teacherOptions.length === 0

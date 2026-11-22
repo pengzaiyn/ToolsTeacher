@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Calendar, Megaphone, Plus } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Calendar, Lightbulb, Megaphone, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
@@ -20,11 +20,22 @@ import { LoadingState } from '@/components/ui/Spinner';
 
 export { TOOLS, type ToolItem };
 
+interface PendingGameSuggestion {
+  id: string;
+  major_name: string;
+  game_title: string;
+  description: string;
+  created_by_name: string;
+  created_at: string;
+}
+
 export function Tools() {
   const { user, profile } = useAuth();
   const { schoolUnreadCount, markSchoolSeen } = useUnreadAnnouncements();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [pendingSuggestions, setPendingSuggestions] = useState<PendingGameSuggestion[]>([]);
+  const adminRole = isAdmin(profile?.role);
 
   useEffect(() => {
     if (schoolUnreadCount > 0) {
@@ -35,18 +46,30 @@ export function Tools() {
   const loadAnnouncements = useCallback(async (silent = false) => {
     if (!silent) setLoadingAnnouncements(true);
     try {
-      const { data } = await supabase
-        .from('announcements')
-        .select('*')
-        .is('class_id', null)
-        .order('created_at', { ascending: false })
-        .limit(5)
-        .returns<Announcement[]>();
-      setAnnouncements(data ?? []);
+      const [annRes, sugRes] = await Promise.all([
+        supabase
+          .from('announcements')
+          .select('*')
+          .is('class_id', null)
+          .order('created_at', { ascending: false })
+          .limit(5)
+          .returns<Announcement[]>(),
+        adminRole
+          ? supabase
+              .from('game_suggestions')
+              .select('id, major_name, game_title, description, created_by_name, created_at')
+              .eq('status', 'pending')
+              .order('created_at', { ascending: false })
+              .limit(5)
+              .returns<PendingGameSuggestion[]>()
+          : Promise.resolve({ data: [] as PendingGameSuggestion[], error: null }),
+      ]);
+      setAnnouncements(annRes.data ?? []);
+      setPendingSuggestions(sugRes.error ? [] : (sugRes.data ?? []));
     } finally {
       if (!silent) setLoadingAnnouncements(false);
     }
-  }, []);
+  }, [adminRole]);
 
   useEffect(() => {
     void loadAnnouncements();
@@ -54,7 +77,9 @@ export function Tools() {
 
   useRealtimeRefresh({
     channelName: 'tools-announcements',
-    tables: [{ table: 'announcements' }],
+    tables: adminRole
+      ? [{ table: 'announcements' }, { table: 'game_suggestions' }]
+      : [{ table: 'announcements' }],
     onRefresh: () => loadAnnouncements(true),
   });
 
@@ -104,6 +129,49 @@ export function Tools() {
             </div>
           )}
         </section>
+
+        {adminRole && pendingSuggestions.length > 0 && (
+          <section className="flex flex-col gap-4 rounded-2xl border border-brand-red/30 bg-brand-redSoft/30 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-brand-red" aria-hidden="true" />
+                <h2 className="text-lg font-bold text-brand-navy">
+                  Đề xuất trò chơi mới gửi Hiệu trưởng
+                </h2>
+                <Badge tone="red">{pendingSuggestions.length} chờ duyệt</Badge>
+              </div>
+              <Link to="/hsk-tower?tab=suggestions">
+                <Button size="sm" variant="primary">
+                  <span>Xem & duyệt đề xuất</span>
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {pendingSuggestions.map((item) => (
+                <article
+                  key={item.id}
+                  className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-card p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Badge tone="navy">{item.major_name}</Badge>
+                    <span className="text-xs font-normal text-ink-muted">
+                      {formatDateVi(item.created_at)}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-ink-primary">{item.game_title}</h3>
+                  <p className="line-clamp-2 text-xs font-normal text-ink-secondary">
+                    {item.description}
+                  </p>
+                  <span className="text-[11px] font-semibold text-ink-muted">
+                    Người gửi: {item.created_by_name}
+                  </span>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-4">

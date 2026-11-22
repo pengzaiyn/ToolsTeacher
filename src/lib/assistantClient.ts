@@ -1,4 +1,5 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { tryAnswerLiveDataQuery } from '@/lib/assistantDataQuery';
 import {
   answerWithLocalKnowledge,
   findRelatedActions,
@@ -12,7 +13,7 @@ import {
   supabaseUrl,
 } from '@/lib/supabase';
 
-export type AssistantSource = 'gemini' | 'local';
+export type AssistantSource = 'gemini' | 'data' | 'local';
 
 export interface AssistantTurn {
   role: 'user' | 'assistant';
@@ -128,6 +129,21 @@ export async function askAvcAssistant({
   history = [],
 }: AskAssistantParams): Promise<AssistantReply> {
   const trimmed = message.trim();
+
+  // Ưu tiên tra cứu dữ liệu thật từ Supabase (tuân thủ RLS) với các câu hỏi về sĩ số, lớp, SV, thông báo, TKB
+  try {
+    const liveAnswer = await tryAnswerLiveDataQuery(trimmed, role);
+    if (liveAnswer) {
+      return {
+        reply: liveAnswer.reply,
+        source: 'data',
+        interactionId: null,
+        actions: liveAnswer.actions,
+      };
+    }
+  } catch {
+    // Nếu tra cứu dữ liệu trực tiếp gặp lỗi thì tiếp tục sang Gemini / tri thức nội bộ
+  }
 
   const data = await invokeAvcAssistantEdge(
     {

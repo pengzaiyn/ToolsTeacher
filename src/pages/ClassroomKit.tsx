@@ -29,7 +29,7 @@ import { Layout } from '@/components/Layout';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Select } from '@/components/ui/Select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 
@@ -370,10 +370,11 @@ export function ClassroomKit() {
           ) : sourceMode === 'class' ? (
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-end">
-                <Select
+                <SearchableSelect
                   label="Lớp học"
                   value={selectedClassKey}
-                  onChange={(e) => handleSelectClass(e.target.value)}
+                  onChange={handleSelectClass}
+                  searchPlaceholder="Tìm tên lớp, môn học..."
                   options={classSources.map((src) => ({
                     value: src.key,
                     label: `${src.name}${src.subject ? ` — ${src.subject}` : ''} (${src.students.length} SV)`,

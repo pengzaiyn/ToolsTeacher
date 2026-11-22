@@ -18,6 +18,9 @@ import { ToastProvider } from '@/components/ui/Toast';
 const ClassDetail = lazy(() => import('@/pages/ClassDetail').then((m) => ({ default: m.ClassDetail })));
 const ClassroomKit = lazy(() => import('@/pages/ClassroomKit').then((m) => ({ default: m.ClassroomKit })));
 const Classes = lazy(() => import('@/pages/Classes').then((m) => ({ default: m.Classes })));
+const HskTowerGame = lazy(() =>
+  import('@/pages/HskTowerGame').then((m) => ({ default: m.HskTowerGame }))
+);
 const Login = lazy(() => import('@/pages/Login').then((m) => ({ default: m.Login })));
 const Profile = lazy(() => import('@/pages/Profile').then((m) => ({ default: m.Profile })));
 const ResetPassword = lazy(() => import('@/pages/ResetPassword').then((m) => ({ default: m.ResetPassword })));
@@ -134,6 +137,14 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <ClassDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/hsk-tower"
+              element={
+                <ProtectedRoute>
+                  <HskTowerGame />
                 </ProtectedRoute>
               }
             />

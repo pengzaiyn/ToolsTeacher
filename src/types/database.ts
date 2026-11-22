@@ -109,6 +109,15 @@ export interface Announcement {
   created_at: string;
 }
 
+export interface ClassSubjectTeacher {
+  id: string;
+  class_id: string;
+  teacher_id: string;
+  subject_name: string | null;
+  created_at: string;
+  teacher?: Pick<Profile, 'id' | 'full_name' | 'email' | 'subject'> | null;
+}
+
 export interface CollegeClass {
   id: string;
   name: string;
@@ -119,6 +128,7 @@ export interface CollegeClass {
   teacher_id: string | null;
   created_at: string;
   teacher?: Pick<Profile, 'id' | 'full_name' | 'email'> | null;
+  subject_teachers?: ClassSubjectTeacher[];
 }
 
 export interface Enrollment {

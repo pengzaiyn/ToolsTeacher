@@ -18,7 +18,7 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { classKey } from '@/lib/classKey';
 import { isAdmin, isDroppedOutStudent, isStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
-import type { CollegeClass, TimetableClassSummary } from '@/types/database';
+import type { ClassSubjectTeacher, CollegeClass, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
 import { ClassAnnouncementsTab } from '@/components/class/ClassAnnouncementsTab';
 import { ClassAssignmentsTab } from '@/components/class/ClassAssignmentsTab';
@@ -49,6 +49,7 @@ export function ClassDetail() {
   const toast = useToast();
 
   const [cls, setCls] = useState<CollegeClass | null>(null);
+  const [subjectTeachers, setSubjectTeachers] = useState<ClassSubjectTeacher[]>([]);
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [timetableCount, setTimetableCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -94,7 +95,7 @@ export function ClassDetail() {
       if (!id) return;
       if (!silent) setLoading(true);
       try {
-        const [{ data, error }, enrRes, ttRes] = await Promise.all([
+        const [{ data, error }, enrRes, ttRes, subTeacherRes] = await Promise.all([
           supabase
             .from('classes')
             .select('*, teacher:profiles!classes_teacher_id_fkey(id, full_name, email)')
@@ -108,10 +109,18 @@ export function ClassDetail() {
                 .returns<{ id: string; student: { academic_status: string | null } | null }[]>()
             : Promise.resolve({ data: null, error: null }),
           supabase.rpc('timetable_classes'),
+          supabase
+            .from('class_teachers')
+            .select(
+              'id, class_id, teacher_id, subject_name, created_at, teacher:profiles!class_teachers_teacher_id_fkey(id, full_name, email, subject)'
+            )
+            .eq('class_id', id)
+            .returns<ClassSubjectTeacher[]>(),
         ]);
         if (error) throw new Error(error.message);
 
         setCls(data ?? null);
+        setSubjectTeachers(subTeacherRes.error ? [] : (subTeacherRes.data ?? []));
         setStudentCount(
           enrRes.data
             ? enrRes.data.filter((row) => !isDroppedOutStudent(row.student)).length
@@ -146,6 +155,7 @@ export function ClassDetail() {
     tables: id
       ? [
           { table: 'classes', filter: `id=eq.${id}` },
+          { table: 'class_teachers', filter: `class_id=eq.${id}` },
           { table: 'enrollments', filter: `class_id=eq.${id}` },
           { table: 'timetable_entries' },
         ]
@@ -154,9 +164,15 @@ export function ClassDetail() {
     onRefresh: () => loadClass(true),
   });
 
+  const isAssignedSubjectTeacher = Boolean(
+    user && subjectTeachers.some((st) => st.teacher_id === user.id)
+  );
   const canManageTeaching = Boolean(
     profile?.role === 'admin' ||
-      (profile?.role === 'teacher' && user && cls && cls.teacher_id === user.id)
+      (profile?.role === 'teacher' &&
+        user &&
+        cls &&
+        (cls.teacher_id === user.id || isAssignedSubjectTeacher))
   );
   const canManageMembers = canManageTeaching;
 
@@ -217,14 +233,25 @@ export function ClassDetail() {
                   {cls.description && (
                     <p className="text-sm font-normal text-ink-secondary">{cls.description}</p>
                   )}
+                  {subjectTeachers.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+                      <span className="font-semibold text-ink-muted">GV bộ môn:</span>
+                      {subjectTeachers.map((st) => (
+                        <Badge key={st.id} tone="neutral">
+                          {st.teacher?.full_name || 'Giáo viên'}
+                          {st.subject_name ? ` · ${st.subject_name}` : ''}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-2 rounded-xl bg-surface-page px-4 py-2 text-sm">
                     <User className="h-4 w-4 text-brand-navy" aria-hidden="true" />
                     <span className="text-ink-secondary">
-                      Giáo viên:{' '}
+                      GV chủ nhiệm:{' '}
                       <strong className="text-ink-primary">
-                        {cls.teacher?.full_name || 'Chưa có giáo viên'}
+                        {cls.teacher?.full_name || 'Chưa phân công'}
                       </strong>
                     </span>
                   </div>
