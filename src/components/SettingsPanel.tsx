@@ -2,9 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Ban,
   Check,
-  Droplets,
   Laptop,
-  Layers,
   Monitor,
   Moon,
   Orbit,
@@ -28,16 +26,12 @@ import {
 } from '@/lib/cursorEffects';
 import {
   DEFAULT_THEME_MODE,
-  GLASS_INTENSITY_OPTIONS,
-  GLASS_MODE_OPTIONS,
   THEME_OPTIONS,
-  type GlassMode,
   type ThemeMode,
 } from '@/lib/theme';
 import { CustomThemeSettingsSection } from '@/components/settings/CustomThemeSettingsSection';
 import {
   renderColorSwatch,
-  renderGlassPreview,
   renderThemePreview,
 } from '@/components/settings/SettingsPreviews';
 import { Badge } from '@/components/ui/Badge';
@@ -47,12 +41,6 @@ const THEME_ICON_MAP: Record<ThemeMode, typeof Sun> = {
   light: Sun,
   dark: Moon,
   system: Laptop,
-};
-
-const GLASS_ICON_MAP: Record<GlassMode, typeof Layers> = {
-  none: Ban,
-  frosted: Layers,
-  liquid: Droplets,
 };
 
 const CURSOR_ICON_MAP: Record<CursorEffectMode, typeof Sparkles> = {
@@ -87,7 +75,7 @@ export function useResetAppearanceSettings() {
 }
 
 /**
- * Nội dung cài đặt giao diện gồm thanh danh mục bên trái và 4 vùng cấu hình tương ứng.
+ * Nội dung cài đặt giao diện gồm thanh danh mục bên trái và 3 vùng cấu hình tương ứng.
  */
 export function SettingsPanel({
   activeTab,
@@ -96,22 +84,14 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const { settings, updateSettings } = useCursorEffects();
   const { customTheme } = useCustomTheme();
-  const {
-    theme,
-    resolvedTheme,
-    setTheme,
-    glassSettings,
-    updateGlassSettings,
-  } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const [deviceWarning, setDeviceWarning] = useState<'touch' | 'reduced-motion' | null>(null);
-  const [reducedTransparency, setReducedTransparency] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
 
     const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const finePointerQuery = window.matchMedia('(pointer: fine)');
-    const reducedTransparencyQuery = window.matchMedia('(prefers-reduced-transparency: reduce)');
 
     const syncDeviceStatus = () => {
       if (reducedMotionQuery.matches) {
@@ -121,28 +101,20 @@ export function SettingsPanel({
       } else {
         setDeviceWarning(null);
       }
-      setReducedTransparency(reducedTransparencyQuery.matches);
     };
 
     syncDeviceStatus();
     reducedMotionQuery.addEventListener('change', syncDeviceStatus);
     finePointerQuery.addEventListener('change', syncDeviceStatus);
-    reducedTransparencyQuery.addEventListener('change', syncDeviceStatus);
     return () => {
       reducedMotionQuery.removeEventListener('change', syncDeviceStatus);
       finePointerQuery.removeEventListener('change', syncDeviceStatus);
-      reducedTransparencyQuery.removeEventListener('change', syncDeviceStatus);
     };
   }, []);
 
   const isCursorDisabled = settings.mode === 'none';
-  const isGlassDisabled = glassSettings.mode === 'none';
 
   const ActiveThemeIcon = resolvedTheme === 'dark' ? Moon : Sun;
-  const activeGlassMeta = GLASS_MODE_OPTIONS.find((opt) => opt.value === glassSettings.mode);
-  const activeGlassLevelMeta = GLASS_INTENSITY_OPTIONS.find(
-    (opt) => opt.value === glassSettings.intensity
-  );
   const activeCursorMeta = CURSOR_MODE_OPTIONS.find((opt) => opt.value === settings.mode);
   const activePackMeta = customTheme.activePackId
     ? THEME_PACKS.find((pack) => pack.id === customTheme.activePackId)
@@ -153,8 +125,6 @@ export function SettingsPanel({
       ? activePackMeta.label
       : [
           customTheme.wallpaperKind !== 'none' ? 'Ảnh nền' : null,
-          customTheme.stickers.length > 0 ? `${customTheme.stickers.length} sticker` : null,
-          customTheme.pet.id !== 'none' ? 'Có Pet' : null,
           customTheme.accentPreset !== 'default' ? 'Màu riêng' : null,
         ]
           .filter(Boolean)
@@ -176,15 +146,6 @@ export function SettingsPanel({
             ? 'Đang bật: Tối'
             : 'Đang bật: Sáng',
       icon: SunMoon,
-    },
-    {
-      id: 'glass',
-      label: 'Hiệu ứng kính iOS',
-      statusText:
-        glassSettings.mode === 'none'
-          ? 'Đang tắt'
-          : `${activeGlassMeta?.label ?? 'Kính iOS'} · ${activeGlassLevelMeta?.label ?? 'Vừa'}`,
-      icon: Layers,
     },
     {
       id: 'custom',
@@ -302,166 +263,10 @@ export function SettingsPanel({
           </section>
         )}
 
-        {/* Mục 2: Hiệu ứng kính iOS */}
-        {activeTab === 'glass' && (
-          <>
-            {reducedTransparency && (
-              <div
-                role="status"
-                className="flex items-start gap-4 rounded-xl border border-status-warningBorder bg-status-warningBg p-4 text-sm font-normal text-status-warningText"
-              >
-                <Monitor className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                <span>
-                  Hệ điều hành đang bật chế độ Giảm độ trong suốt (Reduce Transparency), nên lớp kính sẽ tự giữ nền đặc để dễ đọc. Lựa chọn của bạn vẫn được lưu lại.
-                </span>
-              </div>
-            )}
-
-            <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-base font-bold text-ink-primary">Kiểu hiệu ứng kính iOS</h2>
-                  <p className="text-xs font-normal text-ink-muted">
-                    Bật lớp kính mờ hoặc kính lỏng iOS cho thanh điều hướng, thẻ công cụ và hộp thoại nổi
-                  </p>
-                </div>
-
-                <Badge tone={isGlassDisabled ? 'neutral' : 'navy'} className="gap-1">
-                  <Layers className="h-3 w-3" aria-hidden="true" />
-                  <span>
-                    {isGlassDisabled
-                      ? 'Đang tắt'
-                      : `${activeGlassMeta?.label ?? 'Kính iOS'} · ${activeGlassLevelMeta?.label ?? 'Vừa'}`}
-                  </span>
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {GLASS_MODE_OPTIONS.map((option) => {
-                  const Icon = GLASS_ICON_MAP[option.value];
-                  const active = glassSettings.mode === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => updateGlassSettings({ mode: option.value })}
-                      aria-pressed={active}
-                      className={`flex flex-col justify-between gap-4 rounded-xl border p-4 text-left transition-all ${
-                        active
-                          ? 'border-brand-navy bg-brand-navySoft/50 ring-2 ring-brand-navy/20'
-                          : 'border-line bg-surface-page hover:border-line-strong hover:bg-surface-card'
-                      }`}
-                    >
-                      {renderGlassPreview(option.value)}
-
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-2 text-sm font-bold text-ink-primary">
-                            <Icon className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                            <span>{option.label}</span>
-                          </span>
-
-                          {active && (
-                            <Badge tone="navy" className="gap-1">
-                              <Check className="h-3 w-3" aria-hidden="true" />
-                              <span>Đang bật</span>
-                            </Badge>
-                          )}
-                        </div>
-
-                        <span className="text-xs font-normal leading-relaxed text-ink-secondary">
-                          {option.description}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section
-              className={`flex flex-col gap-6 rounded-xl border border-line bg-surface-card p-6 transition-opacity ${
-                isGlassDisabled ? 'opacity-60' : ''
-              }`}
-            >
-              <div>
-                <h2 className="text-base font-bold text-ink-primary">Mức độ hiệu ứng kính</h2>
-                <p className="text-xs font-normal text-ink-muted">
-                  {isGlassDisabled
-                    ? 'Hãy chọn Kính mờ iOS hoặc Kính lỏng iOS phía trên để điều chỉnh mức độ'
-                    : 'Điều chỉnh độ trong suốt, độ mờ hậu cảnh và độ phản quang viền kính'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-semibold text-ink-primary">
-                    Cường độ mờ &amp; trong suốt
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {GLASS_INTENSITY_OPTIONS.map((opt) => {
-                      const active = glassSettings.intensity === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          disabled={isGlassDisabled}
-                          onClick={() => updateGlassSettings({ intensity: opt.value })}
-                          className={`flex flex-col items-center gap-2 rounded-lg border p-2 text-center transition-colors disabled:cursor-not-allowed ${
-                            active
-                              ? 'border-brand-navy bg-brand-navySoft text-brand-navy'
-                              : 'border-line bg-surface-page text-ink-secondary hover:bg-surface-subtle'
-                          }`}
-                        >
-                          <span className="text-sm font-semibold">{opt.label}</span>
-                          <span className="text-xs font-normal text-ink-muted">
-                            {opt.description}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface-page p-4">
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-ink-primary">
-                      Ánh sáng nền dịu phía sau kính
-                    </span>
-                    <span className="text-xs font-normal text-ink-muted">
-                      Thêm quầng sáng đỏ &amp; xanh nhẹ phía sau để tấm kính khúc xạ có chiều sâu hơn
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={glassSettings.ambientGlow}
-                    aria-label="Bật tắt ánh sáng nền dịu phía sau kính"
-                    disabled={isGlassDisabled}
-                    onClick={() =>
-                      updateGlassSettings({ ambientGlow: !glassSettings.ambientGlow })
-                    }
-                    className={`relative inline-flex h-6 w-12 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed ${
-                      glassSettings.ambientGlow ? 'bg-brand-red' : 'bg-line-strong'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-surface-card transition-transform ${
-                        glassSettings.ambientGlow ? 'translate-x-7' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </section>
-          </>
-        )}
-
-        {/* Mục 3: Chủ đề tùy chỉnh */}
+        {/* Mục 2: Chủ đề tùy chỉnh */}
         {activeTab === 'custom' && <CustomThemeSettingsSection />}
 
-        {/* Mục 4: Hiệu ứng con trỏ chuột */}
+        {/* Mục 3: Hiệu ứng con trỏ chuột */}
         {activeTab === 'cursor' && (
           <>
             {deviceWarning && (

@@ -48,9 +48,13 @@ import { Layout } from '@/components/Layout';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlowCardGrid } from '@/components/ui/GlowCardGrid';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Pagination } from '@/components/ui/Pagination';
+import { QrShareCard } from '@/components/ui/QrShareCard';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
@@ -144,6 +148,12 @@ export function HskTowerGame() {
   const [lobbySearch, setLobbySearch] = useState('');
   const [lobbyDate, setLobbyDate] = useState('');
   const [roomTab, setRoomTab] = useState<'open' | 'finished'>('open');
+  const [roomPage, setRoomPage] = useState(1);
+  const ROOMS_PER_PAGE = 9;
+
+  useEffect(() => {
+    setRoomPage(1);
+  }, [lobbySearch, lobbyDate, roomTab]);
 
   const loadLobby = useCallback(
     async (silent = false) => {
@@ -529,36 +539,63 @@ export function HskTowerGame() {
 
   async function handleChangeAvatar(avatarId: HskAvatarId) {
     setSelectedAvatar(avatarId);
-    if (!myPlayer) return;
-    await supabase
+    if (!myPlayer || myPlayer.avatar_id === avatarId) return;
+    const prevAvatar = myPlayer.avatar_id;
+    const playerId = myPlayer.id;
+
+    // Cập nhật ngay trên giao diện (optimistic) để chuyển nhân vật tức thì không bị trễ
+    setActivePlayers((prev) =>
+      prev.map((p) => (p.id === playerId ? { ...p, avatar_id: avatarId } : p))
+    );
+
+    const { error } = await supabase
       .from('hsk_room_players')
       .update({ avatar_id: avatarId })
-      .eq('id', myPlayer.id);
+      .eq('id', playerId);
+
+    if (error) {
+      setActivePlayers((prev) =>
+        prev.map((p) => (p.id === playerId ? { ...p, avatar_id: prevAvatar } : p))
+      );
+      toast.error(error.message || 'Không đổi được nhân vật');
+    }
   }
 
   async function handleVoteMode(mode: HskInputMode) {
     if (!activeRoom) return;
     if (myPlayer) {
-      await supabase
+      const playerId = myPlayer.id;
+      setActivePlayers((prev) =>
+        prev.map((p) => (p.id === playerId ? { ...p, vote_mode: mode } : p))
+      );
+      const { error } = await supabase
         .from('hsk_room_players')
         .update({ vote_mode: mode })
-        .eq('id', myPlayer.id);
+        .eq('id', playerId);
+      if (error) toast.error(error.message);
     }
     if (isHost) {
-      await supabase
+      const roomId = activeRoom.id;
+      setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, input_mode: mode } : r)));
+      const { error } = await supabase
         .from('hsk_rooms')
         .update({ input_mode: mode })
-        .eq('id', activeRoom.id);
+        .eq('id', roomId);
+      if (error) toast.error(error.message);
     }
   }
 
   async function handleChangeRoomTheme(theme: HskTowerTheme) {
     if (!activeRoom || !isHost) return;
+    const roomId = activeRoom.id;
+    const prevTheme = activeRoom.theme;
+    setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, theme } : r)));
     const { error } = await supabase
       .from('hsk_rooms')
       .update({ theme })
-      .eq('id', activeRoom.id);
+      .eq('id', roomId);
     if (error) {
+      setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, theme: prevTheme } : r)));
       toast.error(error.message);
     }
   }
@@ -869,21 +906,15 @@ export function HskTowerGame() {
                       </div>
                     </div>
                   )}
-                  {/* Mã QR & Link mời sinh viên vào phòng */}
-                  <div className="flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center">
-                    <div className="flex shrink-0 items-center justify-center rounded-xl border border-line bg-white p-2">
-                      {qrDataUrl ? (
-                        <img
-                          src={qrDataUrl}
-                          alt={`Mã QR vào phòng ${activeRoom.code}`}
-                          className="h-32 w-32 object-contain"
-                        />
-                      ) : (
-                        <div className="flex h-32 w-32 items-center justify-center text-ink-muted">
-                          <QrCode className="h-10 w-10" aria-hidden="true" />
-                        </div>
-                      )}
-                    </div>
+                  {/* Mã QR & Link mời sinh viên vào phòng (#478) */}
+                  <div className="flex flex-col items-center gap-5 border-t border-line pt-4 sm:flex-row sm:items-center">
+                    <QrShareCard
+                      url={roomJoinUrl}
+                      qrDataUrl={qrDataUrl}
+                      displayLabel={`Phòng ${activeRoom.code}`}
+                      altText={`Mã QR vào phòng ${activeRoom.code}`}
+                      onCopied={() => toast.success('Đã sao chép đường dẫn vào phòng!')}
+                    />
 
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
                       <div className="flex items-center gap-2">
@@ -906,10 +937,6 @@ export function HskTowerGame() {
                         >
                           <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
                           <span>Phóng to QR (chiếu bảng)</span>
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={() => void handleCopyRoomLink()}>
-                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                          <span>Sao chép link</span>
                         </Button>
                       </div>
                     </div>
@@ -1147,12 +1174,12 @@ export function HskTowerGame() {
                 />
               </div>
               <div className="md:col-span-3">
-                <input
-                  type="date"
+                <DatePicker
                   value={lobbyDate}
-                  onChange={(e) => setLobbyDate(e.target.value)}
-                  aria-label="Lọc theo ngày chơi"
-                  className="h-10 w-full rounded-lg border border-line-strong bg-surface-page px-3 text-sm font-normal text-ink-primary focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                  onChange={setLobbyDate}
+                  ariaLabel="Lọc theo ngày chơi"
+                  surface="page"
+                  clearable
                 />
               </div>
               <div className="flex items-center md:col-span-2">
@@ -1266,8 +1293,11 @@ export function HskTowerGame() {
                 }
               />
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {visibleRooms.map((room) => {
+              <div className="flex flex-col gap-6">
+              <GlowCardGrid className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {visibleRooms
+                  .slice((roomPage - 1) * ROOMS_PER_PAGE, roomPage * ROOMS_PER_PAGE)
+                  .map((room) => {
                   const count = roomCounts.get(room.id) ?? 0;
                   const isFull = count >= room.max_players;
                   const canDelete = adminRole || room.host_id === user?.id;
@@ -1275,80 +1305,96 @@ export function HskTowerGame() {
                   return (
                     <article
                       key={room.id}
-                      className="flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface-card p-6"
+                      data-u228-card
+                      className="u228-c rounded-2xl"
                     >
-                      <div className="flex flex-col gap-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Badge tone="navy">{room.code}</Badge>
-                          <Badge
-                            tone={
-                              room.status === 'waiting'
-                                ? 'success'
+                      <div
+                        data-u228-inner
+                        className="u228-in flex flex-col justify-between gap-4 overflow-hidden rounded-[calc(1rem-1.5px)] p-6"
+                      >
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Badge tone="navy">{room.code}</Badge>
+                            <Badge
+                              tone={
+                                room.status === 'waiting'
+                                  ? 'success'
+                                  : room.status === 'playing'
+                                    ? 'red'
+                                    : 'neutral'
+                              }
+                            >
+                              {room.status === 'waiting'
+                                ? 'Đang mở tranh suất'
                                 : room.status === 'playing'
-                                  ? 'red'
-                                  : 'neutral'
-                            }
-                          >
-                            {room.status === 'waiting'
-                              ? 'Đang mở tranh suất'
-                              : room.status === 'playing'
-                                ? 'Đang thi đấu'
-                                : 'Đã kết thúc'}
-                          </Badge>
-                        </div>
-                        <h2 className="text-base font-bold text-ink-primary">{room.title}</h2>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
-                          <span>{HSK_THEME_INFO[room.theme]?.label}</span>
-                          <span>•</span>
-                          <span>{room.target_steps} nấc</span>
-                          <span>•</span>
-                          <span className="inline-flex items-center gap-1 font-semibold text-brand-navy">
-                            <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                            {count}/{room.max_players}
+                                  ? 'Đang thi đấu'
+                                  : 'Đã kết thúc'}
+                            </Badge>
+                          </div>
+                          <h2 className="text-base font-bold text-ink-primary">{room.title}</h2>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+                            <span>{HSK_THEME_INFO[room.theme]?.label}</span>
+                            <span>•</span>
+                            <span>{room.target_steps} nấc</span>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-1 font-semibold text-brand-navy">
+                              <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                              {count}/{room.max_players}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-ink-muted">
+                            Tạo lúc: {formatDateTimeVi(room.created_at)}
                           </span>
                         </div>
-                        <span className="text-[11px] text-ink-muted">
-                          Tạo lúc: {formatDateTimeVi(room.created_at)}
-                        </span>
-                      </div>
 
-                      <div className="flex items-center justify-between gap-2 border-t border-line pt-4">
-                        {room.status === 'waiting' && !isFull ? (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={() => void handleJoinRoom(room.id)}
-                            loading={joining}
-                          >
-                            <Sparkles className="h-4 w-4" aria-hidden="true" />
-                            <span>Tranh suất ({count}/{room.max_players})</span>
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="navy"
-                            onClick={() => void handleJoinRoom(room.id, true)}
-                          >
-                            <span>
-                              {room.status === 'finished' ? 'Xem bục vinh danh' : 'Xem trực tiếp'}
-                            </span>
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-between gap-2 border-t border-line pt-4">
+                          {room.status === 'waiting' && !isFull ? (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => void handleJoinRoom(room.id)}
+                              loading={joining}
+                            >
+                              <Sparkles className="h-4 w-4" aria-hidden="true" />
+                              <span>Tranh suất ({count}/{room.max_players})</span>
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="navy"
+                              onClick={() => void handleJoinRoom(room.id, true)}
+                            >
+                              <span>
+                                {room.status === 'finished' ? 'Xem bục vinh danh' : 'Xem trực tiếp'}
+                              </span>
+                            </Button>
+                          )}
 
-                        {canDelete && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setDeleteRoomTarget(room)}
-                            aria-label={`Xóa phòng ${room.code}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-brand-red" aria-hidden="true" />
-                          </Button>
-                        )}
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setDeleteRoomTarget(room)}
+                              aria-label={`Xóa phòng ${room.code}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-brand-red" aria-hidden="true" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </article>
                   );
                 })}
+              </GlowCardGrid>
+              {visibleRooms.length > ROOMS_PER_PAGE && (
+                <div className="flex justify-center pt-1">
+                  <Pagination
+                    page={roomPage}
+                    totalPages={Math.ceil(visibleRooms.length / ROOMS_PER_PAGE)}
+                    onPageChange={setRoomPage}
+                  />
+                </div>
+              )}
               </div>
             )}
           </>
@@ -1444,21 +1490,14 @@ export function HskTowerGame() {
       >
         {activeRoom && (
           <div className="flex flex-col items-center gap-4 text-center">
-            <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
-              {qrDataUrl && (
-                <img
-                  src={qrDataUrl}
-                  alt={`Mã QR lớn vào phòng ${activeRoom.code}`}
-                  className="h-64 w-64 object-contain"
-                />
-              )}
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-xs font-semibold text-ink-muted">Mã phòng thi đấu</span>
-              <span className="rounded-xl bg-brand-redSoft px-6 py-2 text-3xl font-bold tracking-widest text-brand-red">
-                {activeRoom.code}
-              </span>
-            </div>
+            <QrShareCard
+              url={roomJoinUrl}
+              qrDataUrl={qrDataUrl}
+              displayLabel={`Mã phòng: ${activeRoom.code}`}
+              altText={`Mã QR lớn vào phòng ${activeRoom.code}`}
+              size="lg"
+              onCopied={() => toast.success('Đã sao chép đường dẫn vào phòng!')}
+            />
             <p className="text-xs font-normal text-ink-secondary">
               Mở camera điện thoại quét mã QR để vào phòng tranh suất ngay (
               <strong>

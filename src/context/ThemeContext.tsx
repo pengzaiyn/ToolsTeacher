@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
   applyGlassClasses,
   DEFAULT_GLASS_SETTINGS,
@@ -25,11 +26,16 @@ import {
   type ThemeMode,
 } from '@/lib/theme';
 
+export interface ThemeRevealOrigin {
+  x: number;
+  y: number;
+}
+
 interface ThemeContextValue {
   theme: ThemeMode;
   resolvedTheme: ResolvedTheme;
   setTheme: (mode: ThemeMode) => void;
-  toggleTheme: () => void;
+  toggleTheme: (origin?: ThemeRevealOrigin) => void;
   glassSettings: GlassSettings;
   updateGlassSettings: (patch: Partial<GlassSettings>) => void;
   resetGlassSettings: () => void;
@@ -71,7 +77,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [resolvedTheme]);
 
   useEffect(() => {
-    applyGlassClasses(document.documentElement, glassSettings);
+    applyGlassClasses(document.documentElement, DEFAULT_GLASS_SETTINGS);
   }, [glassSettings]);
 
   useEffect(() => {
@@ -103,10 +109,45 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [triggerSmoothTransition]
   );
 
-  const toggleTheme = useCallback(() => {
-    const next: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-  }, [resolvedTheme, setTheme]);
+  const toggleTheme = useCallback(
+    (origin?: ThemeRevealOrigin) => {
+      const next: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
+      const rm =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const docWithTransition = document as Document & {
+        startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+      };
+
+      if (!rm && origin && typeof docWithTransition.startViewTransition === 'function') {
+        const root = document.documentElement;
+        const radius = Math.hypot(
+          Math.max(origin.x, window.innerWidth - origin.x),
+          Math.max(origin.y, window.innerHeight - origin.y)
+        );
+        root.style.setProperty('--u219-cx', `${origin.x.toFixed(0)}px`);
+        root.style.setProperty('--u219-cy', `${origin.y.toFixed(0)}px`);
+        root.style.setProperty('--u219-r', `${Math.ceil(radius)}px`);
+        root.classList.add('u219-transitioning');
+
+        const transition = docWithTransition.startViewTransition(() => {
+          flushSync(() => {
+            saveThemeMode(next);
+            setThemeState(next);
+          });
+          root.classList.toggle('dark', next === 'dark');
+        });
+
+        void transition.finished.finally(() => {
+          root.classList.remove('u219-transitioning');
+        });
+        return;
+      }
+
+      setTheme(next);
+    },
+    [resolvedTheme, setTheme]
+  );
 
   const updateGlassSettings = useCallback(
     (patch: Partial<GlassSettings>) => {

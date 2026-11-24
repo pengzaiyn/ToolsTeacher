@@ -276,3 +276,45 @@ export const SESSION_LABELS: Record<DaySession, { title: string; range: string }
   evening: { title: 'Buổi tối', range: '18:00 – 21:30' },
 };
 
+export type EntryTimeStatus = 'completed' | 'ongoing' | 'upcoming';
+
+const SESSION_DEFAULT_MINUTES: Record<DaySession, { startMin: number; endMin: number }> = {
+  morning: { startMin: 7 * 60 + 30, endMin: 12 * 60 + 15 },
+  afternoon: { startMin: 13 * 60, endMin: 17 * 60 + 30 },
+  evening: { startMin: 18 * 60, endMin: 21 * 60 + 30 },
+};
+
+export function parseTimeRangeMinutes(
+  timeRange: string | null | undefined
+): { startMin: number; endMin: number } | null {
+  if (!timeRange) return null;
+  const match = /(\d{1,2})\s*[:h.]\s*(\d{2})\s*[-–—]\s*(\d{1,2})\s*[:h.]\s*(\d{2})/i.exec(
+    timeRange.trim()
+  );
+  if (!match) return null;
+  const h1 = Number(match[1]);
+  const m1 = Number(match[2]);
+  const h2 = Number(match[3]);
+  const m2 = Number(match[4]);
+  if (h1 > 23 || m1 > 59 || h2 > 23 || m2 > 59) return null;
+  return { startMin: h1 * 60 + m1, endMin: h2 * 60 + m2 };
+}
+
+export function getEntryTimeStatus(
+  entry: Pick<TimetableEntry, 'period_start' | 'time_range'>,
+  dayIsoDate: string,
+  now: Date = new Date()
+): EntryTimeStatus {
+  const nowIso = toIsoDate(now);
+  if (dayIsoDate < nowIso) return 'completed';
+  if (dayIsoDate > nowIso) return 'upcoming';
+
+  const range =
+    parseTimeRangeMinutes(entry.time_range) ?? SESSION_DEFAULT_MINUTES[getEntrySession(entry)];
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  if (nowMin < range.startMin) return 'upcoming';
+  if (nowMin <= range.endMin) return 'ongoing';
+  return 'completed';
+}
+

@@ -1,0 +1,91 @@
+/* Lucian UX/UI Prompt #417 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#417 */
+.u417-aside {
+  width: 256px;
+  box-shadow: 16px 0 40px -18px var(--ux-shadow-strong);
+  transition:
+    width 0.55s cubic-bezier(0.3, 1.3, 0.45, 1),
+    box-shadow 0.35s var(--ux-ease);
+}
+
+.u417-aside.is-rail {
+  width: 80px;
+  box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  .u417-layout {
+    padding-left: 80px;
+  }
+}
+
+.u417-nav {
+  position: relative;
+}
+
+.u417-pl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 40px;
+  border-radius: 10px;
+  background: rgb(var(--color-brand-navy-soft));
+  box-shadow: inset 0 0 0 1px rgb(var(--color-line));
+  transform: translateY(var(--py, 0px));
+  transition:
+    transform 0.55s cubic-bezier(0.3, 1.45, 0.5, 1),
+    opacity 0.2s;
+  pointer-events: none;
+}
+
+.u417-it {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.u417-aside.is-rail .u417-it {
+  justify-content: center;
+  padding: 0;
+}
+
+.u417-it svg {
+  flex: none;
+  transition:
+    transform 0.45s var(--ux-spring),
+    color 0.2s;
+}
+
+.u417-it:active svg {
+  transform: scale(0.85);
+}
+
+.u417-lb {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    opacity 0.28s var(--ux-ease) 0.1s,
+    transform 0.42s var(--ux-ease) 0.08s;
+}
+
+.u417-aside.is-rail .u417-lb {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u417-aside,
+  .u417-pl,
+  .u417-lb,
+  .u417-it svg {
+    transition: none !important;
+  }
+}

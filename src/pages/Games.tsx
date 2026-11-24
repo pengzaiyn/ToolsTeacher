@@ -18,9 +18,12 @@ import { supabase } from '@/lib/supabase';
 import { Layout } from '@/components/Layout';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlowCardGrid } from '@/components/ui/GlowCardGrid';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Pagination } from '@/components/ui/Pagination';
 import { LoadingState } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 
@@ -117,6 +120,12 @@ export function Games() {
 
   const [searchText, setSearchText] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  const [suggestPage, setSuggestPage] = useState(1);
+  const SUGGEST_PAGE_SIZE = 8;
+
+  useEffect(() => {
+    setSuggestPage(1);
+  }, [searchText, filterDate]);
 
   // Modal đề xuất trò chơi cho các ngành gửi Hiệu trưởng
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -334,12 +343,12 @@ export function Games() {
 
           {activeTab === 'suggestions' && (
             <div className="md:col-span-3">
-              <input
-                type="date"
+              <DatePicker
                 value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                aria-label="Lọc đề xuất theo ngày gửi"
-                className="h-10 w-full rounded-lg border border-line-strong bg-surface-page px-3 text-sm font-normal text-ink-primary focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+                onChange={setFilterDate}
+                ariaLabel="Lọc đề xuất theo ngày gửi"
+                surface="page"
+                clearable
               />
             </div>
           )}
@@ -374,59 +383,65 @@ export function Games() {
               }
             />
           ) : (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <GlowCardGrid className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredGames.map((game) => {
                 const Icon = game.icon;
                 return (
                   <Link
                     key={game.id}
                     to={game.to}
-                    className="group flex flex-col justify-between gap-4 rounded-2xl border border-line bg-surface-card p-6 transition-all hover:border-brand-navy hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
+                    data-u228-card
+                    className="u228-c group block rounded-2xl transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
                   >
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-redSoft text-brand-red">
-                          <Icon className="h-6 w-6" aria-hidden="true" />
+                    <div
+                      data-u228-inner
+                      className="u228-in flex flex-col justify-between gap-4 overflow-hidden rounded-[calc(1rem-1.5px)] p-6"
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-redSoft text-brand-red">
+                            <Icon className="h-6 w-6" aria-hidden="true" />
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge tone="navy">{game.major}</Badge>
+                            {game.badge && <Badge tone="success">{game.badge}</Badge>}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge tone="navy">{game.major}</Badge>
-                          {game.badge && <Badge tone="success">{game.badge}</Badge>}
+
+                        <div>
+                          <h2 className="text-lg font-bold text-ink-primary transition-colors group-hover:text-brand-navy">
+                            {game.title}
+                          </h2>
+                          <p className="mt-1 text-sm font-normal leading-relaxed text-ink-secondary">
+                            {game.description}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                          <span className="inline-flex items-center gap-1 font-semibold text-brand-navy">
+                            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                            {game.maxPlayersLabel}
+                          </span>
+                          {game.id === 'hsk-tower' && (
+                            <>
+                              <span>•</span>
+                              <span>
+                                {hskRoomStats.open > 0
+                                  ? `${hskRoomStats.open} phòng đang mở`
+                                  : `${hskRoomStats.total} phòng đã tạo`}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
-                      <div>
-                        <h2 className="text-lg font-bold text-ink-primary transition-colors group-hover:text-brand-navy">
-                          {game.title}
-                        </h2>
-                        <p className="mt-1 text-sm font-normal leading-relaxed text-ink-secondary">
-                          {game.description}
-                        </p>
+                      <div className="flex items-center justify-between border-t border-line pt-4 text-sm font-semibold text-brand-navy">
+                        <span>Vào sảnh trò chơi</span>
+                        <ArrowRight
+                          className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                          aria-hidden="true"
+                        />
                       </div>
-
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-                        <span className="inline-flex items-center gap-1 font-semibold text-brand-navy">
-                          <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                          {game.maxPlayersLabel}
-                        </span>
-                        {game.id === 'hsk-tower' && (
-                          <>
-                            <span>•</span>
-                            <span>
-                              {hskRoomStats.open > 0
-                                ? `${hskRoomStats.open} phòng đang mở`
-                                : `${hskRoomStats.total} phòng đã tạo`}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-line pt-4 text-sm font-semibold text-brand-navy">
-                      <span>Vào sảnh trò chơi</span>
-                      <ArrowRight
-                        className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                        aria-hidden="true"
-                      />
                     </div>
                   </Link>
                 );
@@ -436,21 +451,27 @@ export function Games() {
               <button
                 type="button"
                 onClick={() => setSuggestOpen(true)}
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-surface-page p-6 text-center transition-colors hover:border-brand-red hover:bg-brand-redSoft/20"
+                data-u228-card
+                className="u228-c group block rounded-2xl text-center transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-card text-brand-red shadow-sm">
-                  <Lightbulb className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-base font-bold text-ink-primary">
-                    Ngành của bạn chưa có trò chơi?
-                  </p>
-                  <p className="mt-1 text-xs font-normal text-ink-secondary">
-                    Nhấn vào đây để gửi đề xuất ý tưởng trò chơi trực tiếp tới Hiệu trưởng!
-                  </p>
+                <div
+                  data-u228-inner
+                  className="u228-in flex flex-col items-center justify-center gap-3 overflow-hidden rounded-[calc(1rem-1.5px)] p-6"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-redSoft text-brand-red">
+                    <Lightbulb className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-base font-bold text-ink-primary">
+                      Ngành của bạn chưa có trò chơi?
+                    </p>
+                    <p className="mt-1 text-xs font-normal text-ink-secondary">
+                      Nhấn vào đây để gửi đề xuất ý tưởng trò chơi trực tiếp tới Hiệu trưởng!
+                    </p>
+                  </div>
                 </div>
               </button>
-            </div>
+            </GlowCardGrid>
           )
         ) : loading ? (
           <LoadingState message="Đang tải danh sách đề xuất trò chơi..." />
@@ -472,8 +493,11 @@ export function Games() {
             }
           />
         ) : (
+          <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {filteredSuggestions.map((item) => {
+            {filteredSuggestions
+              .slice((suggestPage - 1) * SUGGEST_PAGE_SIZE, suggestPage * SUGGEST_PAGE_SIZE)
+              .map((item) => {
               const meta = SUGGESTION_STATUS_META[item.status] ?? SUGGESTION_STATUS_META.pending;
               return (
                 <article
@@ -518,6 +542,16 @@ export function Games() {
                 </article>
               );
             })}
+          </div>
+          {filteredSuggestions.length > SUGGEST_PAGE_SIZE && (
+            <div className="flex justify-center pt-1">
+              <Pagination
+                page={suggestPage}
+                totalPages={Math.ceil(filteredSuggestions.length / SUGGEST_PAGE_SIZE)}
+                onPageChange={setSuggestPage}
+              />
+            </div>
+          )}
           </div>
         )}
       </div>

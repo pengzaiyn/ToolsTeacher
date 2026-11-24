@@ -12,6 +12,7 @@ import { ToolCard } from '@/components/ToolCard';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GlowCardGrid } from '@/components/ui/GlowCardGrid';
 
 export function TeacherTools() {
   const { profile } = useAuth();
@@ -89,11 +90,11 @@ export function TeacherTools() {
               }
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <GlowCardGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {teachingTools.map((tool) => (
                 <ToolCard key={tool.id} tool={tool} />
               ))}
-            </div>
+            </GlowCardGrid>
           )}
         </section>
       </div>

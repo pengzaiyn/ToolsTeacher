@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { KeyRound, Save, User } from 'lucide-react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { Camera, KeyRound, RotateCcw, Save, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isValidAvatarUrl, resizeAvatarFileToDataUrl } from '@/lib/avatar';
 import { ROLE_LABELS } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
@@ -16,6 +17,8 @@ export function Profile() {
 
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [savingName, setSavingName] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,6 +31,53 @@ export function Profile() {
   }, [profile]);
 
   if (!profile) return null;
+
+  const hasCustomAvatar = isValidAvatarUrl(profile.avatar_url);
+
+  async function handleSelectAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setSavingAvatar(true);
+    try {
+      const dataUrl = await resizeAvatarFileToDataUrl(file);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: dataUrl })
+        .eq('id', profile!.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      await refreshProfile();
+      toast.success('Đã cập nhật ảnh đại diện');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không cập nhật được ảnh đại diện');
+    } finally {
+      setSavingAvatar(false);
+    }
+  }
+
+  async function handleResetAvatar() {
+    setSavingAvatar(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', profile!.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      await refreshProfile();
+      toast.success('Đã khôi phục ảnh đại diện mặc định');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không khôi phục được ảnh đại diện');
+    } finally {
+      setSavingAvatar(false);
+    }
+  }
 
   async function handleUpdateName(event: FormEvent) {
     event.preventDefault();
@@ -118,16 +168,114 @@ export function Profile() {
           </Badge>
         </div>
 
-        <section className="rounded-xl border border-line bg-surface-card p-6">
-          <h2 className="mb-4 text-base font-bold text-ink-primary">Thông tin chung</h2>
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {infoItems.map((item) => (
-              <div key={item.label} className="rounded-lg bg-surface-page p-4">
-                <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
-                <dd className="mt-2 text-sm font-semibold text-ink-primary">{item.value}</dd>
+        <section className="rounded-2xl border border-line bg-surface-card p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  disabled={savingAvatar}
+                  onClick={() => avatarInputRef.current?.click()}
+                  aria-label="Chọn ảnh đại diện"
+                  className="group relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-surface-page ring-2 ring-brand-navy/20 ring-offset-2 ring-offset-surface-card transition-all hover:ring-brand-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red disabled:opacity-60"
+                >
+                  {hasCustomAvatar ? (
+                    <img
+                      src={profile.avatar_url!}
+                      alt={profile.full_name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <img
+                        src="/logo-light.png"
+                        alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+                        className="h-16 w-16 object-contain dark:hidden"
+                      />
+                      <img
+                        src="/logo-dark.png"
+                        alt="Trường Cao đẳng Việt Mỹ Hà Nội"
+                        className="hidden h-16 w-16 object-contain dark:block"
+                      />
+                    </>
+                  )}
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <Camera className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={savingAvatar}
+                  onClick={() => avatarInputRef.current?.click()}
+                  aria-label="Đổi ảnh đại diện"
+                  className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface-card bg-brand-navy text-white shadow-sm transition-transform hover:scale-105 hover:bg-brand-red disabled:opacity-60"
+                >
+                  <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
               </div>
-            ))}
-          </dl>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-lg font-bold text-ink-primary">
+                    {profile.full_name}
+                  </h2>
+                  <Badge tone="navy">{ROLE_LABELS[profile.role]}</Badge>
+                </div>
+                <p className="mt-0.5 truncate text-sm font-normal text-ink-secondary">
+                  {profile.email}
+                </p>
+                <p className="mt-1.5 text-xs font-normal text-ink-muted">
+                  Ảnh đại diện tùy chọn — mặc định dùng logo trường.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleSelectAvatar}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="navy"
+                size="sm"
+                loading={savingAvatar}
+                onClick={() => avatarInputRef.current?.click()}
+                className="whitespace-nowrap"
+              >
+                <Camera className="h-4 w-4" aria-hidden="true" />
+                <span>{hasCustomAvatar ? 'Đổi ảnh' : 'Chọn ảnh'}</span>
+              </Button>
+              {hasCustomAvatar && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={savingAvatar}
+                  onClick={handleResetAvatar}
+                  className="whitespace-nowrap"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  <span>Mặc định</span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 border-t border-line pt-6">
+            <h3 className="mb-4 text-base font-bold text-ink-primary">Thông tin chung</h3>
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {infoItems.map((item) => (
+                <div key={item.label} className="rounded-lg bg-surface-page p-4">
+                  <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
+                  <dd className="mt-2 text-sm font-semibold text-ink-primary">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Download, FileText, Plus, Trash2, Upload } from 'lucide-react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Download, FileText, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
   MAX_MATERIAL_BYTES,
@@ -14,6 +14,7 @@ import type { Material } from '@/types/database';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingState } from '@/components/ui/Spinner';
@@ -28,7 +29,6 @@ interface ClassMaterialsTabProps {
 export function ClassMaterialsTab({ classId, canManage }: ClassMaterialsTabProps) {
   const { user } = useAuth();
   const toast = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,20 +63,6 @@ export function ClassMaterialsTab({ classId, canManage }: ClassMaterialsTabProps
   useEffect(() => {
     void load();
   }, [load]);
-
-  function handlePickFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_MATERIAL_BYTES) {
-      toast.error('Dung lượng tài liệu vượt quá giới hạn 50 MB');
-      return;
-    }
-    setSelectedFile(file);
-    if (!title.trim()) {
-      const base = file.name.replace(/\.[^.]+$/, '');
-      setTitle(base);
-    }
-  }
 
   async function handleUpload(event: FormEvent) {
     event.preventDefault();
@@ -116,7 +102,6 @@ export function ClassMaterialsTab({ classId, canManage }: ClassMaterialsTabProps
       setUploadOpen(false);
       setTitle('');
       setSelectedFile(null);
-      if (fileRef.current) fileRef.current.value = '';
       await load();
     } catch (err) {
       toast.error(formatClassActionError(err, 'Không tải được tài liệu lên'));
@@ -269,27 +254,32 @@ export function ClassMaterialsTab({ classId, canManage }: ClassMaterialsTabProps
             <label className="text-sm font-semibold text-ink-primary">
               Chọn file (tối đa 50 MB) <span className="text-brand-red">*</span>
             </label>
-            <input
-              ref={fileRef}
-              type="file"
-              onChange={handlePickFile}
-              className="sr-only"
+            <FileDropzone
+              compact
+              hint="PDF, DOCX, XLSX, PPTX, PNG, JPG · tối đa 50 MB"
+              disabled={uploading}
+              fileItem={
+                selectedFile
+                  ? {
+                      name: selectedFile.name,
+                      size: selectedFile.size,
+                      status: uploading ? 'uploading' : 'ready',
+                    }
+                  : null
+              }
+              onFileSelect={(file) => {
+                if (file.size > MAX_MATERIAL_BYTES) {
+                  toast.error('Dung lượng tài liệu vượt quá giới hạn 50 MB');
+                  return;
+                }
+                setSelectedFile(file);
+                if (!title.trim()) {
+                  const base = file.name.replace(/\.[^.]+$/, '');
+                  setTitle(base);
+                }
+              }}
+              onClear={() => setSelectedFile(null)}
             />
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-strong bg-surface-page p-4">
-              <span className="text-sm font-normal text-ink-secondary">
-                {selectedFile
-                  ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})`
-                  : 'Chưa chọn file'}
-              </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload className="h-4 w-4" aria-hidden="true" />
-                <span>Chọn file</span>
-              </Button>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2 border-t border-line pt-4">

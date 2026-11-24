@@ -5,7 +5,7 @@ import { Layout } from '@/components/Layout';
 import { SettingsPanel, useResetAppearanceSettings } from '@/components/SettingsPanel';
 import { Button } from '@/components/ui/Button';
 
-const VALID_TABS = new Set<SettingsSectionId>(['theme', 'glass', 'custom', 'cursor']);
+const VALID_TABS = new Set<SettingsSectionId>(['theme', 'custom', 'cursor']);
 
 function parseTabParam(raw: string | null): SettingsSectionId {
   if (raw && VALID_TABS.has(raw as SettingsSectionId)) {
@@ -48,7 +48,7 @@ export function Settings() {
             <div>
               <h1 className="text-2xl font-bold text-brand-navy">Cài đặt giao diện</h1>
               <p className="text-sm font-normal text-ink-secondary">
-                Tùy chỉnh chế độ Sáng/Tối, chất liệu kính iOS, chủ đề cá nhân (ảnh nền, sticker, thú cưng) và hiệu ứng con trỏ chuột
+                Tùy chỉnh chế độ Sáng/Tối, chủ đề cá nhân (ảnh nền, bảng màu nhấn) và hiệu ứng con trỏ chuột
               </p>
             </div>
           </div>

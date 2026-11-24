@@ -1,0 +1,459 @@
+/* Lucian UX/UI Prompt #062 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#062 */
+.u062 {
+  position: relative;
+  width: 100%;
+  border-radius: 24px;
+  background: var(--ux-surface);
+  box-shadow:
+    0 0 0 1px var(--ux-line),
+    0 24px 52px -32px var(--ux-shadow-strong);
+  overflow: hidden;
+}
+
+.u062.shake {
+  animation: u062-no 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes u062-no {
+  15% {
+    transform: translateX(-9px) rotate(-0.6deg);
+  }
+  30% {
+    transform: translateX(8px) rotate(0.5deg);
+  }
+  45% {
+    transform: translateX(-6px);
+  }
+  60% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+
+.u062-pane {
+  transition:
+    transform 0.6s var(--ux-ease),
+    opacity 0.4s ease;
+  will-change: transform, opacity;
+}
+
+.u062-login {
+  position: relative;
+  z-index: 1;
+}
+
+.u062-hi {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--ux-surface);
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.u062.is-in .u062-login {
+  transform: translateX(-28%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.u062.is-in .u062-hi {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.u062-f {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.u062-f label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ux-ink-2);
+}
+
+.u062-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 50px;
+  border-radius: 14px;
+  background: var(--ux-surface-2);
+  box-shadow: inset 0 0 0 1.5px var(--ux-line);
+  transition:
+    box-shadow 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.u062-box:focus-within {
+  background: var(--ux-surface);
+  box-shadow:
+    inset 0 0 0 1.5px var(--ux-accent),
+    0 0 0 4px var(--ux-accent-soft);
+}
+
+.u062-f.bad .u062-box {
+  box-shadow: inset 0 0 0 1.5px var(--ux-danger);
+  background: color-mix(in srgb, var(--ux-danger) 6%, var(--ux-surface));
+}
+
+.u062-box input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0 16px;
+  background: none;
+  font-size: 14.5px;
+  font-weight: 400;
+  color: var(--ux-ink);
+  outline: none;
+}
+
+.u062-box input:focus-visible {
+  outline: none;
+}
+
+.u062-box input::placeholder {
+  color: var(--ux-ink-3);
+  font-weight: 400;
+}
+
+.u062-eye {
+  width: 42px;
+  height: 42px;
+  margin-right: 4px;
+  border: 0;
+  padding: 0;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: none;
+  color: var(--ux-ink-3);
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.u062-eye:hover {
+  color: var(--ux-ink);
+  background: color-mix(in srgb, var(--ux-ink) 6%, transparent);
+}
+
+.u062-eye:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: -4px;
+}
+
+.u062-eye svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.u062-lid {
+  transform-origin: 12px 12px;
+  transition: transform 0.35s var(--ux-spring);
+}
+
+.u062-eye[aria-pressed='false'] .u062-lid {
+  transform: scaleY(0.5);
+}
+
+.u062-slash {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.35s var(--ux-ease);
+}
+
+.u062-eye[aria-pressed='true'] .u062-slash {
+  stroke-dashoffset: 24;
+}
+
+.u062-caps {
+  position: absolute;
+  right: 0;
+  top: 1px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ux-warn);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.u062-caps.on {
+  opacity: 1;
+}
+
+.u062-err {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s var(--ux-ease);
+}
+
+.u062-err > span {
+  overflow: hidden;
+  min-height: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ux-danger);
+}
+
+.u062-err > span::before {
+  content: '';
+  display: block;
+  height: 6px;
+}
+
+.u062-f.bad .u062-err {
+  grid-template-rows: 1fr;
+}
+
+.u062-go-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.u062-go {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 420px;
+  height: 52px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--ux-accent);
+  color: var(--ux-accent-ink);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  will-change: max-width, border-radius, background-color, transform;
+  transition:
+    max-width 0.48s var(--ux-spring),
+    border-radius 0.48s var(--ux-spring),
+    background-color 0.38s var(--ux-ease),
+    transform 0.3s var(--ux-spring),
+    opacity 0.2s ease;
+}
+
+.u062-go:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.u062-go:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.u062-go:disabled:not(.busy):not(.ok) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.u062-go:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 3px;
+}
+
+.u062-go > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition:
+    opacity 0.2s ease,
+    transform 0.28s var(--ux-ease);
+}
+
+.u062-go i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+  animation: u062-spin 0.72s linear infinite;
+}
+
+.u062-go .u062-ck {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.u062-go .u062-ck path {
+  stroke-dasharray: 28;
+  stroke-dashoffset: 28;
+  transition: stroke-dashoffset 0.42s var(--ux-ease) 0.1s;
+}
+
+.u062-go.busy,
+.u062-go.ok {
+  max-width: 52px;
+  padding: 0;
+  border-radius: 26px;
+  cursor: default;
+}
+
+.u062-go.busy > span,
+.u062-go.ok > span {
+  opacity: 0;
+  transform: scale(0.85);
+}
+
+.u062-go.busy i {
+  opacity: 1;
+}
+
+.u062-go.ok {
+  background: var(--ux-mint);
+  color: #ffffff;
+}
+
+.u062-go.ok .u062-ck path {
+  stroke-dashoffset: 0;
+}
+
+@keyframes u062-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.u062-av {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ux-surface-2);
+  box-shadow:
+    0 0 0 6px var(--ux-surface),
+    0 0 0 8px var(--ux-mint);
+  padding: 12px;
+  overflow: hidden;
+}
+
+.u062-av--photo {
+  padding: 0;
+}
+
+.u062-av-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.u062-hi-title {
+  margin: 24px 0 6px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ux-ink);
+}
+
+.u062-hi-sub {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ux-ink-3);
+}
+
+.u062-hi-btn {
+  margin-top: 24px;
+  height: 46px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--ux-accent);
+  color: var(--ux-accent-ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.25s var(--ux-spring),
+    filter 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.u062-hi-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--ux-accent) 60%, transparent);
+}
+
+.u062-hi-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.u062-hi-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.u062-hi-btn:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u062.shake,
+  .u062-pane,
+  .u062-box,
+  .u062-lid,
+  .u062-slash,
+  .u062-caps,
+  .u062-err,
+  .u062-go,
+  .u062-go > span,
+  .u062-go i,
+  .u062-go .u062-ck path {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+

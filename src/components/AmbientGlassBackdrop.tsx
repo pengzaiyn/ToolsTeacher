@@ -1,4 +1,3 @@
-import { useCustomTheme } from '@/context/CustomThemeContext';
 import { useTheme } from '@/context/ThemeContext';
 import type { GlassIntensity } from '@/lib/theme';
 
@@ -10,17 +9,11 @@ const INTENSITY_OPACITY_CLASSES: Record<GlassIntensity, string> = {
 
 /**
  * Vệt ánh sáng khuếch tán mềm phía sau giúp các tấm kính iOS có chiều sâu khúc xạ tự nhiên.
- * Chỉ render khi người dùng bật hiệu ứng kính + bật ánh sáng nền và chưa đặt ảnh nền tùy chỉnh.
  */
 export function AmbientGlassBackdrop() {
   const { glassSettings } = useTheme();
-  const { customTheme } = useCustomTheme();
 
-  if (
-    glassSettings.mode === 'none' ||
-    !glassSettings.ambientGlow ||
-    (customTheme.enabled && customTheme.wallpaperKind !== 'none')
-  ) {
+  if (glassSettings.mode === 'none' || !glassSettings.ambientGlow) {
     return null;
   }
 

@@ -34,8 +34,8 @@ import { TimetableWeekView } from '@/components/TimetableWeekView';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { LoadingState } from '@/components/ui/Spinner';
 import { Table, type TableColumn } from '@/components/ui/Table';
@@ -49,7 +49,11 @@ export function Timetable() {
   const staff = isStaff(profile?.role);
 
   const todayIso = toIsoDate(new Date());
-  const [weekMonday, setWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
+  const [selectedDate, setSelectedDate] = useState<string>(todayIso);
+  const weekMonday = useMemo(
+    () => getMondayOfWeek(new Date(`${selectedDate}T00:00:00`)),
+    [selectedDate]
+  );
   const [classes, setClasses] = useState<TimetableClassSummary[]>([]);
   const [selectedClassKey, setSelectedClassKey] = useState<string>(requestedClassKey);
   const [selectedSemester, setSelectedSemester] = useState<string>('all');
@@ -138,9 +142,9 @@ export function Timetable() {
           setSelectedSemester(defaultSem);
           const chosen = sems.find((s) => s.key === defaultSem);
           if (chosen && !chosen.isCurrent && chosen.dateFrom) {
-            setWeekMonday(getMondayOfWeek(new Date(`${chosen.dateFrom}T00:00:00`)));
+            setSelectedDate(chosen.dateFrom);
           } else {
-            setWeekMonday(getMondayOfWeek(new Date()));
+            setSelectedDate(toIsoDate(new Date()));
           }
         }
       } catch (err) {
@@ -224,9 +228,9 @@ export function Timetable() {
     const sem = semesters.find((s) => s.key === semKey);
     if (!sem) return;
     if (sem.isCurrent) {
-      setWeekMonday(getMondayOfWeek(new Date()));
+      setSelectedDate(toIsoDate(new Date()));
     } else if (sem.dateFrom) {
-      setWeekMonday(getMondayOfWeek(new Date(`${sem.dateFrom}T00:00:00`)));
+      setSelectedDate(sem.dateFrom);
     }
   }
 
@@ -419,13 +423,12 @@ export function Timetable() {
               </div>
             </div>
 
-            <Input
+            <DatePicker
               label="Chọn ngày xem tuần"
-              type="date"
-              value={toIsoDate(weekMonday)}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setWeekMonday(getMondayOfWeek(new Date(`${e.target.value}T00:00:00`)));
+              value={selectedDate}
+              onChange={(nextIso) => {
+                if (nextIso) {
+                  setSelectedDate(nextIso);
                 }
               }}
             />
@@ -496,7 +499,9 @@ export function Timetable() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setWeekMonday((d) => addDays(d, -7))}
+                onClick={() =>
+                  setSelectedDate((iso) => toIsoDate(addDays(new Date(`${iso}T00:00:00`), -7)))
+                }
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span>Tuần trước</span>
@@ -504,14 +509,16 @@ export function Timetable() {
               <Button
                 variant="navy"
                 size="sm"
-                onClick={() => setWeekMonday(getMondayOfWeek(new Date()))}
+                onClick={() => setSelectedDate(toIsoDate(new Date()))}
               >
                 Tuần này
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setWeekMonday((d) => addDays(d, 7))}
+                onClick={() =>
+                  setSelectedDate((iso) => toIsoDate(addDays(new Date(`${iso}T00:00:00`), 7)))
+                }
               >
                 <span>Tuần sau</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

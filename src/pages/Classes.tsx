@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Pagination } from '@/components/ui/Pagination';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { LoadingState } from '@/components/ui/Spinner';
@@ -79,7 +80,8 @@ export function Classes() {
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState<'all' | 'has_students' | 'empty' | 'has_timetable'>('all');
   const [sortBy, setSortBy] = useState<ClassSortBy>('newest');
-  const [visibleCount, setVisibleCount] = useState(24);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 12;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CollegeClass | null>(null);
@@ -201,7 +203,7 @@ export function Classes() {
   }, [load]);
 
   useEffect(() => {
-    setVisibleCount(24);
+    setPage(1);
   }, [search, searchMode, teacherFilter, subjectFilter, sizeFilter, sortBy]);
 
   useRealtimeRefresh({
@@ -569,9 +571,9 @@ export function Classes() {
             }
           />
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.slice(0, visibleCount).map((cls) => {
+              {filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((cls) => {
               const key = cls.class_key || classKey(cls.name);
               const stuCount = memberCounts.get(cls.id) ?? 0;
               const ttCount = timetableCounts.get(key) ?? 0;
@@ -689,27 +691,16 @@ export function Classes() {
             })}
             </div>
 
-            {filtered.length > visibleCount && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-card px-4 py-3">
-                <span className="text-xs font-semibold text-ink-secondary">
-                  Đang hiển thị {Math.min(visibleCount, filtered.length)} / {filtered.length} lớp học
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="navy"
-                    onClick={() => setVisibleCount((c) => c + 24)}
-                  >
-                    Xem thêm 24 lớp
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setVisibleCount(filtered.length)}
-                  >
-                    Hiển thị tất cả ({filtered.length})
-                  </Button>
-                </div>
+            {filtered.length > PAGE_SIZE && (
+              <div className="flex justify-center pt-2">
+                <Pagination
+                  page={page}
+                  totalPages={Math.ceil(filtered.length / PAGE_SIZE)}
+                  onPageChange={(next) => {
+                    setPage(next);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                />
               </div>
             )}
           </div>

@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Briefcase,
   CalendarCheck2,
+  CheckCircle2,
   Clock,
   MapPin,
   Shuffle,
@@ -12,7 +14,9 @@ import {
   SESSION_LABELS,
   formatDateVi,
   getEntrySession,
+  getEntryTimeStatus,
   type DaySession,
+  type EntryTimeStatus,
   type WeekDayInfo,
   type WeekExamNotice,
 } from '@/lib/week';
@@ -20,6 +24,34 @@ import type { TimetableEntry } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 
 const SESSIONS: DaySession[] = ['morning', 'afternoon', 'evening'];
+
+function LessonStatusPill({ status }: { status: EntryTimeStatus }) {
+  if (status === 'ongoing') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-status-successBorder bg-status-successBg px-2 py-0.5 text-[11px] font-bold text-status-successText">
+        <span
+          className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-successText"
+          aria-hidden="true"
+        />
+        <span>Đang học</span>
+      </span>
+    );
+  }
+  if (status === 'completed') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-subtle px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
+        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+        <span>Đã học</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-brand-navy/20 bg-surface-card px-2 py-0.5 text-[11px] font-semibold text-brand-navy">
+      <Clock className="h-3 w-3" aria-hidden="true" />
+      <span>Chưa học</span>
+    </span>
+  );
+}
 
 interface TimetableWeekViewProps {
   weekDays: WeekDayInfo[];
@@ -52,6 +84,15 @@ export function TimetableWeekView({
   activeInternships = [],
   examsInWeek = [],
 }: TimetableWeekViewProps) {
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Lịch thi dự kiến & Đợt thực tập đang diễn ra trong tuần */}
@@ -173,10 +214,17 @@ export function TimetableWeekView({
                         <div className="flex min-h-[96px] flex-col gap-2">
                           {cellItems.map((item) => {
                             const linkedClassId = classIdByKey?.get(item.class_key);
+                            const timeStatus = getEntryTimeStatus(item, day.isoDate, now);
+                            const cardToneClass =
+                              timeStatus === 'ongoing'
+                                ? 'border-status-successBorder bg-status-successBg/60 ring-1 ring-status-successBorder'
+                                : timeStatus === 'completed'
+                                  ? 'border-line bg-surface-page/80 opacity-85'
+                                  : 'border-brand-navy/20 bg-brand-navySoft';
                             return (
                               <div
                                 key={item.id}
-                                className="flex flex-col gap-2 rounded-lg border border-brand-navy/20 bg-brand-navySoft p-2 text-left"
+                                className={`flex flex-col gap-2 rounded-lg border p-2 text-left transition-colors ${cardToneClass}`}
                               >
                                 <div className="flex flex-wrap items-center justify-between gap-1">
                                   <Badge tone="red">
@@ -187,6 +235,9 @@ export function TimetableWeekView({
                                       P.{item.room}
                                     </span>
                                   )}
+                                </div>
+                                <div>
+                                  <LessonStatusPill status={timeStatus} />
                                 </div>
                                 <p className="text-sm font-bold leading-snug text-ink-primary">
                                   {item.subject}
@@ -279,16 +330,26 @@ export function TimetableWeekView({
               <div className="flex flex-col gap-2">
                 {dayItems.map((item) => {
                   const linkedClassId = classIdByKey?.get(item.class_key);
+                  const timeStatus = getEntryTimeStatus(item, day.isoDate, now);
+                  const mobileCardTone =
+                    timeStatus === 'ongoing'
+                      ? 'border-status-successBorder bg-status-successBg/50 ring-1 ring-status-successBorder'
+                      : timeStatus === 'completed'
+                        ? 'border-line bg-surface-page/70 opacity-85'
+                        : 'border-line bg-surface-page';
                   return (
                     <div
                       key={item.id}
-                      className="flex flex-col gap-2 rounded-lg border border-line bg-surface-page p-4"
+                      className={`flex flex-col gap-2 rounded-lg border p-4 ${mobileCardTone}`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-2 text-xs font-bold text-brand-red">
-                          <Clock className="h-4 w-4" aria-hidden="true" />
-                          <SessionTimeLabel item={item} />
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-2 text-xs font-bold text-brand-red">
+                            <Clock className="h-4 w-4" aria-hidden="true" />
+                            <SessionTimeLabel item={item} />
+                          </span>
+                          <LessonStatusPill status={timeStatus} />
+                        </div>
                         <div className="flex items-center gap-2">
                           {item.semester && <Badge tone="navy">{item.semester}</Badge>}
                           {item.room && (

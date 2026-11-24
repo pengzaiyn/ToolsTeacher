@@ -1,0 +1,352 @@
+/* Lucian UX/UI Prompt #032 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#032 */
+.u032 {
+  position: relative;
+  width: 100%;
+}
+
+.u032-zone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 176px;
+  border: 0;
+  padding: 20px 16px;
+  border-radius: 22px;
+  background: var(--ux-surface-2);
+  color: var(--ux-ink);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    transform 0.45s var(--ux-spring),
+    background-color 0.3s var(--ux-ease);
+}
+
+.u032--compact .u032-zone {
+  min-height: 136px;
+  padding: 16px 14px;
+  border-radius: 18px;
+}
+
+.u032-zone:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.u032-zone:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 4px;
+}
+
+.u032-zone svg.u032-dash {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.u032-dash rect {
+  fill: none;
+  stroke: var(--ux-line-2);
+  stroke-width: 2;
+  stroke-dasharray: 8 7;
+  transition: stroke 0.3s var(--ux-ease);
+}
+
+.u032-zone:hover:not(:disabled) .u032-dash rect,
+.u032.is-over .u032-dash rect {
+  stroke: var(--ux-accent);
+  animation: u032-march 0.9s linear infinite;
+}
+
+@keyframes u032-march {
+  to {
+    stroke-dashoffset: -30;
+  }
+}
+
+.u032.is-over .u032-zone {
+  transform: scale(1.015);
+  background: color-mix(in srgb, var(--ux-accent) 7%, var(--ux-surface));
+}
+
+.u032-orb {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(140deg, var(--ux-accent), var(--ux-accent-2));
+  box-shadow: 0 14px 26px -14px color-mix(in srgb, var(--ux-accent) 70%, transparent);
+  transition: transform 0.5s var(--ux-spring);
+}
+
+.u032--compact .u032-orb {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.u032-orb svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.u032--compact .u032-orb svg {
+  width: 22px;
+  height: 22px;
+}
+
+.u032-zone:hover:not(:disabled) .u032-orb {
+  transform: translateY(-4px);
+}
+
+.u032.is-over .u032-orb {
+  transform: translateY(-7px) scale(1.08) rotate(-6deg);
+}
+
+.u032-zone b {
+  margin-top: 12px;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ux-ink);
+}
+
+.u032-zone b em {
+  font-style: normal;
+  color: var(--ux-accent);
+}
+
+.u032-zone small {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ux-ink-3);
+}
+
+.u032-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.u032-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.u032-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: var(--ux-surface);
+  box-shadow: 0 0 0 1px var(--ux-line);
+  overflow: hidden;
+  animation: u032-in 0.45s var(--ux-spring);
+}
+
+@keyframes u032-in {
+  from {
+    transform: translateY(-8px) scale(0.97);
+    opacity: 0;
+  }
+}
+
+.u032-ic {
+  width: 36px;
+  height: 40px;
+  flex: none;
+  border-radius: 9px;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 5px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  background: var(--c);
+}
+
+.u032-meta {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.u032-meta b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ux-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.u032-meta small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ux-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.u032-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--ux-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--p, 0));
+  transition:
+    transform 0.25s linear,
+    background-color 0.3s ease,
+    opacity 0.5s ease 0.4s;
+}
+
+.u032-row.done .u032-bar {
+  background: var(--ux-mint);
+  opacity: 0;
+}
+
+.u032-row.fail .u032-bar {
+  background: var(--ux-danger);
+}
+
+.u032-st {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.u032-st svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.u032-row.done .u032-st {
+  background: var(--ux-mint);
+  color: #ffffff;
+  animation: u032-pop 0.45s var(--ux-spring);
+}
+
+@keyframes u032-pop {
+  from {
+    transform: scale(0.3);
+  }
+}
+
+.u032-row.done .u032-st path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  animation: u032-draw 0.4s var(--ux-ease) 0.15s forwards;
+}
+
+@keyframes u032-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.u032-row.fail .u032-meta small {
+  color: var(--ux-danger);
+}
+
+.u032-retry {
+  height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ux-danger) 12%, transparent);
+  color: var(--ux-danger);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.u032-retry:focus-visible {
+  outline: 2px solid var(--ux-danger);
+  outline-offset: 2px;
+}
+
+.u032-clear {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: none;
+  color: var(--ux-ink-3);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.u032-clear:hover {
+  background: color-mix(in srgb, var(--ux-ink) 8%, transparent);
+  color: var(--ux-ink);
+}
+
+.u032-spin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ux-surface-3);
+  border-top-color: var(--ux-accent);
+  animation: u032-rot 0.8s linear infinite;
+}
+
+@keyframes u032-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u032-zone,
+  .u032-dash rect,
+  .u032-orb,
+  .u032-row,
+  .u032-row.done .u032-st,
+  .u032-row.done .u032-st path,
+  .u032-spin {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+

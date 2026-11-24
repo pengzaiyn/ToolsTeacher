@@ -89,6 +89,37 @@
 
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--color-ink-muted) / 0.28) transparent;
+  }
+
+  /* Thanh cuộn mảnh, trong suốt nền, không gây giật bố cục khi mở rộng nội dung */
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--color-ink-muted) / 0.26);
+    border-radius: 9999px;
+    transition: background-color 180ms ease;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--color-brand-navy) / 0.55);
+  }
+
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--color-ink-muted) / 0.3);
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--color-brand-navy-accent) / 0.55);
   }
 
   html.theme-switching,
@@ -815,5 +846,260 @@
     .robot-callout-float {
       animation: none;
     }
+  }
+
+  /* Lucian UX/UI Prompt #219 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#219 */
+  html.u219-transitioning::view-transition-old(root),
+  html.u219-transitioning::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  html.u219-transitioning::view-transition-old(root) {
+    z-index: 1;
+  }
+
+  html.u219-transitioning::view-transition-new(root) {
+    z-index: 9999;
+    animation: u219-reveal 0.7s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+
+  @keyframes u219-reveal {
+    from {
+      clip-path: circle(0px at var(--u219-cx, 50%) var(--u219-cy, 50%));
+    }
+    to {
+      clip-path: circle(var(--u219-r, 150vmax) at var(--u219-cx, 50%) var(--u219-cy, 50%));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html.u219-transitioning::view-transition-new(root) {
+      animation: none;
+    }
+  }
+
+  /* Hiệu ứng bung tỏa hình tròn tràn màn hình khi đăng nhập thành công */
+  html.login-circle-reveal::view-transition-old(root),
+  html.login-circle-reveal::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  html.login-circle-reveal::view-transition-old(root) {
+    z-index: 1;
+  }
+
+  html.login-circle-reveal::view-transition-new(root) {
+    z-index: 9999;
+    animation: login-circle-expand 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes login-circle-expand {
+    from {
+      clip-path: circle(26px at var(--login-cx, 50%) var(--login-cy, 50%));
+    }
+    to {
+      clip-path: circle(var(--login-r, 150vmax) at var(--login-cx, 50%) var(--login-cy, 50%));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html.login-circle-reveal::view-transition-new(root) {
+      animation: none;
+    }
+  }
+
+  /* Lucian UX/UI Prompt theme tokens · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/ */
+  :root {
+    --ux-page: rgb(var(--color-surface-page));
+    --ux-surface: var(--glass-bg, rgb(var(--color-surface-card)));
+    --ux-surface-2: rgb(var(--color-surface-page));
+    --ux-surface-3: rgb(var(--color-surface-subtle));
+    --ux-ink: rgb(var(--color-ink-primary));
+    --ux-ink-2: rgb(var(--color-ink-secondary));
+    --ux-ink-3: rgb(var(--color-ink-muted));
+    --ux-line: rgb(var(--color-line));
+    --ux-line-2: rgb(var(--color-line-strong));
+    --ux-accent: rgb(var(--color-brand-red));
+    --ux-accent-2: rgb(var(--color-brand-navy));
+    --ux-accent-soft: rgb(var(--color-brand-red-soft));
+    --ux-accent-ink: #ffffff;
+    --ux-mint: rgb(var(--color-status-success-text));
+    --ux-warn: rgb(var(--color-status-warning-text));
+    --ux-danger: rgb(var(--color-status-danger-text));
+    --ux-shadow: rgb(15 23 42 / 0.1);
+    --ux-shadow-strong: rgb(15 23 42 / 0.22);
+    --ux-grad: linear-gradient(120deg, rgb(var(--color-brand-red)), rgb(var(--color-brand-navy)));
+    --ux-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --ux-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  }
+
+  .dark {
+    --ux-accent: rgb(var(--color-brand-red-accent));
+    --ux-accent-2: rgb(var(--color-brand-navy-accent));
+    --ux-accent-soft: rgb(var(--color-brand-red-soft));
+    --ux-accent-ink: #ffffff;
+    --ux-shadow: rgb(0 0 0 / 0.45);
+    --ux-shadow-strong: rgb(0 0 0 / 0.72);
+    --ux-grad: linear-gradient(120deg, rgb(var(--color-brand-red)), rgb(var(--color-brand-navy-hover)));
+  }
+
+  .ux,
+  .ux *,
+  .ux *::before,
+  .ux *::after {
+    box-sizing: border-box;
+  }
+
+  .ux {
+    font-family: inherit;
+    color: var(--ux-ink);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .ux :focus-visible {
+    outline: 2px solid var(--ux-accent);
+    outline-offset: 3px;
+  }
+
+  .ux [hidden] {
+    display: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ux,
+    .ux *,
+    .ux *::before,
+    .ux *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Lucian UX/UI Prompt #228 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#228 */
+  .u228-c {
+    --cx: -500px;
+    --cy: -500px;
+    --o: 0;
+    position: relative;
+    padding: 1.5px;
+    background:
+      radial-gradient(
+        180px circle at var(--cx) var(--cy),
+        rgb(var(--color-brand-red) / calc(var(--o) * 0.9)),
+        rgb(var(--color-brand-navy) / calc(var(--o) * 0.45)) 42%,
+        transparent 72%
+      ),
+      rgb(var(--color-line));
+  }
+
+  .dark .u228-c {
+    background:
+      radial-gradient(
+        190px circle at var(--cx) var(--cy),
+        rgb(var(--color-brand-red-accent) / calc(var(--o) * 0.95)),
+        rgb(var(--color-brand-navy-accent) / calc(var(--o) * 0.55)) 42%,
+        transparent 72%
+      ),
+      rgb(var(--color-line));
+  }
+
+  .u228-in {
+    --cx: -500px;
+    --cy: -500px;
+    --o: 0;
+    position: relative;
+    height: 100%;
+    background:
+      radial-gradient(
+        240px circle at var(--cx) var(--cy),
+        rgb(var(--color-brand-red) / calc(var(--o) * 0.06)),
+        transparent 60%
+      ),
+      var(--glass-bg, rgb(var(--color-surface-card)));
+  }
+
+  .dark .u228-in {
+    background:
+      radial-gradient(
+        240px circle at var(--cx) var(--cy),
+        rgb(var(--color-brand-navy-accent) / calc(var(--o) * 0.13)),
+        transparent 60%
+      ),
+      var(--glass-bg, rgb(var(--color-surface-card)));
+  }
+
+  /* Áp dụng viền phát sáng #228 tự động cho toàn bộ thẻ/khung nội dung trên mọi trang */
+  :is(section, article, form, a).bg-surface-card.border:not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute),
+  div.bg-surface-card.border:where(.rounded-xl, .rounded-2xl):not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute),
+  .u418-ft {
+    position: relative;
+  }
+
+  :is(section, article, form, a).bg-surface-card.border:not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::before,
+  div.bg-surface-card.border:where(.rounded-xl, .rounded-2xl):not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::before,
+  .u418-ft::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(
+      190px circle at var(--cx, -500px) var(--cy, -500px),
+      rgb(var(--color-brand-red) / calc(var(--o, 0) * 0.9)),
+      rgb(var(--color-brand-navy) / calc(var(--o, 0) * 0.45)) 42%,
+      transparent 72%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+  }
+
+  .dark :is(section, article, form, a).bg-surface-card.border:not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::before,
+  .dark div.bg-surface-card.border:where(.rounded-xl, .rounded-2xl):not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::before,
+  .dark .u418-ft::before {
+    background: radial-gradient(
+      200px circle at var(--cx, -500px) var(--cy, -500px),
+      rgb(var(--color-brand-red-accent) / calc(var(--o, 0) * 0.95)),
+      rgb(var(--color-brand-navy-accent) / calc(var(--o, 0) * 0.55)) 42%,
+      transparent 72%
+    );
+  }
+
+  :is(section, article, form, a).bg-surface-card.border:not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::after,
+  div.bg-surface-card.border:where(.rounded-xl, .rounded-2xl):not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::after,
+  .u418-ft::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+    background: radial-gradient(
+      240px circle at var(--cx, -500px) var(--cy, -500px),
+      rgb(var(--color-brand-red) / calc(var(--o, 0) * 0.05)),
+      transparent 60%
+    );
+  }
+
+  .dark :is(section, article, form, a).bg-surface-card.border:not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::after,
+  .dark div.bg-surface-card.border:where(.rounded-xl, .rounded-2xl):not([data-u228-card]):not(.fixed):not(.sticky):not(.absolute)::after,
+  .dark .u418-ft::after {
+    background: radial-gradient(
+      240px circle at var(--cx, -500px) var(--cy, -500px),
+      rgb(var(--color-brand-navy-accent) / calc(var(--o, 0) * 0.11)),
+      transparent 60%
+    );
   }
 }

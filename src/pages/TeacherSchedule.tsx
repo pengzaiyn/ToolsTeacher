@@ -43,8 +43,8 @@ import { Layout } from '@/components/Layout';
 import { TimetableWeekView } from '@/components/TimetableWeekView';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Input } from '@/components/ui/Input';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { LoadingState } from '@/components/ui/Spinner';
 import { Table, type TableColumn } from '@/components/ui/Table';
@@ -64,7 +64,11 @@ export function TeacherSchedule() {
   const [teacherInitialized, setTeacherInitialized] = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [weekMonday, setWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
+  const [selectedDate, setSelectedDate] = useState<string>(() => toIsoDate(new Date()));
+  const weekMonday = useMemo(
+    () => getMondayOfWeek(new Date(`${selectedDate}T00:00:00`)),
+    [selectedDate]
+  );
   const [viewMode, setViewMode] = useState<'week' | 'list'>('week');
 
   const loadData = useCallback(
@@ -446,13 +450,12 @@ export function TeacherSchedule() {
               </div>
             </div>
 
-            <Input
+            <DatePicker
               label="Chọn ngày xem tuần"
-              type="date"
-              value={toIsoDate(weekMonday)}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setWeekMonday(getMondayOfWeek(new Date(`${e.target.value}T00:00:00`)));
+              value={selectedDate}
+              onChange={(nextIso) => {
+                if (nextIso) {
+                  setSelectedDate(nextIso);
                 }
               }}
             />
@@ -463,7 +466,9 @@ export function TeacherSchedule() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setWeekMonday((d) => addDays(d, -7))}
+                onClick={() =>
+                  setSelectedDate((iso) => toIsoDate(addDays(new Date(`${iso}T00:00:00`), -7)))
+                }
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span>Tuần trước</span>
@@ -471,14 +476,16 @@ export function TeacherSchedule() {
               <Button
                 variant="navy"
                 size="sm"
-                onClick={() => setWeekMonday(getMondayOfWeek(new Date()))}
+                onClick={() => setSelectedDate(toIsoDate(new Date()))}
               >
                 Tuần này
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setWeekMonday((d) => addDays(d, 7))}
+                onClick={() =>
+                  setSelectedDate((iso) => toIsoDate(addDays(new Date(`${iso}T00:00:00`), 7)))
+                }
               >
                 <span>Tuần sau</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

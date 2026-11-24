@@ -39,6 +39,7 @@ import type {
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -873,11 +874,10 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
       >
         <form onSubmit={handleCreateSession} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
+            <DatePicker
               label="Ngày học"
-              type="date"
               value={sessionDate}
-              onChange={(e) => setSessionDate(e.target.value)}
+              onChange={setSessionDate}
               required
             />
             <Input

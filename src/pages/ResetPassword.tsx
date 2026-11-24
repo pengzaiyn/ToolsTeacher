@@ -1,7 +1,6 @@
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { AmbientGlassBackdrop } from '@/components/AmbientGlassBackdrop';
 import { CustomWallpaperBackdrop } from '@/components/custom-theme/CustomWallpaperBackdrop';
 import { PasswordRecoveryPanel } from '@/components/PasswordRecoveryPanel';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -31,7 +30,6 @@ export function ResetPassword() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-4 py-8">
       <CustomWallpaperBackdrop />
-      <AmbientGlassBackdrop />
       <div className="fixed right-4 top-4 z-20">
         <ThemeToggle />
       </div>

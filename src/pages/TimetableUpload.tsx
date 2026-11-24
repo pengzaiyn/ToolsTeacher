@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -7,7 +7,6 @@ import {
   ClipboardPaste,
   Download,
   FileSpreadsheet,
-  Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import {
@@ -23,13 +22,13 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { Table, type TableColumn } from '@/components/ui/Table';
 import { useToast } from '@/components/ui/Toast';
 
 export function TimetableUpload() {
   const toast = useToast();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [sourceMode, setSourceMode] = useState<'file' | 'paste'>('file');
   const [fileName, setFileName] = useState<string>('');
@@ -39,13 +38,14 @@ export function TimetableUpload() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+  const [fileSize, setFileSize] = useState<number | undefined>(undefined);
+  const [lastFile, setLastFile] = useState<File | null>(null);
 
+  async function processSelectedFile(file: File) {
+    setLastFile(file);
     setParsing(true);
     setFileName(file.name);
+    setFileSize(file.size);
     try {
       let result: ParsedTimetableResult;
       if (/\.csv$/i.test(file.name)) {
@@ -265,34 +265,39 @@ export function TimetableUpload() {
             </div>
 
             {sourceMode === 'file' ? (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-line-strong bg-surface-page p-8 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-redSoft text-brand-red">
-                  <FileSpreadsheet className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-semibold text-ink-primary">
-                    {fileName ? `Đang chọn: ${fileName}` : 'Chưa có file nào được chọn'}
-                  </p>
-                  <p className="text-xs font-normal text-ink-muted">
-                    Hỗ trợ .xlsx, .xls, .csv • Tối đa 5.000 dòng mỗi lần tải lên
-                  </p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileChange}
-                  className="sr-only"
-                />
-                <Button
-                  variant="primary"
-                  loading={parsing}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4" aria-hidden="true" />
-                  <span>{fileName ? 'Chọn file khác' : 'Chọn file Excel / CSV'}</span>
-                </Button>
-              </div>
+              <FileDropzone
+                accept=".xlsx,.xls,.csv"
+                hint="Hỗ trợ .xlsx, .xls, .csv · Tối đa 5.000 dòng mỗi lần tải lên"
+                disabled={parsing || uploading}
+                fileItem={
+                  fileName
+                    ? {
+                        name: fileName,
+                        size: fileSize,
+                        status: parsing
+                          ? 'uploading'
+                          : parsed && parsed.errors.length > 0
+                            ? 'error'
+                            : 'done',
+                        detail: parsing
+                          ? 'Đang phân tích file...'
+                          : parsed && parsed.errors.length > 0
+                            ? `Phát hiện ${parsed.errors.length} lỗi`
+                            : parsed
+                              ? `${parsed.entries.length} buổi học`
+                              : undefined,
+                      }
+                    : null
+                }
+                onFileSelect={(file) => void processSelectedFile(file)}
+                onRetry={lastFile ? () => void processSelectedFile(lastFile) : undefined}
+                onClear={() => {
+                  setFileName('');
+                  setFileSize(undefined);
+                  setLastFile(null);
+                  setParsed(null);
+                }}
+              />
             ) : (
               <div className="flex flex-col gap-3">
                 <label htmlFor="timetable-csv-paste" className="text-sm font-semibold text-ink-primary">

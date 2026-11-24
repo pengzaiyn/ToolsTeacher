@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { CheckCircle2, Download, Send, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle2, Download, Send } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
   MAX_SUBMISSION_BYTES,
   formatDateTimeVi,
-  formatFileSize,
   openPrivateBucketFile,
   sanitizeStorageFileName,
 } from '@/lib/classStorage';
@@ -13,6 +12,7 @@ import type { Assignment, Grade, Submission } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -31,7 +31,6 @@ export function AssignmentStudentModal({
 }: AssignmentStudentModalProps) {
   const { user } = useAuth();
   const toast = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, number>>({});
   const [textAnswer, setTextAnswer] = useState('');
@@ -45,7 +44,6 @@ export function AssignmentStudentModal({
     setTextAnswer('');
     setSelectedFile(null);
     setConfirmOpen(false);
-    if (fileRef.current) fileRef.current.value = '';
   }, [assignment?.id]);
 
   if (!assignment) return null;
@@ -55,16 +53,6 @@ export function AssignmentStudentModal({
       ? submission.grade[0] ?? null
       : submission.grade
     : null;
-
-  function handlePickFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_SUBMISSION_BYTES) {
-      toast.error('File nộp vượt quá giới hạn 25 MB');
-      return;
-    }
-    setSelectedFile(file);
-  }
 
   function validateBeforeSubmit(): boolean {
     if (!assignment) return false;
@@ -310,27 +298,28 @@ export function AssignmentStudentModal({
 
               {assignment.type === 'file_upload' && (
                 <div className="flex flex-col gap-4">
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    onChange={handlePickFile}
-                    className="sr-only"
+                  <FileDropzone
+                    compact
+                    hint="Tối đa 25 MB · Hỗ trợ PDF, DOCX, ZIP, ảnh..."
+                    disabled={submitting}
+                    fileItem={
+                      selectedFile
+                        ? {
+                            name: selectedFile.name,
+                            size: selectedFile.size,
+                            status: submitting ? 'uploading' : 'ready',
+                          }
+                        : null
+                    }
+                    onFileSelect={(file) => {
+                      if (file.size > MAX_SUBMISSION_BYTES) {
+                        toast.error('File nộp vượt quá giới hạn 25 MB');
+                        return;
+                      }
+                      setSelectedFile(file);
+                    }}
+                    onClear={() => setSelectedFile(null)}
                   />
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line-strong bg-surface-page p-4">
-                    <span className="text-sm font-normal text-ink-secondary">
-                      {selectedFile
-                        ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})`
-                        : 'Chưa chọn file bài làm (tối đa 25 MB)'}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      <Upload className="h-4 w-4" aria-hidden="true" />
-                      <span>Chọn file</span>
-                    </Button>
-                  </div>
                   <div className="flex flex-col gap-2">
                     <label
                       htmlFor="student-file-note"

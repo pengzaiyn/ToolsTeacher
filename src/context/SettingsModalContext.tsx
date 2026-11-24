@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useLocation } from 'react-router-dom';
 
-export type SettingsSectionId = 'theme' | 'glass' | 'custom' | 'cursor';
+export type SettingsSectionId = 'theme' | 'custom' | 'cursor';
 
 interface SettingsModalContextValue {
   isOpen: boolean;

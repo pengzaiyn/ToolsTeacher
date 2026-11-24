@@ -1,4 +1,4 @@
-import { type ChangeEvent, type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -22,7 +22,6 @@ import {
   Shuffle,
   Sparkles,
   Trash2,
-  Upload,
   Wand2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -68,6 +67,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
@@ -123,7 +123,6 @@ function loadDraft(): StoredDraft | null {
 export function TeacherExamMixer() {
   const { profile } = useAuth();
   const toast = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initialDraft = useMemo(() => loadDraft(), []);
 
@@ -143,7 +142,6 @@ export function TeacherExamMixer() {
     Record<string, { previousOptionId: string; aiOptionId: string }>
   >({});
   const [parsingExcel, setParsingExcel] = useState(false);
-  const [draggingExcel, setDraggingExcel] = useState(false);
   const [bankSearch, setBankSearch] = useState('');
   const [bankFilter, setBankFilter] = useState<BankFilter>('all');
 
@@ -506,19 +504,6 @@ export function TeacherExamMixer() {
     } finally {
       setParsingExcel(false);
     }
-  }
-
-  function handleExcelChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (file) void processExcelFile(file);
-  }
-
-  function handleExcelDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setDraggingExcel(false);
-    const file = event.dataTransfer.files?.[0];
-    if (file) void processExcelFile(file);
   }
 
   function openCreateQuestionModal() {
@@ -1090,45 +1075,12 @@ export function TeacherExamMixer() {
                     </Button>
                   </div>
 
-                  <input
-                    ref={fileInputRef}
-                    id="exam-excel-file-input"
-                    type="file"
+                  <FileDropzone
                     accept=".xlsx,.xls"
-                    onChange={handleExcelChange}
-                    className="hidden"
+                    hint="Hỗ trợ định dạng .xlsx và .xls"
+                    disabled={parsingExcel}
+                    onFileSelect={(file) => void processExcelFile(file)}
                   />
-
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDraggingExcel(true);
-                    }}
-                    onDragLeave={() => setDraggingExcel(false)}
-                    onDrop={handleExcelDrop}
-                    className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
-                      draggingExcel
-                        ? 'border-brand-navy bg-brand-navySoft/50'
-                        : 'border-line-strong bg-surface-page/50'
-                    }`}
-                  >
-                    <Upload className="h-8 w-8 text-brand-navy" aria-hidden="true" />
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm font-semibold text-ink-primary">
-                        Kéo thả file Excel ngân hàng câu hỏi vào đây
-                      </p>
-                      <p className="text-xs font-normal text-ink-muted">
-                        Hỗ trợ định dạng .xlsx và .xls
-                      </p>
-                    </div>
-                    <Button
-                      variant="navy"
-                      loading={parsingExcel}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Chọn file Excel từ máy tính
-                    </Button>
-                  </div>
                 </div>
               )}
             </section>

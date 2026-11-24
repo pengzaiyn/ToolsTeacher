@@ -3,14 +3,16 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { CursorEffectProvider } from '@/context/CursorEffectContext';
 import { CustomThemeProvider } from '@/context/CustomThemeContext';
+import { LanguageProvider } from '@/context/LanguageContext';
 import { SettingsModalProvider } from '@/context/SettingsModalContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { UnreadAnnouncementsProvider } from '@/context/UnreadAnnouncementsContext';
 import { CursorEffectOverlay } from '@/components/CursorEffectOverlay';
+import { GlobalCardGlow } from '@/components/GlobalCardGlow';
+import { GlobalLanguageTranslator } from '@/components/GlobalLanguageTranslator';
 import { AssistantWidget } from '@/components/AssistantWidget';
 import { RealtimeAnnouncementPopup } from '@/components/RealtimeAnnouncementPopup';
 import { SettingsModal } from '@/components/SettingsModal';
-import { CustomDecorationsOverlay } from '@/components/custom-theme/CustomDecorationsOverlay';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { LoadingState } from '@/components/ui/Spinner';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -42,6 +44,7 @@ const AdminTeachers = lazy(() => import('@/pages/admin/AdminTeachers').then((m) 
 export function App() {
   return (
     <BrowserRouter>
+      <LanguageProvider>
       <ThemeProvider>
         <CustomThemeProvider>
           <CursorEffectProvider>
@@ -208,11 +211,13 @@ export function App() {
                 </UnreadAnnouncementsProvider>
               </AuthProvider>
             </ToastProvider>
-            <CustomDecorationsOverlay />
             <CursorEffectOverlay />
+            <GlobalCardGlow />
+            <GlobalLanguageTranslator />
           </CursorEffectProvider>
         </CustomThemeProvider>
       </ThemeProvider>
+      </LanguageProvider>
     </BrowserRouter>
   );
 }

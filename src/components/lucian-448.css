@@ -1,0 +1,254 @@
+/* Lucian UX/UI Prompt #448 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#448 */
+.u448 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.u448-w {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.u448-b {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--ux-surface);
+  color: var(--ux-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 0 0 1px var(--ux-line-2),
+    0 6px 16px -10px var(--ux-shadow-strong);
+  transition:
+    box-shadow 0.2s,
+    transform 0.4s var(--ux-spring);
+}
+
+.u448-b:hover {
+  box-shadow:
+    inset 0 0 0 1px var(--ux-ink-3),
+    0 8px 18px -10px var(--ux-shadow-strong);
+}
+
+.u448-b:active {
+  transform: scale(0.96);
+}
+
+.u448 .u448-b:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 3px;
+}
+
+.u448-g {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--ux-accent);
+}
+
+.u448-g svg {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.u448-g .mer {
+  transform: translateX(0);
+}
+
+.u448-g.is-spin .mer {
+  animation: u448-roll 0.9s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.u448-g.is-spin svg {
+  animation: u448-tilt 0.9s var(--ux-spring);
+}
+
+@keyframes u448-roll {
+  from {
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes u448-tilt {
+  30% {
+    transform: rotate(-24deg) scale(1.12);
+  }
+}
+
+.u448-lb {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow-x: clip;
+  transition: width 0.45s var(--ux-spring);
+}
+
+.u448-lb span {
+  grid-area: 1 / 1;
+  justify-self: start;
+  width: max-content;
+  white-space: nowrap;
+  transition:
+    opacity 0.2s,
+    transform 0.4s var(--ux-spring),
+    filter 0.2s;
+}
+
+.u448-lb span.is-out {
+  opacity: 0;
+  transform: translateY(-10px);
+  filter: blur(2px);
+}
+
+.u448-lb span.is-in {
+  animation: u448-in 0.45s var(--ux-spring);
+}
+
+@keyframes u448-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(2px);
+  }
+}
+
+.u448-cv {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: var(--ux-ink-3);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.4s var(--ux-spring);
+}
+
+.u448-b[aria-expanded='true'] .u448-cv {
+  transform: rotate(180deg);
+}
+
+/* Popover bật lên trên khi đặt ở cuối thanh điều hướng bên trái */
+.u448-p {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 60;
+  width: 196px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 16px;
+  background: var(--ux-surface);
+  box-shadow:
+    inset 0 0 0 1px var(--ux-line),
+    0 22px 44px -18px var(--ux-shadow-strong),
+    0 4px 12px -6px var(--ux-shadow);
+  transform-origin: 24% calc(100% + 16px);
+  transform: scale(0.3) translateY(8px);
+  opacity: 0;
+  visibility: hidden;
+  outline: none;
+  transition:
+    transform 0.25s var(--ux-ease),
+    opacity 0.18s,
+    visibility 0s 0.25s;
+}
+
+.u448.is-open .u448-p {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 0.55s var(--ux-spring),
+    opacity 0.15s,
+    visibility 0s;
+}
+
+.u448-o {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ux-ink);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    transform 0.35s var(--ux-spring);
+}
+
+.u448.is-open .u448-o {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s, calc(60ms + var(--i) * 30ms), calc(60ms + var(--i) * 30ms);
+}
+
+.u448-o:hover,
+.u448-o.is-act {
+  background: var(--ux-surface-2);
+}
+
+.u448-o span {
+  flex: 1;
+}
+
+.u448-o em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ux-ink-3);
+}
+
+.u448-o svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--ux-accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.2s,
+    transform 0.35s var(--ux-spring);
+}
+
+.u448-o[aria-selected='true'] {
+  font-weight: 600;
+}
+
+.u448-o[aria-selected='true'] svg {
+  opacity: 1;
+  transform: none;
+}
+
+.u448-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+

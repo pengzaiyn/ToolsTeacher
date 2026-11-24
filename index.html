@@ -23,20 +23,6 @@
           if (isDark) {
             document.documentElement.classList.add('dark');
           }
-          var rawGlass = localStorage.getItem('avc_glass_effect_v1');
-          if (rawGlass) {
-            var glass = JSON.parse(rawGlass);
-            var validModes = { frosted: true, liquid: true };
-            var validLevels = { subtle: true, medium: true, strong: true };
-            if (glass && validModes[glass.mode]) {
-              var level = validLevels[glass.intensity] ? glass.intensity : 'medium';
-              var root = document.documentElement;
-              root.classList.add('glass-active', 'glass-' + glass.mode, 'glass-' + level);
-              if (glass.ambientGlow !== false) {
-                root.classList.add('glass-ambient');
-              }
-            }
-          }
         } catch (e) {}
       })();
     </script>

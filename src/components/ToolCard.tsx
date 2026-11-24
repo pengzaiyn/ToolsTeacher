@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 import type { ToolItem } from '@/lib/toolsCatalog';
 import { Badge } from '@/components/ui/Badge';
 
@@ -8,8 +9,12 @@ interface ToolCardProps {
   ctaLabel?: string;
 }
 
-export function ToolCard({ tool, ctaLabel = 'Mở công cụ' }: ToolCardProps) {
+export function ToolCard({ tool, ctaLabel }: ToolCardProps) {
+  const { t } = useLanguage();
   const Icon = tool.icon;
+  const title = t(`tool.${tool.id}.title`, tool.title);
+  const description = t(`tool.${tool.id}.desc`, tool.description);
+  const resolvedCta = ctaLabel ?? t('home.openTool');
   const iconBg =
     tool.accent === 'red'
       ? 'bg-brand-redSoft text-brand-red'
@@ -18,33 +23,39 @@ export function ToolCard({ tool, ctaLabel = 'Mở công cụ' }: ToolCardProps) 
   return (
     <Link
       to={tool.to}
-      className="group flex flex-col justify-between gap-4 rounded-xl border border-line bg-surface-card p-6 transition-all hover:border-brand-navy hover:shadow-md"
+      data-u228-card
+      className="u228-c group block rounded-xl transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-navy/30"
     >
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBg}`}>
-            <Icon className="h-6 w-6" aria-hidden="true" />
+      <div
+        data-u228-inner
+        className="u228-in flex flex-col justify-between gap-4 overflow-hidden rounded-[calc(0.75rem-1.5px)] p-6"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBg}`}>
+              <Icon className="h-6 w-6" aria-hidden="true" />
+            </div>
+            {tool.badge && (
+              <Badge tone={tool.accent === 'red' ? 'red' : 'navy'}>{tool.badge}</Badge>
+            )}
           </div>
-          {tool.badge && (
-            <Badge tone={tool.accent === 'red' ? 'red' : 'navy'}>{tool.badge}</Badge>
-          )}
+          <div className="flex flex-col gap-2">
+            <h3 className="text-base font-bold text-ink-primary group-hover:text-brand-navy">
+              {title}
+            </h3>
+            <p className="text-sm font-normal leading-relaxed text-ink-secondary">
+              {description}
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col gap-2">
-          <h3 className="text-base font-bold text-ink-primary group-hover:text-brand-navy">
-            {tool.title}
-          </h3>
-          <p className="text-sm font-normal leading-relaxed text-ink-secondary">
-            {tool.description}
-          </p>
-        </div>
-      </div>
 
-      <div className="flex items-center gap-2 text-sm font-semibold text-brand-navy">
-        <span>{ctaLabel}</span>
-        <ArrowRight
-          className="h-4 w-4 transition-transform group-hover:translate-x-1"
-          aria-hidden="true"
-        />
+        <div className="flex items-center gap-2 text-sm font-semibold text-brand-navy">
+          <span>{resolvedCta}</span>
+          <ArrowRight
+            className="h-4 w-4 transition-transform group-hover:translate-x-1"
+            aria-hidden="true"
+          />
+        </div>
       </div>
     </Link>
   );

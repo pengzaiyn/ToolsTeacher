@@ -15,7 +15,7 @@ Trang công cụ cho thầy cô và sinh viên Trường Cao đẳng Việt Mỹ
 React 18, Vite, TypeScript, Tailwind CSS 3, React Router 6, Supabase (Postgres, Auth, Storage, Edge Functions), lucide-react, xlsx. Chi tiết: `docs/TECH_STACK.md`.
 
 ## Quy tắc bắt buộc
-- Toàn bộ chữ trên giao diện, thông báo lỗi, xác nhận đều bằng tiếng Việt
+- Giao diện mặc định là tiếng Việt, nhưng **mọi chức năng, trang, nút, nhãn hoặc nội dung giao diện mới đều bắt buộc dịch đủ 3 ngôn ngữ**: Tiếng Việt (`vi`), Tiếng Anh (`en`) và Tiếng Trung giản thể (`zh`) trong `src/context/LanguageContext.tsx` và `src/lib/i18nDictionary.ts`. Riêng tên chính thức **"Trường Cao đẳng Việt Mỹ Hà Nội"** luôn giữ nguyên, không dịch.
 - Màu, font, bo góc, khoảng cách, bố cục điều hướng (sidebar trái) theo `docs/Rules.md` (đỏ #C8102E, navy #1A365D, Inter chỉ 400/600/700, khoảng cách bội số của 8px). Đọc kỹ `docs/Rules.md` trước khi viết/sửa giao diện và dùng token trong `tailwind.config.js`, không viết mã màu rời
 - Icon chỉ dùng lucide-react, không dùng emoji trong giao diện
 - Không cài thêm thư viện UI trừ khi thật sự cần
@@ -59,4 +59,5 @@ Project `avc-connect` (ref `gyzgvnseizvkonustvyh`), URL và khóa công khai tro
 - Chủ dự án giao tiếp bằng tiếng Việt, trả lời bằng tiếng Việt
 - Với tính năng lớn, nói ngắn gọn kế hoạch và chờ đồng ý trước khi viết mã
 - Việc nào chưa chắc (ví dụ định dạng file Excel thật của trường) thì hỏi, không đoán
+- Khi chủ dự án nhắn một mã số gắn dấu `#` (ví dụ `#228`, `#252`, `#418`, `#448`), tự động hiểu là yêu cầu dùng skill `lucian-uxui` (`.agents/skills/lucian-uxui/scripts/lucian-uxui.mjs`) để tra mã nguồn phần tử đó trên Lucian UX/UI Prompt và tích hợp chuẩn vào giao diện/màu thương hiệu của dự án.
 
