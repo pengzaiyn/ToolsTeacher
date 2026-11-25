@@ -129,7 +129,7 @@ function renderPaperBlockHtml(
     const boxBg = theme.codeBoxStyle === 'filled' ? '#f1f5f9' : 'transparent';
 
     return `
-      <div style="margin-bottom:10pt;${wrapperCss}">
+      <div style="margin-bottom:10pt;break-inside:avoid;page-break-inside:avoid;${wrapperCss}">
         <table style="width:100%;border-collapse:collapse;margin-bottom:6pt;">
           <tr>
             <td style="vertical-align:middle;font-size:11.5pt;">${studentLine}</td>
@@ -170,13 +170,17 @@ function renderPaperBlockHtml(
       : '';
 
     return `
-      <div style="margin-bottom:8pt;page-break-inside:avoid;${wrapperCss}">
-        <div style="margin-bottom:2pt;">
-          <strong style="color:${escapeHtml(accent)};">Câu ${q.number}:</strong> ${promptHtml}
-        </div>
-        ${imgHtml}
-        ${renderOptionsHtml(q, showAnswers, theme)}
-      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:6pt;page-break-inside:avoid;${wrapperCss}">
+        <tr style="page-break-inside:avoid;">
+          <td style="padding:0;vertical-align:top;">
+            <div style="margin-bottom:2pt;">
+              <strong style="color:${escapeHtml(accent)};">Câu ${q.number}:</strong> ${promptHtml}
+            </div>
+            ${imgHtml}
+            ${renderOptionsHtml(q, showAnswers, theme)}
+          </td>
+        </tr>
+      </table>
     `;
   }
 
@@ -266,20 +270,42 @@ function renderPaperBlockHtml(
   const leftRole = sanitizeExamHtml(block.leftRoleHtml);
   const rightRole = sanitizeExamHtml(block.rightRoleHtml);
   return `
-    <div style="margin-top:14pt;page-break-inside:avoid;${wrapperCss}">
-      ${endHtml ? `<div style="text-align:center;margin-bottom:12pt;">${endHtml}</div>` : ''}
-      ${
-        block.showSignatures
-          ? `<table style="width:100%;border-collapse:collapse;margin-top:8pt;">
-              <tr>
-                <td style="width:50%;text-align:center;vertical-align:top;padding-bottom:44pt;">${leftRole}</td>
-                <td style="width:50%;text-align:center;vertical-align:top;padding-bottom:44pt;">${rightRole}</td>
-              </tr>
-            </table>`
-          : ''
-      }
-    </div>
+    <table style="width:100%;border-collapse:collapse;margin-top:12pt;page-break-inside:avoid;${wrapperCss}">
+      <tr style="page-break-inside:avoid;">
+        <td style="padding:0;vertical-align:top;">
+          ${endHtml ? `<div style="text-align:center;margin-bottom:12pt;">${endHtml}</div>` : ''}
+          ${
+            block.showSignatures
+              ? `<table style="width:100%;border-collapse:collapse;margin-top:8pt;">
+                  <tr>
+                    <td style="width:50%;text-align:center;vertical-align:top;padding-bottom:44pt;">${leftRole}</td>
+                    <td style="width:50%;text-align:center;vertical-align:top;padding-bottom:44pt;">${rightRole}</td>
+                  </tr>
+                </table>`
+              : ''
+          }
+        </td>
+      </tr>
+    </table>
   `;
+}
+
+const WORD_ONLY_PAGE_BREAK_HTML =
+  '<!--[if gte mso 9]><br clear="all" style="page-break-before:always;mso-special-character:line-break;" /><![endif]-->';
+
+export function distributeCopiesEvenly(
+  codes: readonly string[],
+  totalCopies: number
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  if (codes.length === 0) return result;
+  const safeTotal = Math.max(0, Math.min(2000, Math.floor(totalCopies)));
+  const base = Math.floor(safeTotal / codes.length);
+  const remainder = safeTotal % codes.length;
+  codes.forEach((code, idx) => {
+    result[code] = base + (idx < remainder ? 1 : 0);
+  });
+  return result;
 }
 
 function renderSingleVariantHtml(
@@ -295,9 +321,10 @@ function renderSingleVariantHtml(
     .join('');
 
   return `
-    <section style="${pageBreakBefore ? 'page-break-before:always;' : ''}">
+    ${pageBreakBefore ? WORD_ONLY_PAGE_BREAK_HTML : ''}
+    <div class="exam-sheet${pageBreakBefore ? ' exam-sheet-break' : ''}">
       ${contentHtml}
-    </section>
+    </div>
   `;
 }
 
@@ -333,7 +360,8 @@ function renderAnswerKeyMatrixHtml(
   }
 
   return `
-    <section style="${pageBreakBefore ? 'page-break-before:always;' : ''}">
+    ${pageBreakBefore ? WORD_ONLY_PAGE_BREAK_HTML : ''}
+    <div class="exam-sheet${pageBreakBefore ? ' exam-sheet-break' : ''}">
       <div style="text-align:center;margin-bottom:12pt;">
         <div style="font-weight:bold;font-size:12pt;text-transform:uppercase;">
           ${escapeHtml(metadata.schoolName || 'TRƯỜNG CAO ĐẲNG VIỆT MỸ HÀ NỘI')}
@@ -356,7 +384,7 @@ function renderAnswerKeyMatrixHtml(
         </thead>
         <tbody>${bodyRows.join('')}</tbody>
       </table>
-    </section>
+    </div>
   `;
 }
 
@@ -368,6 +396,7 @@ export function buildExamPrintHtml(
     includeAnswerKeyPage?: boolean;
     answerKeyOnly?: boolean;
     theme?: ExamPaperTheme;
+    copiesByCode?: Record<string, number>;
   } = {}
 ): string {
   const {
@@ -375,19 +404,34 @@ export function buildExamPrintHtml(
     includeAnswerKeyPage = true,
     answerKeyOnly = false,
     theme = DEFAULT_EXAM_PAPER_THEME,
+    copiesByCode,
   } = options;
 
   let bodyHtml = '';
   if (answerKeyOnly) {
     bodyHtml = renderAnswerKeyMatrixHtml(metadata, variants, false);
   } else {
-    bodyHtml = variants
+    const expanded: MixedExamVariant[] = [];
+    const includedUnique: MixedExamVariant[] = [];
+    for (const variant of variants) {
+      const count = copiesByCode
+        ? Math.max(0, Math.min(200, Math.floor(copiesByCode[variant.code] ?? 0)))
+        : 1;
+      if (count > 0) {
+        includedUnique.push(variant);
+        for (let c = 0; c < count; c += 1) {
+          expanded.push(variant);
+        }
+      }
+    }
+
+    bodyHtml = expanded
       .map((variant, idx) =>
         renderSingleVariantHtml(metadata, variant, showAnswersInExam, idx > 0, theme)
       )
       .join('');
-    if (includeAnswerKeyPage) {
-      bodyHtml += renderAnswerKeyMatrixHtml(metadata, variants, true);
+    if (includeAnswerKeyPage && includedUnique.length > 0) {
+      bodyHtml += renderAnswerKeyMatrixHtml(metadata, includedUnique, expanded.length > 0);
     }
   }
 
@@ -406,7 +450,23 @@ export function buildExamPrintHtml(
   <style>
     @page {
       size: A4;
-      margin: 1.8cm 1.8cm 1.8cm 2cm;
+      margin: 1.5cm 1.5cm 1.5cm 2.0cm;
+    }
+    @page WordSection1 {
+      size: 595.3pt 841.9pt;
+      margin: 1.5cm 1.5cm 1.5cm 2.0cm;
+      mso-header-margin: 1cm;
+      mso-footer-margin: 1cm;
+    }
+    div.WordSection1 {
+      page: WordSection1;
+    }
+    .exam-sheet {
+      display: block;
+    }
+    .exam-sheet-break {
+      break-before: page;
+      page-break-before: always;
     }
     body {
       font-family: ${fontStack};
@@ -414,7 +474,14 @@ export function buildExamPrintHtml(
       line-height: ${theme.lineHeight || 1.4};
       color: #000;
       margin: 0;
-      padding: 16px;
+      padding: 0;
+    }
+    p {
+      margin: 0;
+    }
+    table {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
     }
     @media print {
       body { padding: 0; }
@@ -422,7 +489,9 @@ export function buildExamPrintHtml(
   </style>
 </head>
 <body>
-  ${bodyHtml}
+  <div class="WordSection1">
+    ${bodyHtml}
+  </div>
 </body>
 </html>`;
 }
@@ -448,6 +517,7 @@ export function downloadExamsAsWord(
     answerKeyOnly?: boolean;
     fileSuffix?: string;
     theme?: ExamPaperTheme;
+    copiesByCode?: Record<string, number>;
   } = {}
 ): void {
   if (variants.length === 0) return;
@@ -480,6 +550,7 @@ export function printExamsInNewWindow(
     includeAnswerKeyPage?: boolean;
     answerKeyOnly?: boolean;
     theme?: ExamPaperTheme;
+    copiesByCode?: Record<string, number>;
   } = {}
 ): boolean {
   if (variants.length === 0) return false;

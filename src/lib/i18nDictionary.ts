@@ -372,6 +372,15 @@ export const PHRASE_DICT: Record<string, TranslationPair> = {
   'Đang học': { en: 'In Progress', zh: '上课中' },
   'Chưa học': { en: 'Upcoming', zh: '未开始' },
   'Đã học': { en: 'Completed', zh: '已结束' },
+
+  // Trộn đề & chọn số bản in
+  'Đảo lại thứ tự câu': { en: 'Reshuffle Questions', zh: '重新打乱题序' },
+  'Chọn số bản in cho từng mã đề': { en: 'Set Print Copies per Exam Code', zh: '设置各试卷代码打印份数' },
+  'Chia nhanh theo tổng sĩ số lớp': { en: 'Quick split by class size', zh: '按班级总人数快速均分' },
+  'Kèm 1 trang bảng đáp án tổng hợp ở cuối file': {
+    en: 'Append 1 summary answer key page at the end',
+    zh: '在文件末尾附 1 页综合答案表',
+  },
 };
 
 interface PatternRule {

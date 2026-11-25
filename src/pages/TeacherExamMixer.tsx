@@ -60,7 +60,11 @@ import {
   exportAnswerKeysToExcel,
   parseQuestionsFromWorkbook,
 } from '@/lib/examMixerExcel';
-import { downloadExamsAsWord, printExamsInNewWindow } from '@/lib/examMixerExport';
+import {
+  distributeCopiesEvenly,
+  downloadExamsAsWord,
+  printExamsInNewWindow,
+} from '@/lib/examMixerExport';
 import { ExamPaperEditor } from '@/components/exam-mixer/ExamPaperEditor';
 import { Layout } from '@/components/Layout';
 import { Badge } from '@/components/ui/Badge';
@@ -153,9 +157,12 @@ export function TeacherExamMixer() {
   const [editExplanation, setEditExplanation] = useState('');
   const [editOptions, setEditOptions] = useState<ExamOption[]>([]);
 
-  // Xác nhận xóa
+  // Xác nhận xóa & cấu hình số bản in
   const [deleteTarget, setDeleteTarget] = useState<ExamQuestion | null>(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [printCopiesOpen, setPrintCopiesOpen] = useState(false);
+  const [copiesByCode, setCopiesByCode] = useState<Record<string, number>>({});
+  const [totalClassCopiesRaw, setTotalClassCopiesRaw] = useState('40');
 
   // Cấu hình đề & trộn
   const [metadata, setMetadata] = useState<ExamMetadata>(() => ({
@@ -795,6 +802,88 @@ export function TeacherExamMixer() {
     if (!ok) {
       toast.error('Trình duyệt đã chặn cửa sổ in. Vui lòng cho phép mở popup hoặc tải file Word.');
     }
+  }
+
+  const totalPrintCopies = useMemo(
+    () =>
+      variants.reduce(
+        (sum, v) => sum + Math.max(0, Math.floor(copiesByCode[v.code] ?? 1)),
+        0
+      ),
+    [variants, copiesByCode]
+  );
+
+  const maxUniqueQuestionOrders = useMemo(() => {
+    const n = bankValidation.validCount;
+    if (n <= 1) return 1;
+    let fact = 1;
+    for (let i = 2; i <= Math.min(n, 7); i += 1) fact *= i;
+    return n > 7 ? 5040 : fact;
+  }, [bankValidation.validCount]);
+
+  function openPrintCopiesModal() {
+    const next: Record<string, number> = {};
+    variants.forEach((v) => {
+      next[v.code] = copiesByCode[v.code] ?? 1;
+    });
+    setCopiesByCode(next);
+    setPrintCopiesOpen(true);
+  }
+
+  function handleApplyEvenCopies() {
+    const total = Number(totalClassCopiesRaw);
+    if (!Number.isFinite(total) || total < 1) {
+      toast.error('Vui lòng nhập tổng số bản in lớn hơn 0');
+      return;
+    }
+    setCopiesByCode(
+      distributeCopiesEvenly(
+        variants.map((v) => v.code),
+        total
+      )
+    );
+  }
+
+  function handleSetSameCopiesPerCode(count: number) {
+    const next: Record<string, number> = {};
+    variants.forEach((v) => {
+      next[v.code] = count;
+    });
+    setCopiesByCode(next);
+  }
+
+  function handleDownloadAllWithCopies() {
+    if (totalPrintCopies <= 0) {
+      toast.error('Vui lòng chọn ít nhất 1 bản in để xuất file Word');
+      return;
+    }
+    downloadExamsAsWord(metadata, variants, {
+      showAnswersInExam: false,
+      includeAnswerKeyPage: includeAnswerKeyInWord,
+      theme: paperTheme,
+      copiesByCode,
+      fileSuffix: `${totalPrintCopies}-ban-in`,
+    });
+    setPrintCopiesOpen(false);
+    toast.success(`Đã tải file Word gồm ${totalPrintCopies} bản đề sẵn sàng in A4`);
+  }
+
+  function handlePrintAllWithCopies() {
+    if (totalPrintCopies <= 0) {
+      toast.error('Vui lòng chọn ít nhất 1 bản in');
+      return;
+    }
+    const ok = printExamsInNewWindow(metadata, variants, {
+      showAnswersInExam: false,
+      includeAnswerKeyPage: includeAnswerKeyInWord,
+      theme: paperTheme,
+      copiesByCode,
+    });
+    if (!ok) {
+      toast.error('Trình duyệt đang chặn cửa sổ bật lên. Vui lòng cho phép popup để in.');
+      return;
+    }
+    setPrintCopiesOpen(false);
   }
 
   return (
@@ -1607,23 +1696,27 @@ export function TeacherExamMixer() {
                   </div>
                 )}
 
+                {shuffleQuestions &&
+                  bankValidation.validCount > 0 &&
+                  variants.length > maxUniqueQuestionOrders && (
+                    <div className="flex items-start gap-2.5 rounded-xl border border-status-warningBorder bg-status-warningBg px-4 py-3 text-xs font-medium text-status-warningText">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span>
+                        Ngân hàng hiện chỉ có <strong>{bankValidation.validCount} câu hợp lệ</strong>{' '}
+                        (tối đa <strong>{maxUniqueQuestionOrders}</strong> thứ tự đảo câu khác nhau),
+                        nên <strong>{variants.length} mã đề</strong> sẽ có mã bị trùng thứ tự câu. Nên
+                        thêm câu hỏi hoặc giảm số mã đề ở Bước 2.
+                      </span>
+                    </div>
+                  )}
+
                 {/* Thanh công cụ xuất file */}
                 <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-6">
                   <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="primary"
-                        onClick={() => {
-                          downloadExamsAsWord(metadata, variants, {
-                            showAnswersInExam: false,
-                            includeAnswerKeyPage: includeAnswerKeyInWord,
-                            theme: paperTheme,
-                          });
-                          toast.success(`Đã tải file Word gồm ${variants.length} mã đề`);
-                        }}
-                      >
+                      <Button variant="primary" onClick={openPrintCopiesModal}>
                         <Download className="h-4 w-4" aria-hidden="true" />
-                        <span>Tải Word tất cả ({variants.length} mã đề)</span>
+                        <span>Tải Word & Chọn số bản in ({variants.length} mã đề)</span>
                       </Button>
 
                       <Button
@@ -1660,7 +1753,7 @@ export function TeacherExamMixer() {
 
                       <Button variant="secondary" onClick={() => handleRunMix(true)}>
                         <RefreshCw className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                        <span>Trộn lại mã mới</span>
+                        <span>Đảo lại thứ tự câu</span>
                       </Button>
                     </div>
 
@@ -1965,6 +2058,109 @@ export function TeacherExamMixer() {
               placeholder="Ghi chú ngắn cho giáo viên..."
             />
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={printCopiesOpen}
+        onClose={() => setPrintCopiesOpen(false)}
+        title="Chọn số bản in cho từng mã đề"
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPrintCopiesOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="navy" onClick={handlePrintAllWithCopies} disabled={totalPrintCopies === 0}>
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              <span>In / Lưu PDF ({totalPrintCopies} bản)</span>
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDownloadAllWithCopies}
+              disabled={totalPrintCopies === 0}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              <span>Tải Word ({totalPrintCopies} bản)</span>
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-line bg-surface-page p-4">
+            <p className="text-xs font-bold text-ink-primary">
+              Chia nhanh theo tổng sĩ số lớp
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={2000}
+                value={totalClassCopiesRaw}
+                onChange={(e) => setTotalClassCopiesRaw(e.target.value)}
+                aria-label="Tổng số bản cần in"
+                className="h-9 w-28 rounded-lg border border-line-strong bg-surface-card px-3 text-sm font-semibold text-ink-primary focus:border-brand-navy focus:outline-none"
+              />
+              <Button type="button" size="sm" variant="navy" onClick={handleApplyEvenCopies}>
+                Chia đều cho {variants.length} mã
+              </Button>
+              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                {[1, 5, 10].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => handleSetSameCopiesPerCode(preset)}
+                    className="rounded-lg border border-line bg-surface-card px-2.5 py-1 text-xs font-semibold text-ink-secondary transition-colors hover:border-brand-navy hover:text-brand-navy"
+                  >
+                    {preset} bản/mã
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {variants.map((v) => {
+              const count = copiesByCode[v.code] ?? 1;
+              return (
+                <div
+                  key={v.code}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-card px-3 py-2"
+                >
+                  <span className="text-sm font-bold text-brand-navy">Mã {v.code}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={200}
+                    value={count}
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(200, Number(e.target.value) || 0));
+                      setCopiesByCode((prev) => ({ ...prev, [v.code]: val }));
+                    }}
+                    aria-label={`Số bản in mã ${v.code}`}
+                    className="h-8 w-16 rounded-lg border border-line-strong bg-surface-page px-2 text-center text-sm font-semibold tabular-nums text-ink-primary focus:border-brand-navy focus:outline-none"
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-navy/15 bg-brand-navySoft/40 px-4 py-3 text-xs text-ink-secondary">
+            <span>
+              Tổng cộng: <strong className="text-brand-navy">{totalPrintCopies} bản đề</strong> · Mỗi
+              bản tự ngắt sang trang A4 mới, không cắt ngang câu hỏi.
+            </span>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={includeAnswerKeyInWord}
+              onChange={(e) => setIncludeAnswerKeyInWord(e.target.checked)}
+              className="h-4 w-4 rounded border-line-strong text-brand-navy focus:ring-brand-navy"
+            />
+            <span>Kèm 1 trang bảng đáp án tổng hợp ở cuối file</span>
+          </label>
         </div>
       </Modal>
 
