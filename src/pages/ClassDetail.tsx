@@ -175,14 +175,17 @@ export function ClassDetail() {
         (cls.teacher_id === user.id || isAssignedSubjectTeacher))
   );
   const canManageMembers = canManageTeaching;
+  const canViewSensitive = Boolean(
+    profile?.role === 'admin' || (user && cls && cls.teacher_id === user.id)
+  );
 
   const tabs: { key: ClassTab; label: string; icon: typeof ClipboardList }[] = [
     { key: 'assignments', label: 'Bài tập', icon: ClipboardList },
     { key: 'materials', label: 'Tài liệu', icon: FileText },
     { key: 'announcements', label: 'Thông báo', icon: Megaphone },
+    { key: 'members', label: 'Thành viên', icon: Users },
     ...(!studentView
       ? [
-          { key: 'members' as const, label: 'Thành viên', icon: Users },
           { key: 'attendance' as const, label: 'Điểm danh', icon: CheckSquare },
           { key: 'grades' as const, label: 'Bảng điểm', icon: FileCheck2 },
         ]
@@ -255,6 +258,13 @@ export function ClassDetail() {
                       </strong>
                     </span>
                   </div>
+                  {studentView && (
+                    <Link to="/attendance-scan">
+                      <Button size="sm" variant="primary">
+                        <span>Quét QR điểm danh</span>
+                      </Button>
+                    </Link>
+                  )}
                   {(timetableCount > 0 && (!studentView || profile?.class_key === (cls.class_key || classKey(cls.name)))) && (
                     <Link
                       to={
@@ -318,8 +328,13 @@ export function ClassDetail() {
               {activeTab === 'announcements' && (
                 <ClassAnnouncementsTab classId={id} canManage={canManageTeaching} />
               )}
-              {activeTab === 'members' && !studentView && (
-                <ClassMembersTab classId={id} canManage={canManageMembers} />
+              {activeTab === 'members' && (
+                <ClassMembersTab
+                  classId={id}
+                  canManage={canManageMembers}
+                  canViewSensitive={canViewSensitive}
+                  isStudentView={studentView}
+                />
               )}
               {activeTab === 'attendance' && !studentView && (
                 <ClassAttendancePanel classItem={cls} canManage={canManageTeaching} />

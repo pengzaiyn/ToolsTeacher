@@ -9,6 +9,7 @@ import {
   LogOut,
   Megaphone,
   Menu,
+  QrCode,
   SlidersHorizontal,
   User,
   UserCheck,
@@ -88,6 +89,9 @@ export function Header() {
     { to: '/tools', label: t('nav.home'), icon: Home, badgeCount: schoolUnreadCount },
     { to: '/timetable', label: t('nav.timetable'), icon: Calendar },
     { to: '/classes', label: t('nav.classes'), icon: BookOpen, badgeCount: totalClassUnreadCount },
+    ...(profile?.role === 'student'
+      ? [{ to: '/attendance-scan', label: 'Quét QR điểm danh', icon: QrCode }]
+      : []),
     {
       to: '/games',
       label: t('nav.games'),

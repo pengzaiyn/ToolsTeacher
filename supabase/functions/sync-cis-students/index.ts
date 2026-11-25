@@ -52,6 +52,28 @@ function cleanOptionalText(raw: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+function normalizePhone(raw: unknown): string | null {
+  const text = cleanOptionalText(raw);
+  if (!text) return null;
+  const compact = text.replace(/^'+/, "").replace(/\s+/g, "");
+  if (/^[1-9]\d{8}$/.test(compact)) {
+    return `0${compact}`;
+  }
+  return compact || null;
+}
+
+function normalizeCccd(raw: unknown): string | null {
+  const text = cleanOptionalText(raw);
+  if (!text) return null;
+  const compact = text.replace(/^'+/, "").replace(/\s+/g, "");
+  // CCCD 12 số bị Excel/CIS cắt mất 1 hoặc 2 số 0 ở đầu (còn 10 hoặc 11 chữ số)
+  // Giữ nguyên CMND 9 số cũ và hộ chiếu có chữ cái
+  if (/^\d{10,11}$/.test(compact)) {
+    return compact.padStart(12, "0");
+  }
+  return compact || null;
+}
+
 function normalizeDob(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
@@ -125,14 +147,8 @@ function buildProfilePatch(rec: CisStudentRecord): Record<string, string | null>
   const dob = normalizeDob(rec.ngaySinh);
   if (dob) patch.date_of_birth = dob;
 
-  const phone = cleanOptionalText(rec.sdt);
+  const phone = normalizePhone(rec.sdt);
   if (phone !== null) patch.phone = phone;
-
-  const cccd = cleanOptionalText(rec.cccd);
-  if (cccd !== null) patch.cccd = cccd;
-
-  const cccdIssuedDate = cleanOptionalText(rec.ngayCapCccd);
-  if (cccdIssuedDate !== null) patch.cccd_issued_date = cccdIssuedDate;
 
   const placeOfBirth = cleanOptionalText(rec.noiSinh);
   if (placeOfBirth !== null) patch.place_of_birth = placeOfBirth;
@@ -156,6 +172,21 @@ function buildProfilePatch(rec: CisStudentRecord): Record<string, string | null>
   if (updatedAt) patch.cis_updated_at = updatedAt;
 
   return patch;
+}
+
+function buildSensitiveRow(
+  studentId: string,
+  rec: CisStudentRecord
+): { student_id: string; cccd: string | null; cccd_issued_date: string | null; updated_at: string } | null {
+  const cccd = normalizeCccd(rec.cccd);
+  const cccdIssuedDate = cleanOptionalText(rec.ngayCapCccd);
+  if (cccd === null && cccdIssuedDate === null) return null;
+  return {
+    student_id: studentId,
+    cccd,
+    cccd_issued_date: cccdIssuedDate,
+    updated_at: new Date().toISOString(),
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -304,8 +335,6 @@ Deno.serve(async (req: Request) => {
       student_code: studentCode,
       date_of_birth: patch.date_of_birth ?? null,
       phone: patch.phone ?? null,
-      cccd: patch.cccd ?? null,
-      cccd_issued_date: patch.cccd_issued_date ?? null,
       place_of_birth: patch.place_of_birth ?? null,
       cohort: patch.cohort ?? null,
       faculty: patch.faculty ?? null,
@@ -319,6 +348,11 @@ Deno.serve(async (req: Request) => {
     if (pErr) {
       await admin.auth.admin.deleteUser(createdUserId);
       return { ok: false as const, error: pErr.message };
+    }
+
+    const sensitive = buildSensitiveRow(createdUserId, rec);
+    if (sensitive) {
+      await admin.from("student_sensitive_profiles").upsert(sensitive, { onConflict: "student_id" });
     }
 
     return {
@@ -382,6 +416,11 @@ Deno.serve(async (req: Request) => {
         .update(patch)
         .eq("id", existing.id);
       if (updErr) return fail(`Lỗi cập nhật hồ sơ: ${updErr.message}`, 500);
+    }
+
+    const sensitive = buildSensitiveRow(existing.id, record);
+    if (sensitive) {
+      await admin.from("student_sensitive_profiles").upsert(sensitive, { onConflict: "student_id" });
     }
 
     const { data: classesCreated } = await userClient.rpc("sync_system_classes");
@@ -483,6 +522,12 @@ Deno.serve(async (req: Request) => {
     }> = [];
 
     const updates: Array<{ id: string; patch: Record<string, string | null> }> = [];
+    const sensitiveRows: Array<{
+      student_id: string;
+      cccd: string | null;
+      cccd_issued_date: string | null;
+      updated_at: string;
+    }> = [];
     const toCreate: CisStudentRecord[] = [];
     const seenCreateCodes = new Set<string>();
 
@@ -506,6 +551,10 @@ Deno.serve(async (req: Request) => {
       if (Object.keys(patch).length > 0) {
         updates.push({ id: profileId, patch });
       }
+      const sensitive = buildSensitiveRow(profileId, rec);
+      if (sensitive) {
+        sensitiveRows.push(sensitive);
+      }
     }
 
     // 3a. Cập nhật song song từng nhóm 25 bản ghi cho SV đã có tài khoản
@@ -519,6 +568,15 @@ Deno.serve(async (req: Request) => {
         if (r.error) errorCount += 1;
         else updatedCount += 1;
       }
+    }
+
+    // 3a-bis. Upsert CCCD vào bảng riêng student_sensitive_profiles theo từng lô 200 bản ghi
+    const SENSITIVE_CHUNK = 200;
+    for (let i = 0; i < sensitiveRows.length; i += SENSITIVE_CHUNK) {
+      const chunk = sensitiveRows.slice(i, i + SENSITIVE_CHUNK);
+      await admin
+        .from("student_sensitive_profiles")
+        .upsert(chunk, { onConflict: "student_id" });
     }
 
     // 3b. Tự động tạo tài khoản cho SV có trên CIS nhưng chưa có trên web

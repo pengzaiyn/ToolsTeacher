@@ -277,6 +277,99 @@ export async function syncCisStudents(payload: CisSyncRequest): Promise<CisSyncR
   return data ?? { ok: true };
 }
 
+export type AttendanceQrRequest =
+  | { action: 'start'; session_id: string; late_after_minutes?: number }
+  | { action: 'rotate'; session_id: string }
+  | { action: 'stop'; session_id: string }
+  | { action: 'checkin'; token: string; device_id?: string };
+
+export interface AttendanceQrResponse {
+  ok?: boolean;
+  sessionId?: string;
+  classId?: string;
+  className?: string;
+  sessionTitle?: string;
+  subject?: string | null;
+  qrToken?: string;
+  issuedAt?: number;
+  rotateIntervalMs?: number;
+  tokenMaxAgeMs?: number;
+  lateAfterMinutes?: number;
+  expiresAt?: string;
+  closedAt?: string;
+  status?: 'present' | 'late';
+  checkinTime?: string;
+  studentName?: string;
+  studentCode?: string | null;
+  error?: string;
+  code?: string;
+}
+
+const ATTENDANCE_DEVICE_STORAGE_KEY = 'avc_attendance_device_id_v1';
+
+export function getOrCreateAttendanceDeviceId(): string {
+  try {
+    const existing = window.localStorage.getItem(ATTENDANCE_DEVICE_STORAGE_KEY);
+    if (existing && existing.length >= 16) return existing;
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    const id = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    window.localStorage.setItem(ATTENDANCE_DEVICE_STORAGE_KEY, id);
+    return id;
+  } catch {
+    return 'web-client';
+  }
+}
+
+export async function callAttendanceQr(
+  payload: AttendanceQrRequest
+): Promise<AttendanceQrResponse> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    notifyAuthSessionInvalidated();
+    throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+  }
+
+  const { data, error } = await supabase.functions.invoke<AttendanceQrResponse>('attendance-qr', {
+    body: payload,
+  });
+
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const body = (await error.context.json()) as { error?: string; code?: string };
+        if (error.context.status === 401 && body.code === 'UNAUTHORIZED') {
+          notifyAuthSessionInvalidated();
+        }
+        throw new Error(body.error || 'Thao tác điểm danh QR thất bại');
+      } catch (parseErr) {
+        if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') {
+          throw parseErr;
+        }
+        throw new Error('Máy chủ điểm danh QR trả về lỗi không xác định');
+      }
+    }
+    if (error instanceof FunctionsRelayError) {
+      throw new Error('Không thể kết nối tới dịch vụ điểm danh QR');
+    }
+    if (error instanceof FunctionsFetchError) {
+      throw new Error('Lỗi mạng khi gửi yêu cầu điểm danh QR');
+    }
+    throw new Error(error.message || 'Điểm danh QR thất bại');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data ?? { ok: true };
+}
+
 /** Tải toàn bộ các trang dữ liệu vượt ngưỡng 1.000 dòng bằng Promise.all song song */
 export async function fetchAllPages<T>(
   fetchPage: (

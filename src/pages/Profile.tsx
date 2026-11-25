@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Camera, KeyRound, RotateCcw, Save, User } from 'lucide-react';
+import { Camera, Eye, EyeOff, KeyRound, RotateCcw, Save, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { isValidAvatarUrl, resizeAvatarFileToDataUrl } from '@/lib/avatar';
+import { maskCccd, maskPhone } from '@/lib/privacy';
 import { ROLE_LABELS } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
@@ -23,11 +24,44 @@ export function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [sensitiveInfo, setSensitiveInfo] = useState<{
+    cccd: string | null;
+    cccd_issued_date: string | null;
+  } | null>(null);
+  const [showPhone, setShowPhone] = useState(false);
+  const [showCccd, setShowCccd] = useState(false);
 
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name);
     }
+  }, [profile]);
+
+  useEffect(() => {
+    if (!profile || profile.role !== 'student') {
+      setSensitiveInfo(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('student_sensitive_profiles')
+      .select('cccd, cccd_issued_date')
+      .eq('student_id', profile.id)
+      .maybeSingle<{ cccd: string | null; cccd_issued_date: string | null }>()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error && data) {
+          setSensitiveInfo(data);
+        } else {
+          setSensitiveInfo({
+            cccd: profile.cccd ?? null,
+            cccd_issued_date: profile.cccd_issued_date ?? null,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [profile]);
 
   if (!profile) return null;
@@ -134,8 +168,14 @@ export function Profile() {
   }
 
   const isStudentProfile = profile.role === 'student';
+  const ownCccd = sensitiveInfo?.cccd ?? profile.cccd ?? null;
+  const ownCccdIssuedDate = sensitiveInfo?.cccd_issued_date ?? profile.cccd_issued_date ?? null;
 
-  const infoItems = isStudentProfile
+  const infoItems: Array<{
+    label: string;
+    value: string;
+    toggle?: { revealed: boolean; onToggle: () => void };
+  }> = isStudentProfile
     ? [
         { label: 'Email', value: profile.email },
         { label: 'Vai trò', value: ROLE_LABELS[profile.role] },
@@ -149,11 +189,23 @@ export function Profile() {
           value: profile.date_of_birth ? formatDateVi(profile.date_of_birth) : '—',
         },
         { label: 'Nơi sinh', value: profile.place_of_birth || '—' },
-        { label: 'Số điện thoại', value: profile.phone || '—' },
-        { label: 'Số CCCD', value: profile.cccd || '—' },
+        {
+          label: 'Số điện thoại',
+          value: profile.phone ? (showPhone ? profile.phone : maskPhone(profile.phone)) : '—',
+          toggle: profile.phone
+            ? { revealed: showPhone, onToggle: () => setShowPhone((v) => !v) }
+            : undefined,
+        },
+        {
+          label: 'Số CCCD',
+          value: ownCccd ? (showCccd ? ownCccd : maskCccd(ownCccd)) : '—',
+          toggle: ownCccd
+            ? { revealed: showCccd, onToggle: () => setShowCccd((v) => !v) }
+            : undefined,
+        },
         {
           label: 'Ngày cấp CCCD',
-          value: profile.cccd_issued_date ? formatDateVi(profile.cccd_issued_date) : '—',
+          value: ownCccdIssuedDate ? formatDateVi(ownCccdIssuedDate) : '—',
         },
         ...(profile.gender ? [{ label: 'Giới tính', value: profile.gender }] : []),
         ...(profile.admissions_advisor
@@ -165,7 +217,15 @@ export function Profile() {
         { label: 'Vai trò', value: ROLE_LABELS[profile.role] },
         ...(profile.subject ? [{ label: 'Chủ nhiệm môn', value: profile.subject }] : []),
         ...(profile.faculty ? [{ label: 'Khoa', value: profile.faculty }] : []),
-        ...(profile.phone ? [{ label: 'Số điện thoại', value: profile.phone }] : []),
+        ...(profile.phone
+          ? [
+              {
+                label: 'Số điện thoại',
+                value: showPhone ? profile.phone : maskPhone(profile.phone),
+                toggle: { revealed: showPhone, onToggle: () => setShowPhone((v) => !v) },
+              },
+            ]
+          : []),
         ...(profile.gender ? [{ label: 'Giới tính', value: profile.gender }] : []),
         ...(profile.date_of_birth
           ? [{ label: 'Ngày sinh', value: formatDateVi(profile.date_of_birth) }]
@@ -294,7 +354,23 @@ export function Profile() {
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {infoItems.map((item) => (
                 <div key={item.label} className="min-w-0 rounded-lg bg-surface-page p-4">
-                  <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
+                    {item.toggle && (
+                      <button
+                        type="button"
+                        onClick={item.toggle.onToggle}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-navy hover:underline"
+                      >
+                        {item.toggle.revealed ? (
+                          <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        <span>{item.toggle.revealed ? 'Ẩn số' : 'Hiện số'}</span>
+                      </button>
+                    )}
+                  </div>
                   <dd className="mt-2 break-words text-sm font-semibold text-ink-primary">
                     {item.value}
                   </dd>

@@ -6,6 +6,7 @@ import {
   CheckCheck,
   Download,
   Plus,
+  QrCode,
   Save,
   Search,
   Trash2,
@@ -36,6 +37,7 @@ import type {
   Enrollment,
   TimetableEntry,
 } from '@/types/database';
+import { AttendanceQrHostModal } from '@/components/class/AttendanceQrHostModal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -96,6 +98,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
   const [deleteTarget, setDeleteTarget] = useState<AttendanceSession | null>(null);
   const [deletingSession, setDeletingSession] = useState(false);
   const [pendingSwitchSessionId, setPendingSwitchSessionId] = useState<string | null>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   const targetClassKey = classItem.class_key || classKey(classItem.name);
 
@@ -801,14 +804,24 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
                 {selectedSession.subject && <Badge tone="navy">{selectedSession.subject}</Badge>}
                 {selectedSession.room && <Badge tone="neutral">Phòng {selectedSession.room}</Badge>}
                 {canManage && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setDeleteTarget(selectedSession)}
-                  >
-                    <Trash2 className="h-4 w-4 text-status-dangerText" aria-hidden="true" />
-                    <span>Xóa buổi</span>
-                  </Button>
+                  <>
+                    <Button
+                      variant="navy"
+                      size="sm"
+                      onClick={() => setQrModalOpen(true)}
+                    >
+                      <QrCode className="h-4 w-4" aria-hidden="true" />
+                      <span>Mở QR điểm danh</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setDeleteTarget(selectedSession)}
+                    >
+                      <Trash2 className="h-4 w-4 text-status-dangerText" aria-hidden="true" />
+                      <span>Xóa buổi</span>
+                    </Button>
+                  </>
                 )}
               </div>
             )}
@@ -963,6 +976,15 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
           </div>
         </form>
       </Modal>
+
+      <AttendanceQrHostModal
+        open={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        className={classItem.name}
+        session={selectedSession}
+        enrollments={enrollments}
+        onUpdated={() => loadData(true)}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

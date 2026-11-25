@@ -4,6 +4,7 @@ import {
   stripVietnameseDiacritics,
 } from '@/lib/assistantKnowledge';
 import { formatDateTimeVi } from '@/lib/classStorage';
+import { maskPhone } from '@/lib/privacy';
 import { isDroppedOutStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import type { Announcement, CollegeClass } from '@/types/database';
@@ -157,7 +158,7 @@ export async function tryAnswerLiveDataQuery(
         ...(data.major ? [`• Ngành: ${data.major}`] : []),
         ...(data.date_of_birth ? [`• Ngày sinh: ${data.date_of_birth}`] : []),
         ...(data.place_of_birth ? [`• Nơi sinh: ${data.place_of_birth}`] : []),
-        ...(data.phone ? [`• SĐT: ${data.phone}`] : []),
+        ...(data.phone ? [`• SĐT: ${maskPhone(data.phone)}`] : []),
         `• Email: ${data.email}`,
         `• Trạng thái: ${data.academic_status || (data.is_active ? 'Đang học' : 'Đã khóa')}`,
       ];

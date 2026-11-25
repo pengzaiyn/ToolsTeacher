@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Eye, Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
+import { Eye, EyeOff, Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import { isValidAvatarUrl } from '@/lib/avatar';
+import { maskCccd, maskPhone } from '@/lib/privacy';
 import { isDroppedOutStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
@@ -21,16 +23,37 @@ type StudentCandidate = Pick<
   'id' | 'full_name' | 'email' | 'student_code' | 'class_name' | 'class_key' | 'academic_status'
 >;
 
+interface ClassmateRow {
+  student_id: string;
+  full_name: string;
+  student_code: string | null;
+  class_name: string | null;
+  cohort: string | null;
+  major: string | null;
+  avatar_url: string | null;
+  is_self: boolean;
+}
+
 interface ClassMembersTabProps {
   classId: string;
   canManage: boolean;
+  canViewSensitive?: boolean;
+  isStudentView?: boolean;
 }
 
-export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
+export function ClassMembersTab({
+  classId,
+  canManage,
+  canViewSensitive = false,
+  isStudentView = false,
+}: ClassMembersTabProps) {
   const toast = useToast();
 
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [classmates, setClassmates] = useState<ClassmateRow[]>([]);
+  const [classmateSearch, setClassmateSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showPhones, setShowPhones] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
@@ -44,11 +67,55 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
   const [removeTarget, setRemoveTarget] = useState<Enrollment | null>(null);
   const [removing, setRemoving] = useState(false);
   const [detailStudent, setDetailStudent] = useState<Profile | null>(null);
+  const [detailSensitive, setDetailSensitive] = useState<{
+    cccd: string | null;
+    cccd_issued_date: string | null;
+  } | null>(null);
+  const [modalShowPhone, setModalShowPhone] = useState(false);
+  const [modalShowCccd, setModalShowCccd] = useState(false);
+
+  useEffect(() => {
+    setModalShowPhone(false);
+    setModalShowCccd(false);
+    if (!detailStudent || !canViewSensitive) {
+      setDetailSensitive(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('student_sensitive_profiles')
+      .select('cccd, cccd_issued_date')
+      .eq('student_id', detailStudent.id)
+      .maybeSingle<{ cccd: string | null; cccd_issued_date: string | null }>()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error && data) {
+          setDetailSensitive(data);
+        } else {
+          setDetailSensitive({
+            cccd: detailStudent.cccd ?? null,
+            cccd_issued_date: detailStudent.cccd_issued_date ?? null,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailStudent, canViewSensitive]);
 
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
+        if (isStudentView) {
+          const { data, error } = await supabase.rpc('list_class_classmates', {
+            p_class_id: classId,
+          });
+          if (error) throw new Error(error.message);
+          setClassmates((data as ClassmateRow[] | null) ?? []);
+          return;
+        }
+
         const { data: enrData, error: eErr } = await supabase
           .from('enrollments')
           .select('*, student:profiles!enrollments_student_id_fkey(*)')
@@ -67,7 +134,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
         if (!silent) setLoading(false);
       }
     },
-    [classId, toast]
+    [classId, isStudentView, toast]
   );
 
   useEffect(() => {
@@ -282,8 +349,12 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
             key: 'phone',
             header: 'Số điện thoại',
             render: (row: Enrollment) => (
-              <span className="whitespace-nowrap text-xs font-medium text-ink-secondary">
-                {row.student?.phone || '—'}
+              <span className="whitespace-nowrap font-mono text-xs font-medium text-ink-secondary">
+                {row.student?.phone
+                  ? showPhones
+                    ? row.student.phone
+                    : maskPhone(row.student.phone)
+                  : '—'}
               </span>
             ),
           },
@@ -324,6 +395,124 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
     },
   ];
 
+  const filteredClassmates = useMemo(() => {
+    const q = classmateSearch.trim().toLowerCase();
+    if (!q) return classmates;
+    return classmates.filter(
+      (c) =>
+        c.full_name.toLowerCase().includes(q) ||
+        (c.student_code ?? '').toLowerCase().includes(q) ||
+        (c.class_name ?? '').toLowerCase().includes(q)
+    );
+  }, [classmates, classmateSearch]);
+
+  const classmateColumns: TableColumn<ClassmateRow>[] = [
+    {
+      key: 'student',
+      header: 'Sinh viên',
+      render: (row) => {
+        const hasAvatar = isValidAvatarUrl(row.avatar_url);
+        const initials = row.full_name
+          .trim()
+          .split(/\s+/)
+          .slice(-2)
+          .map((w) => w[0]?.toUpperCase() ?? '')
+          .join('');
+        return (
+          <div className="flex items-center gap-3">
+            {hasAvatar ? (
+              <img
+                src={row.avatar_url!}
+                alt={row.full_name}
+                className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-line"
+              />
+            ) : (
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-navySoft text-xs font-bold text-brand-navy">
+                {initials || 'SV'}
+              </span>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-ink-primary">{row.full_name}</span>
+              {row.is_self && <Badge tone="red">Bạn</Badge>}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'code',
+      header: 'Mã SV',
+      render: (row) => (
+        <span className="font-semibold text-brand-navy">{row.student_code || '—'}</span>
+      ),
+    },
+    {
+      key: 'class',
+      header: 'Lớp hành chính',
+      render: (row) =>
+        row.class_name ? (
+          <Badge tone="navy">{row.class_name}</Badge>
+        ) : (
+          <span className="text-xs text-ink-muted">—</span>
+        ),
+    },
+    {
+      key: 'academic',
+      header: 'Khóa / Ngành',
+      render: (row) => (
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-ink-primary">{row.cohort || '—'}</span>
+          <span className="text-xs font-normal text-ink-muted">{row.major || '—'}</span>
+        </div>
+      ),
+    },
+  ];
+
+  if (isStudentView) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-ink-primary">Danh sách bạn cùng lớp</h2>
+            <Badge tone="navy">{classmates.length} sinh viên</Badge>
+          </div>
+          {classmates.length > 0 && (
+            <div className="relative w-full sm:w-72">
+              <Search
+                className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-ink-muted"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={classmateSearch}
+                onChange={(e) => setClassmateSearch(e.target.value)}
+                placeholder="Tìm bạn cùng lớp theo tên hoặc mã SV..."
+                className="h-9 w-full rounded-lg border border-line-strong bg-surface-card pl-9 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+              />
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <LoadingState message="Đang tải danh sách thành viên..." />
+        ) : filteredClassmates.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Chưa có sinh viên nào trong lớp"
+            description="Lớp học này chưa có danh sách sinh viên khớp tìm kiếm."
+          />
+        ) : (
+          <Table
+            columns={classmateColumns}
+            data={filteredClassmates}
+            rowKey={(row) => row.student_id}
+            caption="Danh sách bạn cùng lớp"
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -332,10 +521,24 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
           <Badge tone="navy">{enrollments.length} sinh viên</Badge>
         </div>
         {canManage && (
-          <Button variant="primary" onClick={() => setAddOpen(true)}>
-            <UserPlus className="h-4 w-4" aria-hidden="true" />
-            <span>Thêm sinh viên</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowPhones((v) => !v)}
+            >
+              {showPhones ? (
+                <EyeOff className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+              ) : (
+                <Eye className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+              )}
+              <span>{showPhones ? 'Ẩn SĐT' : 'Hiện SĐT'}</span>
+            </Button>
+            <Button variant="primary" onClick={() => setAddOpen(true)}>
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              <span>Thêm sinh viên</span>
+            </Button>
+          </div>
         )}
       </div>
 
@@ -465,22 +668,68 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
                 value: detailStudent.date_of_birth ? formatDateVi(detailStudent.date_of_birth) : null,
               },
               { label: 'Nơi sinh', value: detailStudent.place_of_birth },
-              { label: 'Số điện thoại', value: detailStudent.phone },
-              { label: 'Số CCCD', value: detailStudent.cccd },
               {
-                label: 'Ngày cấp CCCD',
-                value: detailStudent.cccd_issued_date
-                  ? formatDateVi(detailStudent.cccd_issued_date)
+                label: 'Số điện thoại',
+                value: detailStudent.phone
+                  ? modalShowPhone || showPhones
+                    ? detailStudent.phone
+                    : maskPhone(detailStudent.phone)
                   : null,
+                toggle: detailStudent.phone
+                  ? {
+                      revealed: modalShowPhone || showPhones,
+                      onToggle: () => setModalShowPhone((v) => !v),
+                    }
+                  : undefined,
               },
+              ...(canViewSensitive
+                ? [
+                    {
+                      label: 'Số CCCD',
+                      value: detailSensitive?.cccd
+                        ? modalShowCccd
+                          ? detailSensitive.cccd
+                          : maskCccd(detailSensitive.cccd)
+                        : null,
+                      toggle: detailSensitive?.cccd
+                        ? {
+                            revealed: modalShowCccd,
+                            onToggle: () => setModalShowCccd((v) => !v),
+                          }
+                        : undefined,
+                    },
+                    {
+                      label: 'Ngày cấp CCCD',
+                      value: detailSensitive?.cccd_issued_date
+                        ? formatDateVi(detailSensitive.cccd_issued_date)
+                        : null,
+                    },
+                  ]
+                : []),
             ].map((item) => (
               <div
                 key={item.label}
                 className={`min-w-0 rounded-lg bg-surface-page p-3 ${
-                  item.fullWidth ? 'sm:col-span-2' : ''
+                  'fullWidth' in item && item.fullWidth ? 'sm:col-span-2' : ''
                 }`}
               >
-                <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
+                  {'toggle' in item && item.toggle && (
+                    <button
+                      type="button"
+                      onClick={item.toggle.onToggle}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-navy hover:underline"
+                    >
+                      {item.toggle.revealed ? (
+                        <EyeOff className="h-3 w-3" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-3 w-3" aria-hidden="true" />
+                      )}
+                      <span>{item.toggle.revealed ? 'Ẩn số' : 'Hiện số'}</span>
+                    </button>
+                  )}
+                </div>
                 <dd className="mt-1 break-words text-sm font-semibold text-ink-primary">
                   {item.value || '—'}
                 </dd>

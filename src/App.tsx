@@ -28,6 +28,9 @@ const Login = lazy(() => import('@/pages/Login').then((m) => ({ default: m.Login
 const Profile = lazy(() => import('@/pages/Profile').then((m) => ({ default: m.Profile })));
 const ResetPassword = lazy(() => import('@/pages/ResetPassword').then((m) => ({ default: m.ResetPassword })));
 const Settings = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.Settings })));
+const StudentQrAttendance = lazy(() =>
+  import('@/pages/StudentQrAttendance').then((m) => ({ default: m.StudentQrAttendance }))
+);
 const TeacherAttendance = lazy(() => import('@/pages/TeacherAttendance').then((m) => ({ default: m.TeacherAttendance })));
 const TeacherExamMixer = lazy(() => import('@/pages/TeacherExamMixer').then((m) => ({ default: m.TeacherExamMixer })));
 const TeacherGradebook = lazy(() => import('@/pages/TeacherGradebook').then((m) => ({ default: m.TeacherGradebook })));
@@ -141,6 +144,14 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <ClassDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/attendance-scan"
+              element={
+                <ProtectedRoute>
+                  <StudentQrAttendance />
                 </ProtectedRoute>
               }
             />

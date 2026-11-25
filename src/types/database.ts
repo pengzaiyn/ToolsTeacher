@@ -160,6 +160,7 @@ export interface Enrollment {
         | 'cccd'
         | 'cccd_issued_date'
         | 'cis_updated_at'
+        | 'avatar_url'
       >
     >) | null;
 }
@@ -267,6 +268,8 @@ export interface AttendanceRecord {
   note: string | null;
   marked_by: string;
   updated_at: string;
+  checkin_time?: string | null;
+  checkin_method?: 'manual' | 'qr';
 }
 
 export interface ClassGradebookSettings {
