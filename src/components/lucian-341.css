@@ -1,0 +1,43 @@
+/* Lucian UX/UI Prompt #341 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#341 */
+
+.u341 {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 20% 0%, #e8eff8, #f8fafc 62%);
+  z-index: 1;
+}
+
+html.dark .u341 {
+  background: radial-gradient(120% 90% at 20% 0%, #1a365d, #0a0d1f 62%);
+}
+
+.u341-cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.u341-ct {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(26, 54, 93, 0.08);
+  color: #1a365d;
+  font: 700 11.5px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+html.dark .u341-ct {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c5d0ff;
+}
+

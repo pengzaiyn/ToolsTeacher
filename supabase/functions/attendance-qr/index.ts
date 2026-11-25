@@ -59,11 +59,6 @@ function timingSafeEqualHex(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function toBase64Url(str: string): string {
-  const b64 = btoa(str);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
 function fromBase64Url(b64url: string): string {
   const padded = b64url.replace(/-/g, "+").replace(/_/g, "/");
   const padLen = (4 - (padded.length % 4)) % 4;
@@ -269,8 +264,26 @@ Deno.serve(async (req: Request) => {
       ? Math.min(180, Math.max(1, Math.round(rawLateMinutes)))
       : 15;
 
-    const secretKey = randomHex(32);
+    // Kiểm tra xem buổi này đã từng mở phiên QR hoặc đã có SV nào quét QR chưa
+    const [{ data: existingQrSession }, { count: existingQrCheckinCount }] = await Promise.all([
+      admin
+        .from("attendance_qr_sessions")
+        .select("session_id, secret_key, is_active, started_at, expires_at, late_after_minutes")
+        .eq("session_id", sessionId)
+        .maybeSingle(),
+      admin
+        .from("attendance_records")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId)
+        .eq("checkin_method", "qr"),
+    ]);
+
+    const secretKey = existingQrSession?.secret_key || randomHex(32);
     const now = new Date();
+    const startedAt =
+      existingQrSession && (existingQrCheckinCount ?? 0) > 0
+        ? existingQrSession.started_at
+        : now.toISOString();
     const expiresAt = new Date(now.getTime() + DEFAULT_SESSION_DURATION_MINUTES * 60_000);
 
     const { error: upErr } = await admin.from("attendance_qr_sessions").upsert(
@@ -281,7 +294,7 @@ Deno.serve(async (req: Request) => {
         secret_key: secretKey,
         is_active: true,
         late_after_minutes: lateAfterMinutes,
-        started_at: now.toISOString(),
+        started_at: startedAt,
         expires_at: expiresAt.toISOString(),
         closed_at: null,
         updated_at: now.toISOString(),
@@ -291,18 +304,20 @@ Deno.serve(async (req: Request) => {
 
     if (upErr) return fail(`Không khởi tạo được phiên QR: ${upErr.message}`, 500);
 
-    // Chuyển các bản ghi mặc định 'present' (manual, chưa có ghi chú) của buổi này sang 'absent'
-    // để khi điểm danh bằng QR, chỉ sinh viên thực sự quét mã mới được tính 'present' / 'late'
-    await admin
-      .from("attendance_records")
-      .update({
-        status: "absent",
-        updated_at: now.toISOString(),
-      })
-      .eq("session_id", sessionId)
-      .eq("checkin_method", "manual")
-      .eq("status", "present")
-      .is("note", null);
+    // Chỉ chuyển các bản ghi mặc định 'present' (manual, chưa có ghi chú) sang 'absent' ở lần mở QR đầu tiên
+    // Giữ nguyên 100% kết quả của những sinh viên đã quét QR trước đó nếu thầy cô lỡ đóng cửa sổ rồi mở lại
+    if ((existingQrCheckinCount ?? 0) === 0) {
+      await admin
+        .from("attendance_records")
+        .update({
+          status: "absent",
+          updated_at: now.toISOString(),
+        })
+        .eq("session_id", sessionId)
+        .eq("checkin_method", "manual")
+        .eq("status", "present")
+        .is("note", null);
+    }
 
     const minted = await mintRotatingToken(sessionId, secretKey);
 

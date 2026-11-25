@@ -18,6 +18,7 @@ import {
   recordFailedLoginAttempt,
 } from '@/lib/passwordRecovery';
 import { CustomWallpaperBackdrop } from '@/components/custom-theme/CustomWallpaperBackdrop';
+import { LoginConstellationMesh } from '@/components/LoginConstellationMesh';
 import { MathCaptchaField } from '@/components/MathCaptchaField';
 import { PasswordRecoveryPanel } from '@/components/PasswordRecoveryPanel';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -337,6 +338,7 @@ export function Login() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-4 py-8">
+      <LoginConstellationMesh />
       <CustomWallpaperBackdrop />
       <div className="fixed right-4 top-4 z-20">
         <ThemeToggle />

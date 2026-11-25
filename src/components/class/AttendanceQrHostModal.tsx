@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import {
   CheckCircle2,
@@ -19,6 +20,7 @@ import { formatDateVi } from '@/lib/week';
 import type { AttendanceRecord, AttendanceSession, Enrollment } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -63,6 +65,7 @@ export function AttendanceQrHostModal({
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(ROTATE_SECONDS);
   const [fullscreen, setFullscreen] = useState(false);
+  const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [liveRecords, setLiveRecords] = useState<AttendanceRecord[]>([]);
 
@@ -92,6 +95,28 @@ export function AttendanceQrHostModal({
   useEffect(() => {
     if (!open || !session) return;
     void loadSessionRecords();
+
+    // Nếu trước đó thầy cô lỡ ấn X đóng cửa sổ khi phiên QR vẫn đang mở trên server,
+    // tự động khôi phục và chiếu tiếp mã QR ngay khi mở lại cửa sổ
+    let cancelled = false;
+    callAttendanceQr({
+      action: 'rotate',
+      session_id: session.id,
+    })
+      .then((res) => {
+        if (cancelled || !res.qrToken) return;
+        issuedAtRef.current = Date.now();
+        setQrToken(res.qrToken);
+        setSecondsLeft(ROTATE_SECONDS);
+        setIsActive(true);
+      })
+      .catch(() => {
+        // Phiên chưa mở hoặc đã kết thúc -> giữ trạng thái chờ bấm "Bắt đầu điểm danh"
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, session, loadSessionRecords]);
 
   // Lắng nghe Realtime khi sinh viên quét QR thành công
@@ -119,16 +144,16 @@ export function AttendanceQrHostModal({
     };
   }, [open, session, loadSessionRecords, onUpdated]);
 
-  // Render ảnh QR mật độ thấp (Error Correction 'L', chỉ chứa mã token siêu gọn)
-  // giúp các ô vuông QR to gấp ~2.5 lần, camera bắt nét tức thì từ cuối lớp
+  // Render ảnh QR độ phân giải 900px, Error Correction 'L' (ô vuông to rõ, quét được cả bằng Camera gốc & trong web)
   useEffect(() => {
     if (!qrToken) {
       setQrDataUrl(null);
       return;
     }
     let cancelled = false;
-    QRCode.toDataURL(qrToken, {
-      width: 640,
+    const scanUrl = `${window.location.origin}/attendance-scan?p=${encodeURIComponent(qrToken)}`;
+    QRCode.toDataURL(scanUrl, {
+      width: 900,
       margin: 2,
       errorCorrectionLevel: 'L',
       color: {
@@ -239,15 +264,21 @@ export function AttendanceQrHostModal({
     }
   }
 
-  function handleCloseModal() {
-    if (isActive && session) {
-      void callAttendanceQr({ action: 'stop', session_id: session.id }).catch(() => {});
+  function handleRequestCloseModal() {
+    if (isActive) {
+      setConfirmExitOpen(true);
+      return;
     }
-    setIsActive(false);
-    setQrToken(null);
-    setQrDataUrl(null);
     setFullscreen(false);
     onClose();
+  }
+
+  function handlePauseAndHideModal() {
+    // Đóng cửa sổ tạm thời nhưng KHÔNG hủy phiên trên server để thầy cô bấm "Mở QR điểm danh" là chạy tiếp
+    setConfirmExitOpen(false);
+    setFullscreen(false);
+    onClose();
+    toast.info('Phiên QR vẫn được giữ nguyên — bấm "Mở QR điểm danh" để chiếu tiếp bất cứ lúc nào');
   }
 
   // Chỉ hiển thị những sinh viên đã thực sự quét mã QR trong buổi học này
@@ -278,13 +309,152 @@ export function AttendanceQrHostModal({
   const presentOrLateCount = checkedInFeed.length;
   const totalStudents = enrollments.length;
   const progressPct = Math.min(100, Math.max(0, (secondsLeft / ROTATE_SECONDS) * 100));
+  const latestCheckedIn = checkedInFeed[0] ?? null;
 
-  if (!session) return null;
+  if (!open || !session) return null;
+
+  // Chế độ PHÓNG TO ĐẦY MÀN HÌNH: Mã QR khổng lồ nằm chính giữa màn hình để chiếu máy chiếu
+  if (fullscreen && typeof document !== 'undefined') {
+    return createPortal(
+      <div className="fixed inset-0 z-[80] flex h-screen w-screen flex-col justify-between bg-brand-navy text-white">
+        {/* Thanh điều khiển mỏng trên cùng */}
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/15 bg-black/20 px-6 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-lg font-bold text-white">
+              Điểm danh QR động · {className}
+            </span>
+            <span className="rounded-lg bg-white/15 px-3 py-1 text-xs font-semibold text-white">
+              {formatDateVi(session.session_date)} — {session.title}
+            </span>
+            <span className="rounded-lg bg-brand-red px-3 py-1 text-sm font-bold text-white">
+              Đã điểm danh: {presentOrLateCount}/{totalStudents} SV
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isActive && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleCopyScanLink}
+              >
+                <Copy className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                <span>Sao chép link QR</span>
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setFullscreen(false)}
+            >
+              <Minimize2 className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+              <span>Thu gọn</span>
+            </Button>
+
+            {!isActive ? (
+              <Button variant="primary" loading={starting} onClick={() => void handleStartQr()}>
+                <Play className="h-4 w-4" aria-hidden="true" />
+                <span>Bắt đầu điểm danh</span>
+              </Button>
+            ) : (
+              <Button variant="primary" loading={stopping} onClick={() => void handleStopQr()}>
+                <Square className="h-4 w-4" aria-hidden="true" />
+                <span>Kết thúc điểm danh</span>
+              </Button>
+            )}
+          </div>
+        </header>
+
+        {/* Chính giữa màn hình: Mã QR khổ cực lớn */}
+        <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-4">
+          {isActive && qrDataUrl ? (
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-3xl bg-white p-5 shadow-2xl">
+                <img
+                  src={qrDataUrl}
+                  alt="Mã QR điểm danh động toàn màn hình"
+                  className="h-[min(68vh,82vw)] w-[min(68vh,82vw)] max-h-[680px] max-w-[680px] object-contain"
+                />
+              </div>
+
+              <div className="w-full max-w-lg">
+                <div className="mb-1.5 flex items-center justify-between text-sm font-bold text-white">
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw
+                      className={`h-4 w-4 ${rotating ? 'animate-spin' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <span>Tự động đổi mã sau {secondsLeft}s</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void rotateToken()}
+                    disabled={rotating}
+                    className="text-sm font-bold text-amber-300 hover:underline disabled:opacity-50"
+                  >
+                    Đổi mã ngay
+                  </button>
+                </div>
+                <div className="h-3 w-full overflow-hidden rounded-full bg-white/20">
+                  <div
+                    className="h-full rounded-full bg-brand-red transition-all duration-300"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-4 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10 text-white">
+                <QrCode className="h-10 w-10" aria-hidden="true" />
+              </div>
+              <h2 className="text-2xl font-bold text-white">
+                Sẵn sàng chiếu mã QR điểm danh toàn màn hình
+              </h2>
+              <p className="max-w-md text-sm text-white/80">
+                Bấm <strong>Bắt đầu điểm danh</strong> để hiển thị mã QR kích thước cực lớn ngay
+                chính giữa màn hình.
+              </p>
+              <Button variant="primary" loading={starting} onClick={() => void handleStartQr()}>
+                <Play className="h-4 w-4" aria-hidden="true" />
+                <span>Bắt đầu điểm danh</span>
+              </Button>
+            </div>
+          )}
+        </main>
+
+        {/* Thanh trạng thái Realtime dưới cùng */}
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-white/15 bg-black/25 px-6 py-3 text-sm">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-amber-300" aria-hidden="true" />
+            {latestCheckedIn ? (
+              <span>
+                Vừa điểm danh:{' '}
+                <strong className="text-amber-300">
+                  {latestCheckedIn.student?.full_name ?? 'Sinh viên'}
+                </strong>{' '}
+                ({latestCheckedIn.student?.student_code || '—'} ·{' '}
+                {formatTimeHms(latestCheckedIn.timestamp)})
+              </span>
+            ) : (
+              <span className="text-white/80">Đang chờ sinh viên quét mã QR trên màn hình...</span>
+            )}
+          </div>
+          <span className="text-xs text-white/70">
+            Mỗi mã QR tự đổi sau 15 giây (hiệu lực tối đa 20 giây)
+          </span>
+        </footer>
+      </div>,
+      document.body
+    );
+  }
 
   return (
+    <>
     <Modal
       open={open}
-      onClose={handleCloseModal}
+      onClose={handleRequestCloseModal}
       title={`Điểm danh QR động · ${className}`}
       size="lg"
     >
@@ -329,14 +499,10 @@ export function AttendanceQrHostModal({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setFullscreen((v) => !v)}
+              onClick={() => setFullscreen(true)}
             >
-              {fullscreen ? (
-                <Minimize2 className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-              ) : (
-                <Maximize2 className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-              )}
-              <span>{fullscreen ? 'Thu gọn' : 'Phóng to'}</span>
+              <Maximize2 className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+              <span>Phóng to</span>
             </Button>
 
             {!isActive ? (
@@ -367,17 +533,18 @@ export function AttendanceQrHostModal({
           <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface-card p-6 lg:col-span-7">
             {isActive && qrDataUrl ? (
               <div className="flex w-full flex-col items-center gap-4">
-                <div className="relative rounded-2xl border-2 border-brand-navy/20 bg-white p-4 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setFullscreen(true)}
+                  title="Bấm để phóng to mã QR đầy màn hình"
+                  className="group relative rounded-2xl border-2 border-brand-navy/20 bg-white p-4 shadow-sm transition-transform hover:scale-[1.01]"
+                >
                   <img
                     src={qrDataUrl}
                     alt="Mã QR điểm danh động"
-                    className={
-                      fullscreen
-                        ? 'h-80 w-80 object-contain sm:h-[420px] sm:w-[420px]'
-                        : 'h-72 w-72 object-contain sm:h-80 sm:w-80'
-                    }
+                    className="h-72 w-72 object-contain sm:h-80 sm:w-80"
                   />
-                </div>
+                </button>
 
                 <div className="w-full max-w-sm">
                   <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
@@ -418,7 +585,7 @@ export function AttendanceQrHostModal({
                 <div className="flex items-center gap-2 rounded-xl bg-brand-navySoft/60 px-3.5 py-2 text-xs font-semibold text-brand-navy">
                   <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>
-                    Sinh viên vào mục <strong>Quét QR điểm danh</strong> trên AVC Connect để quét
+                    Bấm <strong>Phóng to</strong> hoặc chạm vào mã QR để chiếu đầy màn hình
                   </span>
                 </div>
               </div>
@@ -522,5 +689,17 @@ export function AttendanceQrHostModal({
         </div>
       </div>
     </Modal>
+
+    <ConfirmDialog
+      open={confirmExitOpen}
+      onClose={() => setConfirmExitOpen(false)}
+      onConfirm={handlePauseAndHideModal}
+      title="Phiên điểm danh QR vẫn đang diễn ra"
+      message={`Đã có ${presentOrLateCount}/${totalStudents} sinh viên quét mã. Nếu bạn ẩn cửa sổ này, kết quả điểm danh vẫn được giữ nguyên và bạn có thể bấm "Mở QR điểm danh" để chiếu tiếp bất cứ lúc nào.`}
+      confirmLabel="Ẩn cửa sổ (giữ phiên)"
+      cancelLabel="Ở lại chiếu tiếp"
+      confirmVariant="primary"
+    />
+    </>
   );
 }

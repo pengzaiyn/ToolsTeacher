@@ -437,6 +437,13 @@ export const PHRASE_DICT: Record<string, TranslationPair> = {
     zh: '或粘贴二维码链接/代码签到（用于电脑测试）',
   },
   'Xác nhận mã': { en: 'Verify Code', zh: '确认签到码' },
+  'Điều kiện dự thi': { en: 'Exam Eligibility', zh: '考试资格' },
+  'Đủ điều kiện thi': { en: 'Eligible for Exam', zh: '符合考试资格' },
+  'Cấm thi': { en: 'Banned from Exam', zh: '禁止参加考试' },
+  'Xuất Excel (Đủ ĐK & Cấm thi)': {
+    en: 'Export Excel (Eligible & Banned)',
+    zh: '导出 Excel（合格与禁考名单）',
+  },
   'Hỗ trợ phóng to Camera từ 1x đến 5x để quét dễ dàng từ cuối lớp học.': {
     en: 'Supports 1x to 5x camera zoom for easy scanning from the back of the classroom.',
     zh: '支持 1x 至 5x 摄像头缩放，坐在教室后排也能轻松扫码。',

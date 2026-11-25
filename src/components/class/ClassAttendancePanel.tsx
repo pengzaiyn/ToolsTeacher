@@ -84,6 +84,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
 
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'session' | 'summary'>('session');
+  const [eligibilityFilter, setEligibilityFilter] = useState<'all' | 'eligible' | 'banned'>('all');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [sessionDate, setSessionDate] = useState(() => toIsoDate(new Date()));
@@ -288,14 +289,17 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
 
   const filteredSummaries = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return summaries;
-    return summaries.filter(
-      (s) =>
+    return summaries.filter((s) => {
+      if (eligibilityFilter === 'eligible' && s.isWarning) return false;
+      if (eligibilityFilter === 'banned' && !s.isWarning) return false;
+      if (!q) return true;
+      return (
         s.fullName.toLowerCase().includes(q) ||
         (s.studentCode ?? '').toLowerCase().includes(q) ||
         (s.homeroomClass ?? '').toLowerCase().includes(q)
-    );
-  }, [summaries, searchTerm]);
+      );
+    });
+  }, [summaries, searchTerm, eligibilityFilter]);
 
   function openCreateModal() {
     const today = toIsoDate(new Date());
@@ -648,14 +652,14 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
     },
     {
       key: 'status',
-      header: 'Cảnh báo',
+      header: 'Điều kiện dự thi',
       render: (row) =>
         row.markedSessions === 0 ? (
           <Badge tone="neutral">Chưa có buổi</Badge>
         ) : row.isWarning ? (
-          <Badge tone="danger">Vắng quá {warningThresholdPct}%</Badge>
+          <Badge tone="danger">Cấm thi</Badge>
         ) : (
-          <Badge tone="success">Đạt</Badge>
+          <Badge tone="success">Đủ điều kiện thi</Badge>
         ),
     },
   ];
@@ -712,7 +716,7 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={handleExportExcel}>
             <Download className="h-4 w-4" aria-hidden="true" />
-            <span>Xuất Excel</span>
+            <span>Xuất Excel (Đủ ĐK &amp; Cấm thi)</span>
           </Button>
           {canManage && (
             <Button variant="primary" size="sm" onClick={openCreateModal}>
@@ -732,18 +736,44 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
       ) : viewMode === 'summary' ? (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="relative w-full sm:w-72">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm theo tên hoặc mã sinh viên..."
-                className="h-10 w-full rounded-lg border border-line bg-surface-card pl-9 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-64">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+                  aria-hidden="true"
+                />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Tìm theo tên hoặc mã sinh viên..."
+                  className="h-10 w-full rounded-lg border border-line bg-surface-card pl-9 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant={eligibilityFilter === 'all' ? 'navy' : 'secondary'}
+                  onClick={() => setEligibilityFilter('all')}
+                >
+                  <span>Tất cả ({summaries.length})</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={eligibilityFilter === 'eligible' ? 'navy' : 'secondary'}
+                  onClick={() => setEligibilityFilter('eligible')}
+                >
+                  <span>Đủ điều kiện thi ({summaries.length - warningCount})</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={eligibilityFilter === 'banned' ? 'primary' : 'secondary'}
+                  onClick={() => setEligibilityFilter('banned')}
+                >
+                  <span>Cấm thi ({warningCount})</span>
+                </Button>
+              </div>
             </div>
             {warningCount > 0 && (
               <div className="flex items-center gap-2 rounded-xl border border-status-dangerBorder bg-status-dangerBg px-3 py-2 text-xs font-semibold text-status-dangerText">
