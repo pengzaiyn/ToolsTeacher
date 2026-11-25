@@ -437,6 +437,10 @@ export const PHRASE_DICT: Record<string, TranslationPair> = {
     zh: '或粘贴二维码链接/代码签到（用于电脑测试）',
   },
   'Xác nhận mã': { en: 'Verify Code', zh: '确认签到码' },
+  'Hỗ trợ phóng to Camera từ 1x đến 5x để quét dễ dàng từ cuối lớp học.': {
+    en: 'Supports 1x to 5x camera zoom for easy scanning from the back of the classroom.',
+    zh: '支持 1x 至 5x 摄像头缩放，坐在教室后排也能轻松扫码。',
+  },
   'Hướng camera điện thoại lên màn hình máy chiếu của giảng viên': {
     en: "Point your phone camera at the instructor's projector screen",
     zh: '将手机摄像头对准教师的投影屏幕',

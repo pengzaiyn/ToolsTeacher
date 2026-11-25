@@ -119,20 +119,20 @@ export function AttendanceQrHostModal({
     };
   }, [open, session, loadSessionRecords, onUpdated]);
 
-  // Render ảnh QR kích thước lớn dễ quét từ cuối lớp
+  // Render ảnh QR mật độ thấp (Error Correction 'L', chỉ chứa mã token siêu gọn)
+  // giúp các ô vuông QR to gấp ~2.5 lần, camera bắt nét tức thì từ cuối lớp
   useEffect(() => {
     if (!qrToken) {
       setQrDataUrl(null);
       return;
     }
     let cancelled = false;
-    const scanUrl = `${window.location.origin}/attendance-scan?p=${encodeURIComponent(qrToken)}`;
-    QRCode.toDataURL(scanUrl, {
-      width: 440,
+    QRCode.toDataURL(qrToken, {
+      width: 640,
       margin: 2,
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'L',
       color: {
-        dark: '#1A365D',
+        dark: '#000000',
         light: '#FFFFFF',
       },
     })
@@ -373,8 +373,8 @@ export function AttendanceQrHostModal({
                     alt="Mã QR điểm danh động"
                     className={
                       fullscreen
-                        ? 'h-80 w-80 object-contain sm:h-96 sm:w-96'
-                        : 'h-64 w-64 object-contain sm:h-72 sm:w-72'
+                        ? 'h-80 w-80 object-contain sm:h-[420px] sm:w-[420px]'
+                        : 'h-72 w-72 object-contain sm:h-80 sm:w-80'
                     }
                   />
                 </div>

@@ -77,21 +77,37 @@ interface QrTokenPayload {
   sig: string;
 }
 
+function compactUuidToHex(uuid: string): string {
+  return uuid.replace(/-/g, "").toLowerCase();
+}
+
+function expandHexToUuid(hex: string): string {
+  const clean = hex.replace(/-/g, "").toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(clean)) return hex;
+  return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20, 32)}`;
+}
+
+// Tạo token siêu gọn (<sid32>.<ts36>.<nonce6>.<sig24>) giúp giảm 60% mật độ điểm trên mã QR
+// để camera điện thoại bắt nét cực nhanh từ khoảng cách xa 5-8m trong lớp học
 async function mintRotatingToken(sessionId: string, secretKey: string): Promise<{
   token: string;
   payload: QrTokenPayload;
 }> {
+  const sidFull = expandHexToUuid(sessionId);
+  const sidHex = compactUuidToHex(sidFull);
   const ts = Date.now();
-  const nonce = randomHex(8);
-  const msg = `${sessionId}.${ts}.${nonce}`;
-  const sig = await hmacSha256Hex(secretKey, msg);
-  const payload: QrTokenPayload = { sid: sessionId, ts, nonce, sig };
-  const token = toBase64Url(JSON.stringify(payload));
+  const ts36 = ts.toString(36);
+  const nonce = randomHex(3); // 6 ký tự hex
+  const msg = `${sidFull}.${ts}.${nonce}`;
+  const fullSig = await hmacSha256Hex(secretKey, msg);
+  const sig = fullSig.slice(0, 24); // 96-bit HMAC-SHA256 (chuẩn NIST SP 800-107 cho token 20s)
+  const payload: QrTokenPayload = { sid: sidFull, ts, nonce, sig };
+  const token = `${sidHex}.${ts36}.${nonce}.${sig}`;
   return { token, payload };
 }
 
 function extractTokenString(raw: string): string {
-  const trimmed = raw.trim();
+  const trimmed = raw.trim().replace(/^avc:/i, "");
   if (!trimmed) return "";
   try {
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
@@ -108,6 +124,25 @@ function extractTokenString(raw: string): string {
 function parseTokenPayload(rawToken: string): QrTokenPayload | null {
   const clean = extractTokenString(rawToken);
   if (!clean) return null;
+
+  // Định dạng siêu gọn mới: <sid32>.<ts36>.<nonce>.<sig>
+  const parts = clean.split(".");
+  if (parts.length === 4) {
+    const [sidRaw, ts36, nonce, sig] = parts;
+    const sid = expandHexToUuid(sidRaw);
+    const ts = Number.parseInt(ts36, 36);
+    if (
+      /^[0-9a-f-]{36}$/i.test(sid) &&
+      Number.isFinite(ts) &&
+      ts > 1_700_000_000_000 &&
+      nonce.length >= 4 &&
+      /^[0-9a-f]{24,64}$/i.test(sig)
+    ) {
+      return { sid, ts, nonce, sig: sig.toLowerCase() };
+    }
+  }
+
+  // Tương thích ngược với định dạng base64url JSON cũ
   try {
     const decoded = clean.startsWith("{") ? clean : fromBase64Url(clean);
     const parsed = JSON.parse(decoded) as Partial<QrTokenPayload>;
@@ -119,10 +154,10 @@ function parseTokenPayload(rawToken: string): QrTokenPayload | null {
       typeof parsed.sig === "string"
     ) {
       return {
-        sid: parsed.sid,
+        sid: expandHexToUuid(parsed.sid),
         ts: parsed.ts,
         nonce: parsed.nonce,
-        sig: parsed.sig,
+        sig: parsed.sig.toLowerCase(),
       };
     }
     return null;
@@ -390,11 +425,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Kiểm tra 2: Chữ ký HMAC-SHA256
-    const expectedSig = await hmacSha256Hex(
+    // Kiểm tra 2: Chữ ký HMAC-SHA256 (hỗ trợ cả chữ ký rút gọn 24 hex và 64 hex đầy đủ)
+    const fullExpectedSig = await hmacSha256Hex(
       qrSession.secret_key,
       `${parsed.sid}.${parsed.ts}.${parsed.nonce}`
     );
+    const expectedSig =
+      parsed.sig.length === 24 ? fullExpectedSig.slice(0, 24) : fullExpectedSig;
     if (!timingSafeEqualHex(expectedSig, parsed.sig)) {
       return fail(
         "Chữ ký bảo mật mã QR không hợp lệ, vui lòng nhìn lên bảng quét lại!",
