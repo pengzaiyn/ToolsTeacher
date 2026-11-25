@@ -1,4 +1,4 @@
-import { type ChangeEvent, useRef, useState } from 'react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -32,9 +32,9 @@ import {
 } from '@/components/exam-mixer/ExamBlockPalette';
 import { ExamFormatToolbar } from '@/components/exam-mixer/ExamFormatToolbar';
 import { RichTextEditable } from '@/components/exam-mixer/RichTextEditable';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 
 interface ExamPaperEditorProps {
@@ -88,6 +88,23 @@ export function ExamPaperEditor({
     essayItemId?: string;
   } | null>(null);
   const [deleteBlockTarget, setDeleteBlockTarget] = useState<ExamPaperBlock | null>(null);
+  const prevVariantCodeRef = useRef<string>(variant.code);
+  const [switchingCode, setSwitchingCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (prevVariantCodeRef.current === variant.code) return;
+    prevVariantCodeRef.current = variant.code;
+    const rm =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rm) return;
+
+    setSwitchingCode(variant.code);
+    const timer = window.setTimeout(() => {
+      setSwitchingCode(null);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [variant.code]);
 
   const blocks = ensureVariantBlocks(variant, metadata);
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId) ?? null;
@@ -394,21 +411,8 @@ export function ExamPaperEditor({
         onClearToBlankSheet={onClearToBlankSheet}
         paperTheme={paperTheme}
         onUpdatePaperTheme={onUpdatePaperTheme}
+        totalVariantsCount={totalVariantsCount}
       />
-
-      {editMode && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-page px-4 py-2 text-xs font-normal text-ink-secondary">
-          <span>
-            Kéo thả các khung cơ bản từ <strong>cột bên trái</strong> sang tờ đề, nhấn trực tiếp
-            vào chữ để sửa và bôi đen để định dạng.
-          </span>
-          {totalVariantsCount > 1 && (
-            <Badge tone="success">
-              Tự động đồng bộ toàn bộ {totalVariantsCount} mã đề
-            </Badge>
-          )}
-        </div>
-      )}
 
       {/* Bố cục 2 cột: Khung 1 (Thư viện khối kéo-thả bên trái) + Tờ giấy A4 bên phải */}
       <div
@@ -430,7 +434,22 @@ export function ExamPaperEditor({
         )}
 
         {/* Tờ giấy A4 tương tác */}
-        <article
+        <div className="relative mx-auto w-full max-w-4xl">
+          {switchingCode && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 rounded-2xl bg-surface-card/80 backdrop-blur-[2px] transition-opacity"
+            >
+              <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-card px-5 py-3 shadow-md">
+                <Spinner className="h-5 w-5 text-brand-red" />
+                <span className="text-sm font-semibold text-ink-primary">
+                  Đang tải Mã đề {switchingCode}...
+                </span>
+              </div>
+            </div>
+          )}
+          <article
           onDragOver={(e) => {
             if (!editMode || dragPaletteKind === null || blocks.length > 0) return;
             e.preventDefault();
@@ -1699,6 +1718,7 @@ export function ExamPaperEditor({
             </div>
           )}
         </article>
+        </div>
       </div>
 
       <ConfirmDialog

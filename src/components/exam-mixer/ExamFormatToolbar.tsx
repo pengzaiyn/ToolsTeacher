@@ -49,6 +49,7 @@ interface ExamFormatToolbarProps {
   onClearToBlankSheet: () => void;
   paperTheme: ExamPaperTheme;
   onUpdatePaperTheme: (patch: Partial<ExamPaperTheme>) => void;
+  totalVariantsCount?: number;
 }
 
 function execRichCommand(command: string, value?: string) {
@@ -70,6 +71,7 @@ export function ExamFormatToolbar({
   onClearToBlankSheet,
   paperTheme,
   onUpdatePaperTheme,
+  totalVariantsCount = 1,
 }: ExamFormatToolbarProps) {
   const [showTextColors, setShowTextColors] = useState(false);
   const [showBgColors, setShowBgColors] = useState(false);
@@ -78,8 +80,8 @@ export function ExamFormatToolbar({
   const activeAlign = selectedBlockStyle?.textAlign ?? 'left';
 
   return (
-    <div className="sticky top-2 z-20 flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-4 shadow-sm">
-      {/* Hàng 1: Bật/tắt chỉnh sửa, Undo/Redo, Định dạng chữ & Căn lề */}
+    <div className="sticky top-2 z-20 flex flex-col gap-3 rounded-2xl border border-line bg-surface-card p-3.5 shadow-sm">
+      {/* Hàng 1: Chế độ chỉnh sửa, Mẫu cấu trúc & Kiểu tờ đề */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -93,6 +95,44 @@ export function ExamFormatToolbar({
 
           {editMode && (
             <>
+              <Button size="sm" variant="navy" onClick={onApplySampleStructure}>
+                <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
+                <span>Cấu trúc đề thi mẫu</span>
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onClearToBlankSheet}>
+                <File className="h-4 w-4 text-ink-secondary" aria-hidden="true" />
+                <span>Trang A4 trắng</span>
+              </Button>
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {editMode && totalVariantsCount > 1 && (
+            <span className="inline-flex items-center rounded-full border border-status-successBorder bg-status-successBg px-2.5 py-1 text-xs font-semibold text-status-successText">
+              Đồng bộ {totalVariantsCount} mã đề
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setShowThemePanel((v) => !v)}
+          >
+            <SlidersHorizontal className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+            <span>Kiểu tờ đề</span>
+            {showThemePanel ? (
+              <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Hàng 2 (khi bật chỉnh sửa): Thanh định dạng chữ, màu sắc, căn lề & cỡ chữ */}
+      {editMode && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2.5">
+          <>
               <div className="flex items-center gap-1 border-r border-line pr-2">
                 <button
                   type="button"
@@ -354,37 +394,8 @@ export function ExamFormatToolbar({
                 </div>
               </div>
             </>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {editMode && (
-            <>
-              <Button size="sm" variant="navy" onClick={onApplySampleStructure}>
-                <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
-                <span>Cấu trúc đề thi mẫu</span>
-              </Button>
-              <Button size="sm" variant="secondary" onClick={onClearToBlankSheet}>
-                <File className="h-4 w-4 text-ink-secondary" aria-hidden="true" />
-                <span>Trang A4 trắng</span>
-              </Button>
-            </>
-          )}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setShowThemePanel((v) => !v)}
-          >
-            <SlidersHorizontal className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-            <span>Kiểu tờ đề</span>
-            {showThemePanel ? (
-              <ChevronUp className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="h-4 w-4" aria-hidden="true" />
-            )}
-          </Button>
-        </div>
-      </div>
+          </div>
+      )}
 
       {/* Panel tùy chỉnh kiểu tờ đề chung cho tất cả mã đề */}
       {showThemePanel && (

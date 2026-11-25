@@ -525,6 +525,11 @@ const PATTERN_RULES: PatternRule[] = [
     en: (_, name) => `Welcome, ${name}`,
     zh: (_, name) => `欢迎，${name}`,
   },
+  {
+    regex: /^Đang tải Mã đề (.+)\.\.\.$/,
+    en: (_, code) => `Loading Exam Code ${code}...`,
+    zh: (_, code) => `正在加载试卷代码 ${code}...`,
+  },
 ];
 
 export function translateViText(raw: string, lang: AppLanguage): string {

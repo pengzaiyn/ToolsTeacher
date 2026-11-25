@@ -1710,75 +1710,18 @@ export function TeacherExamMixer() {
                     </div>
                   )}
 
-                {/* Thanh công cụ xuất file */}
-                <section className="flex flex-col gap-4 rounded-xl border border-line bg-surface-card p-6">
-                  <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="primary" onClick={openPrintCopiesModal}>
-                        <Download className="h-4 w-4" aria-hidden="true" />
-                        <span>Tải Word & Chọn số bản in ({variants.length} mã đề)</span>
-                      </Button>
-
-                      <Button
-                        variant="navy"
-                        onClick={() => {
-                          exportAnswerKeysToExcel(metadata, variants);
-                          toast.success('Đã xuất file Excel bảng đáp án tổng hợp');
-                        }}
-                      >
-                        <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                        <span>Xuất Excel bảng đáp án</span>
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          handlePrintVariants(
-                            resultView === 'matrix'
-                              ? variants
-                              : activeVariant
-                                ? [activeVariant]
-                                : variants,
-                            resultView === 'matrix'
-                          )
-                        }
-                      >
-                        <Printer className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                        <span>
-                          {resultView === 'matrix'
-                            ? 'In bảng đáp án'
-                            : `In / Lưu PDF mã ${activeVariant?.code ?? ''}`}
-                        </span>
-                      </Button>
-
-                      <Button variant="secondary" onClick={() => handleRunMix(true)}>
-                        <RefreshCw className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                        <span>Đảo lại thứ tự câu</span>
-                      </Button>
-                    </div>
-
-                    <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-ink-secondary">
-                      <input
-                        id="opt-include-key-word"
-                        type="checkbox"
-                        checked={includeAnswerKeyInWord}
-                        onChange={(e) => setIncludeAnswerKeyInWord(e.target.checked)}
-                        className="h-4 w-4 rounded border-line-strong text-brand-navy focus:ring-brand-navy"
-                      />
-                      <span>Kèm bảng đáp án ở cuối file Word</span>
-                    </label>
-                  </div>
-
-                  {/* Chuyển chế độ xem */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
-                    <div className="flex flex-wrap items-center gap-2">
+                {/* Khối điều khiển thống nhất: Chế độ xem + Xuất file + Chọn mã đề */}
+                <section className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-card p-4">
+                  {/* Hàng 1: Chuyển chế độ xem & Hành động xuất toàn bộ */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="inline-flex items-center rounded-xl border border-line bg-surface-page p-1">
                       <button
                         type="button"
                         onClick={() => setResultView('exam')}
-                        className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                        className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
                           resultView === 'exam'
-                            ? 'bg-brand-navy text-white'
-                            : 'bg-surface-page text-ink-secondary hover:text-ink-primary'
+                            ? 'bg-brand-navy text-white shadow-sm'
+                            : 'text-ink-secondary hover:text-ink-primary'
                         }`}
                       >
                         Xem từng mã đề
@@ -1786,72 +1729,118 @@ export function TeacherExamMixer() {
                       <button
                         type="button"
                         onClick={() => setResultView('matrix')}
-                        className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                        className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
                           resultView === 'matrix'
-                            ? 'bg-brand-navy text-white'
-                            : 'bg-surface-page text-ink-secondary hover:text-ink-primary'
+                            ? 'bg-brand-navy text-white shadow-sm'
+                            : 'text-ink-secondary hover:text-ink-primary'
                         }`}
                       >
                         Bảng đáp án tổng hợp
                       </button>
                     </div>
 
-                    {resultView === 'exam' && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="primary" onClick={openPrintCopiesModal}>
+                        <Download className="h-4 w-4" aria-hidden="true" />
+                        <span>Tải Word & Bản in ({variants.length} mã)</span>
+                      </Button>
+
                       <Button
                         size="sm"
-                        variant="secondary"
-                        onClick={() => setShowAnswersPreview((v) => !v)}
+                        variant="navy"
+                        onClick={() => {
+                          exportAnswerKeysToExcel(metadata, variants);
+                          toast.success('Đã xuất file Excel bảng đáp án tổng hợp');
+                        }}
                       >
-                        {showAnswersPreview ? (
-                          <EyeOff className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                        )}
-                        <span>
-                          {showAnswersPreview ? 'Ẩn đáp án đúng' : 'Hiện đáp án đúng'}
-                        </span>
+                        <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                        <span>Excel đáp án</span>
                       </Button>
-                    )}
-                  </div>
-                </section>
 
-                {resultView === 'exam' && activeVariant ? (
-                  <section className="flex flex-col gap-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
+                      {resultView === 'matrix' && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handlePrintVariants(variants, true)}
+                        >
+                          <Printer className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                          <span>In bảng đáp án</span>
+                        </Button>
+                      )}
+
+                      <Button size="sm" variant="secondary" onClick={() => handleRunMix(true)}>
+                        <RefreshCw className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                        <span>Đảo thứ tự câu</span>
+                      </Button>
+
+                      {resultView === 'exam' && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setShowAnswersPreview((v) => !v)}
+                        >
+                          {showAnswersPreview ? (
+                            <EyeOff className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                          )}
+                          <span>{showAnswersPreview ? 'Ẩn đáp án' : 'Hiện đáp án'}</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Hàng 2: Chọn mã đề + In / Tải riêng mã đang xem */}
+                  {resultView === 'exam' && activeVariant && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {variants.map((v) => (
                           <button
                             key={v.code}
                             type="button"
                             onClick={() => setSelectedCode(v.code)}
-                            className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
                               activeVariant.code === v.code
-                                ? 'border-brand-red bg-brand-red text-white'
-                                : 'border-line bg-surface-card text-ink-primary hover:border-brand-navy'
+                                ? 'border-brand-red bg-brand-red text-white shadow-sm'
+                                : 'border-line bg-surface-page text-ink-primary hover:border-brand-navy'
                             }`}
                           >
-                            Mã đề {v.code}
+                            Mã {v.code}
                           </button>
                         ))}
                       </div>
 
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          downloadExamsAsWord(metadata, [activeVariant], {
-                            showAnswersInExam: false,
-                            includeAnswerKeyPage: false,
-                            theme: paperTheme,
-                          });
-                          toast.success(`Đã tải file Word riêng Mã đề ${activeVariant.code}`);
-                        }}
-                      >
-                        <Download className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                        <span>Tải Word riêng Mã {activeVariant.code}</span>
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handlePrintVariants([activeVariant], false)}
+                        >
+                          <Printer className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                          <span>In mã {activeVariant.code}</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            downloadExamsAsWord(metadata, [activeVariant], {
+                              showAnswersInExam: false,
+                              includeAnswerKeyPage: false,
+                              theme: paperTheme,
+                            });
+                            toast.success(`Đã tải file Word riêng Mã đề ${activeVariant.code}`);
+                          }}
+                        >
+                          <Download className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                          <span>Word mã {activeVariant.code}</span>
+                        </Button>
+                      </div>
                     </div>
+                  )}
+                </section>
 
+                {resultView === 'exam' && activeVariant ? (
+                  <section className="flex flex-col gap-4">
                     {/* Trình thiết kế tờ đề trực quan (kéo thả, sửa trực tiếp, định dạng chữ) */}
                     <ExamPaperEditor
                       variant={activeVariant}
