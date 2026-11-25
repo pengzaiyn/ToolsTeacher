@@ -381,6 +381,32 @@ export const PHRASE_DICT: Record<string, TranslationPair> = {
     en: 'Append 1 summary answer key page at the end',
     zh: '在文件末尾附 1 页综合答案表',
   },
+
+  // Hồ sơ sinh viên & đồng bộ CIS
+  'Đồng bộ CIS': { en: 'Sync CIS', zh: '同步 CIS' },
+  'Đồng bộ hồ sơ & xếp lớp từ CIS': {
+    en: 'Sync Student Profiles & Classes from CIS',
+    zh: '从 CIS 同步学生档案与分班',
+  },
+  'Hồ sơ sinh viên': { en: 'Student Profile', zh: '学生档案' },
+  'Hồ sơ': { en: 'Profile', zh: '档案' },
+  'Số điện thoại': { en: 'Phone Number', zh: '手机号码' },
+  'Số CCCD': { en: 'ID Card (CCCD)', zh: '身份证号' },
+  'Ngày cấp CCCD': { en: 'ID Issue Date', zh: '签发日期' },
+  'Nơi sinh': { en: 'Place of Birth', zh: '出生地' },
+  'Khóa học': { en: 'Cohort', zh: '年级/届别' },
+  'Khoa': { en: 'Faculty', zh: '院系' },
+  'Ngành học': { en: 'Major', zh: '专业' },
+  'Kiểm tra kết nối': { en: 'Check Connection', zh: '检测连接' },
+  'Đồng bộ mới nhất (tăng dần)': { en: 'Incremental Sync', zh: '增量同步' },
+  'Đồng bộ toàn bộ & xếp lớp': { en: 'Full Sync & Assign Classes', zh: '全量同步并分班' },
+  'Cập nhật 1 SV': { en: 'Sync 1 Student', zh: '同步单个学生' },
+  'Đọc từ CIS': { en: 'Read from CIS', zh: '从 CIS 读取' },
+  'SV đã cập nhật': { en: 'Updated Students', zh: '已更新学生' },
+  'Lớp tạo mới': { en: 'New Classes', zh: '新建班级' },
+  'SV tạo mới': { en: 'New Students', zh: '新建学生' },
+  'Email đăng nhập': { en: 'Login Email', zh: '登录邮箱' },
+  'Khóa / Ngành': { en: 'Cohort / Major', zh: '年级 / 专业' },
 };
 
 interface PatternRule {

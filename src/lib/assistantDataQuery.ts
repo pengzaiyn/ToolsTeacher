@@ -121,7 +121,9 @@ export async function tryAnswerLiveDataQuery(
   if (studentCode && role !== 'student') {
     const { data, error } = await supabase
       .from('profiles')
-      .select('full_name, student_code, email, class_name, academic_status, is_active')
+      .select(
+        'full_name, student_code, email, class_name, cohort, faculty, major, date_of_birth, place_of_birth, phone, academic_status, is_active'
+      )
       .eq('role', 'student')
       .eq('student_code', studentCode)
       .maybeSingle<{
@@ -129,6 +131,12 @@ export async function tryAnswerLiveDataQuery(
         student_code: string | null;
         email: string;
         class_name: string | null;
+        cohort: string | null;
+        faculty: string | null;
+        major: string | null;
+        date_of_birth: string | null;
+        place_of_birth: string | null;
+        phone: string | null;
         academic_status: string | null;
         is_active: boolean;
       }>();
@@ -140,14 +148,21 @@ export async function tryAnswerLiveDataQuery(
           actions: [{ label: 'Mở danh sách lớp', target: '/classes' }],
         };
       }
+      const lines = [
+        `Thông tin sinh viên mã ${studentCode}:`,
+        `• Họ tên: ${data.full_name}`,
+        `• Lớp: ${data.class_name || 'Chưa xếp lớp'}`,
+        ...(data.cohort ? [`• Khóa: ${data.cohort}`] : []),
+        ...(data.faculty ? [`• Khoa: ${data.faculty}`] : []),
+        ...(data.major ? [`• Ngành: ${data.major}`] : []),
+        ...(data.date_of_birth ? [`• Ngày sinh: ${data.date_of_birth}`] : []),
+        ...(data.place_of_birth ? [`• Nơi sinh: ${data.place_of_birth}`] : []),
+        ...(data.phone ? [`• SĐT: ${data.phone}`] : []),
+        `• Email: ${data.email}`,
+        `• Trạng thái: ${data.academic_status || (data.is_active ? 'Đang học' : 'Đã khóa')}`,
+      ];
       return {
-        reply: [
-          `Thông tin sinh viên mã ${studentCode}:`,
-          `• Họ tên: ${data.full_name}`,
-          `• Lớp: ${data.class_name || 'Chưa xếp lớp'}`,
-          `• Email: ${data.email}`,
-          `• Trạng thái: ${data.academic_status || (data.is_active ? 'Đang học' : 'Đã khóa')}`,
-        ].join('\n'),
+        reply: lines.join('\n'),
         actions: [{ label: 'Mở danh sách lớp', target: '/classes' }],
       };
     }

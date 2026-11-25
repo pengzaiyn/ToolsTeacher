@@ -24,6 +24,12 @@ export interface Profile {
   academic_status: string | null;
   status_reason: string | null;
   status_note: string | null;
+  phone?: string | null;
+  cccd?: string | null;
+  cccd_issued_date?: string | null;
+  place_of_birth?: string | null;
+  faculty?: string | null;
+  cis_updated_at?: string | null;
 }
 
 export interface TimetableEntry {
@@ -139,7 +145,23 @@ export interface Enrollment {
   student?: (Pick<
     Profile,
     'id' | 'full_name' | 'email' | 'student_code' | 'class_name' | 'is_active'
-  > & { academic_status?: string | null }) | null;
+  > &
+    Partial<
+      Pick<
+        Profile,
+        | 'academic_status'
+        | 'cohort'
+        | 'faculty'
+        | 'major'
+        | 'gender'
+        | 'date_of_birth'
+        | 'place_of_birth'
+        | 'phone'
+        | 'cccd'
+        | 'cccd_issued_date'
+        | 'cis_updated_at'
+      >
+    >) | null;
 }
 
 export interface Material {

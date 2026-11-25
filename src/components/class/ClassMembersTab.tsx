@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
+import { Eye, Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { isDroppedOutStudent } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
+import { formatDateVi } from '@/lib/week';
 import type { Enrollment, Profile } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -42,6 +43,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
 
   const [removeTarget, setRemoveTarget] = useState<Enrollment | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [detailStudent, setDetailStudent] = useState<Profile | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -49,9 +51,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
       try {
         const { data: enrData, error: eErr } = await supabase
           .from('enrollments')
-          .select(
-            '*, student:profiles!enrollments_student_id_fkey(id, full_name, email, student_code, class_name, is_active, academic_status)'
-          )
+          .select('*, student:profiles!enrollments_student_id_fkey(*)')
           .eq('class_id', classId)
           .order('enrolled_at', { ascending: false })
           .returns<Enrollment[]>();
@@ -126,7 +126,7 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
 
         if (q) {
           query = query.or(
-            `full_name.ilike.%${q}%,student_code.ilike.%${q}%,email.ilike.%${q}%,class_name.ilike.%${q}%`
+            `full_name.ilike.%${q}%,student_code.ilike.%${q}%,email.ilike.%${q}%,class_name.ilike.%${q}%,phone.ilike.%${q}%`
           );
         }
 
@@ -263,6 +263,33 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
         ),
     },
     {
+      key: 'academic',
+      header: 'Khóa / Ngành',
+      render: (row) => (
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-ink-primary">
+            {row.student?.cohort || '—'}
+          </span>
+          <span className="text-xs font-normal text-ink-muted">
+            {row.student?.major || row.student?.faculty || '—'}
+          </span>
+        </div>
+      ),
+    },
+    ...(canManage
+      ? [
+          {
+            key: 'phone',
+            header: 'Số điện thoại',
+            render: (row: Enrollment) => (
+              <span className="whitespace-nowrap text-xs font-medium text-ink-secondary">
+                {row.student?.phone || '—'}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    {
       key: 'enrolled_at',
       header: 'Ngày ghi danh',
       render: (row) => (
@@ -271,20 +298,30 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
         </span>
       ),
     },
-    ...(canManage
-      ? [
-          {
-            key: 'actions',
-            header: 'Thao tác',
-            render: (row: Enrollment) => (
-              <Button size="sm" variant="secondary" onClick={() => setRemoveTarget(row)}>
-                <Trash2 className="h-4 w-4 text-brand-red" aria-hidden="true" />
-                <span>Xóa khỏi lớp</span>
-              </Button>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      render: (row: Enrollment) => (
+        <div className="flex flex-wrap items-center gap-2">
+          {row.student && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setDetailStudent(row.student as Profile)}
+            >
+              <Eye className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+              <span>Hồ sơ</span>
+            </Button>
+          )}
+          {canManage && (
+            <Button size="sm" variant="secondary" onClick={() => setRemoveTarget(row)}>
+              <Trash2 className="h-4 w-4 text-brand-red" aria-hidden="true" />
+              <span>Xóa khỏi lớp</span>
+            </Button>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -404,6 +441,53 @@ export function ClassMembersTab({ classId, canManage }: ClassMembersTabProps) {
             )}
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(detailStudent)}
+        onClose={() => setDetailStudent(null)}
+        title="Hồ sơ sinh viên"
+        size="md"
+      >
+        {detailStudent && (
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Họ và tên', value: detailStudent.full_name },
+              { label: 'Mã sinh viên', value: detailStudent.student_code },
+              { label: 'Email', value: detailStudent.email, fullWidth: true },
+              { label: 'Lớp học', value: detailStudent.class_name },
+              { label: 'Khóa học', value: detailStudent.cohort },
+              { label: 'Khoa', value: detailStudent.faculty },
+              { label: 'Ngành học', value: detailStudent.major },
+              { label: 'Giới tính', value: detailStudent.gender },
+              {
+                label: 'Ngày sinh',
+                value: detailStudent.date_of_birth ? formatDateVi(detailStudent.date_of_birth) : null,
+              },
+              { label: 'Nơi sinh', value: detailStudent.place_of_birth },
+              { label: 'Số điện thoại', value: detailStudent.phone },
+              { label: 'Số CCCD', value: detailStudent.cccd },
+              {
+                label: 'Ngày cấp CCCD',
+                value: detailStudent.cccd_issued_date
+                  ? formatDateVi(detailStudent.cccd_issued_date)
+                  : null,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className={`min-w-0 rounded-lg bg-surface-page p-3 ${
+                  item.fullWidth ? 'sm:col-span-2' : ''
+                }`}
+              >
+                <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
+                <dd className="mt-1 break-words text-sm font-semibold text-ink-primary">
+                  {item.value || '—'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </Modal>
 
       <ConfirmDialog

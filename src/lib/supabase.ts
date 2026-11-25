@@ -143,6 +143,140 @@ export async function manageUsers(payload: ManageUsersRequest): Promise<ManageUs
   return data ?? { ok: true };
 }
 
+export type CisSyncRequest =
+  | { action: 'status' }
+  | { action: 'health' }
+  | {
+      action: 'sync_page';
+      mode?: 'incremental' | 'full';
+      cursor?: string | null;
+      updated_since?: string | null;
+    }
+  | {
+      action: 'finalize_sync';
+      summary: Omit<CisSyncSummary, 'classesCreated'>;
+      last_updated_since?: string | null;
+    }
+  | { action: 'lookup_one'; student_code: string };
+
+export interface CisSkippedStudent {
+  studentCode: string;
+  fullName: string;
+  email?: string;
+  className: string | null;
+  cohort: string | null;
+  major: string | null;
+}
+
+export interface CisSyncPageResult {
+  fetchedCount: number;
+  matchedCount: number;
+  updatedCount: number;
+  createdCount?: number;
+  createdStudents?: CisSkippedStudent[];
+  skippedNotOnWeb: number;
+  skippedStudents?: CisSkippedStudent[];
+  errorCount: number;
+  totalRecords: number | null;
+  nextCursor: string | null;
+  serverTime: string | null;
+  newestUpdatedAt: string | null;
+  usedUpdatedSince: string | null;
+}
+
+export interface CisSyncSummary {
+  mode: 'incremental' | 'full';
+  pagesFetched: number;
+  fetchedCount: number;
+  matchedCount: number;
+  updatedCount: number;
+  createdCount?: number;
+  createdStudents?: CisSkippedStudent[];
+  skippedNotOnWeb: number;
+  skippedStudents?: CisSkippedStudent[];
+  errorCount: number;
+  classesCreated: number;
+  serverTime: string | null;
+}
+
+export interface CisSyncResponse {
+  ok?: boolean;
+  hasLocalToken?: boolean;
+  baseUrl?: string;
+  apiKeyConfigured?: boolean;
+  writeEnabled?: boolean;
+  serverTime?: string | null;
+  sourceSystem?: string;
+  state?: {
+    last_synced_at: string | null;
+    last_updated_since: string | null;
+    last_status: string | null;
+    last_summary: CisSyncSummary | { error?: string } | null;
+  } | null;
+  summary?: CisSyncSummary;
+  page?: CisSyncPageResult;
+  lastUpdatedSince?: string;
+  foundOnCis?: boolean;
+  matchedOnWeb?: boolean;
+  createdOnWeb?: boolean;
+  email?: string;
+  studentCode?: string;
+  fullName?: string;
+  className?: string | null;
+  classesCreated?: number;
+  message?: string;
+  error?: string;
+  code?: string;
+}
+
+export async function syncCisStudents(payload: CisSyncRequest): Promise<CisSyncResponse> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    notifyAuthSessionInvalidated();
+    throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+  }
+
+  const { data, error } = await supabase.functions.invoke<CisSyncResponse>('sync-cis-students', {
+    body: payload,
+  });
+
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const body = (await error.context.json()) as { error?: string; code?: string };
+        if (error.context.status === 401 && body.code !== 'CIS_UNAUTHORIZED' && body.code !== 'UNAUTHORIZED') {
+          notifyAuthSessionInvalidated();
+        }
+        throw new Error(body.error || 'Đồng bộ CIS thất bại, vui lòng thử lại');
+      } catch (parseErr) {
+        if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') {
+          throw parseErr;
+        }
+        if (error.context.status === 401) {
+          notifyAuthSessionInvalidated();
+        }
+        throw new Error('Máy chủ đồng bộ CIS trả về lỗi không xác định');
+      }
+    }
+    if (error instanceof FunctionsRelayError) {
+      throw new Error('Không thể kết nối tới Edge Function đồng bộ CIS');
+    }
+    if (error instanceof FunctionsFetchError) {
+      throw new Error('Lỗi mạng khi gọi dịch vụ đồng bộ CIS');
+    }
+    throw new Error(error.message || 'Thao tác đồng bộ CIS thất bại');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data ?? { ok: true };
+}
+
 /** Tải toàn bộ các trang dữ liệu vượt ngưỡng 1.000 dòng bằng Promise.all song song */
 export async function fetchAllPages<T>(
   fetchPage: (

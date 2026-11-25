@@ -133,20 +133,44 @@ export function Profile() {
     }
   }
 
-  const infoItems = [
-    { label: 'Email', value: profile.email },
-    { label: 'Vai trò', value: ROLE_LABELS[profile.role] },
-    ...(profile.student_code ? [{ label: 'Mã sinh viên', value: profile.student_code }] : []),
-    ...(profile.class_name ? [{ label: 'Lớp học', value: profile.class_name }] : []),
-    ...(profile.gender ? [{ label: 'Giới tính', value: profile.gender }] : []),
-    ...(profile.date_of_birth
-      ? [{ label: 'Ngày sinh', value: formatDateVi(profile.date_of_birth) }]
-      : []),
-    ...(profile.admissions_advisor
-      ? [{ label: 'Tư vấn tuyển sinh', value: profile.admissions_advisor }]
-      : []),
-    ...(profile.subject ? [{ label: 'Chủ nhiệm môn', value: profile.subject }] : []),
-  ];
+  const isStudentProfile = profile.role === 'student';
+
+  const infoItems = isStudentProfile
+    ? [
+        { label: 'Email', value: profile.email },
+        { label: 'Vai trò', value: ROLE_LABELS[profile.role] },
+        { label: 'Mã sinh viên', value: profile.student_code || '—' },
+        { label: 'Lớp học', value: profile.class_name || '—' },
+        { label: 'Khóa học', value: profile.cohort || '—' },
+        { label: 'Khoa', value: profile.faculty || '—' },
+        { label: 'Ngành học', value: profile.major || '—' },
+        {
+          label: 'Ngày sinh',
+          value: profile.date_of_birth ? formatDateVi(profile.date_of_birth) : '—',
+        },
+        { label: 'Nơi sinh', value: profile.place_of_birth || '—' },
+        { label: 'Số điện thoại', value: profile.phone || '—' },
+        { label: 'Số CCCD', value: profile.cccd || '—' },
+        {
+          label: 'Ngày cấp CCCD',
+          value: profile.cccd_issued_date ? formatDateVi(profile.cccd_issued_date) : '—',
+        },
+        ...(profile.gender ? [{ label: 'Giới tính', value: profile.gender }] : []),
+        ...(profile.admissions_advisor
+          ? [{ label: 'Tư vấn tuyển sinh', value: profile.admissions_advisor }]
+          : []),
+      ]
+    : [
+        { label: 'Email', value: profile.email },
+        { label: 'Vai trò', value: ROLE_LABELS[profile.role] },
+        ...(profile.subject ? [{ label: 'Chủ nhiệm môn', value: profile.subject }] : []),
+        ...(profile.faculty ? [{ label: 'Khoa', value: profile.faculty }] : []),
+        ...(profile.phone ? [{ label: 'Số điện thoại', value: profile.phone }] : []),
+        ...(profile.gender ? [{ label: 'Giới tính', value: profile.gender }] : []),
+        ...(profile.date_of_birth
+          ? [{ label: 'Ngày sinh', value: formatDateVi(profile.date_of_birth) }]
+          : []),
+      ];
 
   return (
     <Layout>
@@ -269,9 +293,11 @@ export function Profile() {
             <h3 className="mb-4 text-base font-bold text-ink-primary">Thông tin chung</h3>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {infoItems.map((item) => (
-                <div key={item.label} className="rounded-lg bg-surface-page p-4">
+                <div key={item.label} className="min-w-0 rounded-lg bg-surface-page p-4">
                   <dt className="text-xs font-normal text-ink-muted">{item.label}</dt>
-                  <dd className="mt-2 text-sm font-semibold text-ink-primary">{item.value}</dd>
+                  <dd className="mt-2 break-words text-sm font-semibold text-ink-primary">
+                    {item.value}
+                  </dd>
                 </div>
               ))}
             </dl>

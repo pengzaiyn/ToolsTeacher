@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpen,
   Calendar,
+  CloudDownload,
   Pencil,
   Plus,
   RefreshCw,
@@ -23,6 +24,7 @@ import { fetchAllPages, supabase } from '@/lib/supabase';
 import { formatDateVi } from '@/lib/week';
 import type { ClassSubjectTeacher, CollegeClass, Profile, TimetableClassSummary } from '@/types/database';
 import { Layout } from '@/components/Layout';
+import { CisSyncModal } from '@/components/admin/CisSyncModal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -73,6 +75,7 @@ export function Classes() {
   const [timetableCounts, setTimetableCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [cisSyncOpen, setCisSyncOpen] = useState(false);
 
   const [searchMode, setSearchMode] = useState<ClassSearchMode>('all');
   const [search, setSearch] = useState('');
@@ -434,6 +437,10 @@ export function Classes() {
           </div>
           {adminRole && (
             <div className="flex flex-wrap items-center gap-2">
+              <Button variant="navy" onClick={() => setCisSyncOpen(true)}>
+                <CloudDownload className="h-4 w-4" aria-hidden="true" />
+                <span>Đồng bộ CIS</span>
+              </Button>
               <Button variant="secondary" loading={syncing} onClick={handleSyncSystem}>
                 <RefreshCw className="h-4 w-4 text-brand-navy" aria-hidden="true" />
                 <span>Đồng bộ từ SV & TKB</span>
@@ -775,6 +782,12 @@ export function Classes() {
           </div>
         </form>
       </Modal>
+
+      <CisSyncModal
+        open={cisSyncOpen}
+        onClose={() => setCisSyncOpen(false)}
+        onSynced={() => load(true)}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
