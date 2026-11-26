@@ -7,28 +7,30 @@ interface EdgeAssistantResponse {
   error?: string;
 }
 
-const WARNING_KEYWORDS = [
-  'canh bao',
-  'khan cap',
-  'khan',
-  'cam thi',
-  'vi pham',
-  'ky luat',
-  'dinh chi',
-  'thoi hoc',
-  'nguy hiem',
-  'phat',
-  'qua han',
-  'han chot',
-  'huy lich',
-  'hoan thi',
-  'nghi dot xuat',
-  'bao lu',
-  'chay no',
-  'nhac nho nghiem',
-  'luu y quan trong',
-  'bat buoc',
-  'gap',
+const WARNING_PATTERNS: RegExp[] = [
+  /\bcanh bao\b/,
+  /\bkhan cap\b/,
+  /\bkhan truong\b/,
+  /\bcam thi\b/,
+  /\bvi pham\b/,
+  /\bky luat\b/,
+  /\bdinh chi\b/,
+  /\bthoi hoc\b/,
+  /\bnguy hiem\b/,
+  /\bxu phat\b/,
+  /\bbi phat\b/,
+  /\bqua han\b/,
+  /\bhan chot\b/,
+  /\bhuy lich\b/,
+  /\bhoan thi\b/,
+  /\bnghi dot xuat\b/,
+  /\bbao lu\b/,
+  /\bchay no\b/,
+  /\bnhac nho nghiem\b/,
+  /\bluu y quan trong\b/,
+  /\bbat buoc\b/,
+  /\bgap rut\b/,
+  /\bthong bao khan\b/,
 ];
 
 function stripVietnamese(input: string): string {
@@ -37,6 +39,7 @@ function stripVietnamese(input: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -47,7 +50,7 @@ export function quickClassifyAnnouncement(
 ): AnnouncementSeverity {
   const combined = stripVietnamese(`${title} ${content ?? ''}`);
   if (!combined) return 'normal';
-  return WARNING_KEYWORDS.some((kw) => combined.includes(kw)) ? 'warning' : 'normal';
+  return WARNING_PATTERNS.some((re) => re.test(combined)) ? 'warning' : 'normal';
 }
 
 /**

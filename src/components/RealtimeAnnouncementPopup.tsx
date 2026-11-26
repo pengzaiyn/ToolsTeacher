@@ -129,6 +129,8 @@ export function RealtimeAnnouncementPopup() {
         async (payload) => {
           const row = payload.new as Partial<Announcement> | null;
           if (!row?.id || !row.title) return;
+          // Không bật popup đè lên màn hình của chính người vừa bấm "Đăng thông báo"
+          if (row.created_by && row.created_by === user.id) return;
           if (seenIdsRef.current.has(row.id)) return;
 
           const normalizedRow = {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { quickClassifyAnnouncement } from '@/lib/announcementClassifier';
 import {
   buildAnnouncementInsertPayload,
   canUserReceiveAnnouncement,
@@ -14,6 +15,15 @@ describe('announcements helpers', () => {
     expect(
       resolveAnnouncementTargetType({ class_id: null, target_type: 'all_teachers' })
     ).toBe('all_teachers');
+  });
+
+  it('quickClassifyAnnouncement không báo động giả các từ thông thường như gặp mặt, phát tài liệu', () => {
+    expect(quickClassifyAnnouncement('Họp gặp mặt đầu khóa K26', 'Phát tài liệu học kỳ mới')).toBe(
+      'normal'
+    );
+    expect(quickClassifyAnnouncement('Cảnh báo cấm thi môn Web', 'Hạn chót nộp bài hôm nay')).toBe(
+      'warning'
+    );
   });
 
   it('canUserReceiveAnnouncement lọc đúng quyền theo vai trò', () => {

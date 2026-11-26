@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Megaphone, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useUnreadAnnouncements } from '@/context/UnreadAnnouncementsContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { supabase } from '@/lib/supabase';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
@@ -20,6 +21,7 @@ interface ClassAnnouncementsTabProps {
 
 export function ClassAnnouncementsTab({ classId, canManage }: ClassAnnouncementsTabProps) {
   const { user } = useAuth();
+  const { markClassSeen } = useUnreadAnnouncements();
   const toast = useToast();
 
   const [items, setItems] = useState<Announcement[]>([]);
@@ -59,6 +61,10 @@ export function ClassAnnouncementsTab({ classId, canManage }: ClassAnnouncements
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    markClassSeen(classId);
+  }, [classId, items.length, markClassSeen]);
 
   useRealtimeRefresh({
     channelName: `class-announcements-${classId}`,

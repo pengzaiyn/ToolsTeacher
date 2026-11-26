@@ -17,6 +17,7 @@ interface AnnouncementSummary {
   class_id: string | null;
   target_type?: Announcement['target_type'];
   target_user_id?: string | null;
+  created_by?: string | null;
   created_at: string;
 }
 
@@ -85,7 +86,7 @@ export function UnreadAnnouncementsProvider({ children }: { children: ReactNode 
 
     const { data, error } = await supabase
       .from('announcements')
-      .select('id, class_id, target_type, target_user_id, created_at')
+      .select('id, class_id, target_type, target_user_id, created_by, created_at')
       .order('created_at', { ascending: false })
       .limit(250)
       .returns<AnnouncementSummary[]>();
@@ -124,6 +125,7 @@ export function UnreadAnnouncementsProvider({ children }: { children: ReactNode 
             class_id: item.class_id ?? null,
             target_type: item.target_type,
             target_user_id: item.target_user_id ?? null,
+            created_by: item.created_by ?? null,
             created_at: item.created_at,
           };
           if (!canUserReceiveAnnouncement(normalized, user.id, profile.role)) return;
@@ -151,31 +153,45 @@ export function UnreadAnnouncementsProvider({ children }: { children: ReactNode 
 
   const markSchoolSeen = useCallback(() => {
     if (!user) return;
-    const nowIso = new Date().toISOString();
+    let latestMs = Date.now();
+    for (const row of rows) {
+      if (resolveAnnouncementTargetType(row) !== 'class') {
+        const ms = Date.parse(row.created_at) || 0;
+        if (ms > latestMs) latestMs = ms;
+      }
+    }
+    const seenIso = new Date(latestMs).toISOString();
     setLastSeen((prev) => {
-      const next: LastSeenMap = { ...prev, school: nowIso };
+      const next: LastSeenMap = { ...prev, school: seenIso };
       writeLastSeen(user.id, next);
       return next;
     });
-  }, [user]);
+  }, [user, rows]);
 
   const markClassSeen = useCallback(
     (classId: string) => {
       if (!user || !classId) return;
-      const nowIso = new Date().toISOString();
+      let latestMs = Date.now();
+      for (const row of rows) {
+        if (row.class_id === classId) {
+          const ms = Date.parse(row.created_at) || 0;
+          if (ms > latestMs) latestMs = ms;
+        }
+      }
+      const seenIso = new Date(latestMs).toISOString();
       setLastSeen((prev) => {
         const next: LastSeenMap = {
           ...prev,
           classes: {
             ...prev.classes,
-            [classId]: nowIso,
+            [classId]: seenIso,
           },
         };
         writeLastSeen(user.id, next);
         return next;
       });
     },
-    [user]
+    [user, rows]
   );
 
   const computed = useMemo(() => {
@@ -185,6 +201,9 @@ export function UnreadAnnouncementsProvider({ children }: { children: ReactNode 
     const schoolSeenMs = lastSeen.school ? Date.parse(lastSeen.school) : 0;
 
     for (const row of rows) {
+      // Không tính thông báo do chính người dùng hiện tại vừa đăng là "chưa đọc"
+      if (user && row.created_by && row.created_by === user.id) continue;
+
       const createdMs = Date.parse(row.created_at) || 0;
       const targetType = resolveAnnouncementTargetType(row);
 
@@ -205,7 +224,7 @@ export function UnreadAnnouncementsProvider({ children }: { children: ReactNode 
     });
 
     return { schoolUnreadCount, totalClassUnreadCount, classCounts };
-  }, [rows, lastSeen]);
+  }, [rows, lastSeen, user]);
 
   const getClassUnreadCount = useCallback(
     (classId: string) => computed.classCounts.get(classId) ?? 0,
