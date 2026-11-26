@@ -335,9 +335,24 @@ export async function callAttendanceQr(
     throw new Error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
   }
 
-  const { data, error } = await supabase.functions.invoke<AttendanceQrResponse>('attendance-qr', {
-    body: payload,
-  });
+  // Tự động thử lại tối đa 2 lần (cách nhau 700ms) nếu mạng 3G/4G giảng đường chập chờn khi SV gửi checkin
+  const maxAttempts = payload.action === 'checkin' ? 3 : 1;
+  let data: AttendanceQrResponse | null = null;
+  let error: { message?: string } | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await supabase.functions.invoke<AttendanceQrResponse>('attendance-qr', {
+      body: payload,
+    });
+    data = res.data;
+    error = res.error;
+    if (!error || !(error instanceof FunctionsFetchError || error instanceof FunctionsRelayError)) {
+      break;
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => window.setTimeout(r, 700));
+    }
+  }
 
   if (error) {
     if (error instanceof FunctionsHttpError) {

@@ -53,10 +53,7 @@ export function Profile() {
         if (!error && data) {
           setSensitiveInfo(data);
         } else {
-          setSensitiveInfo({
-            cccd: profile.cccd ?? null,
-            cccd_issued_date: profile.cccd_issued_date ?? null,
-          });
+          setSensitiveInfo(null);
         }
       });
     return () => {
@@ -168,8 +165,8 @@ export function Profile() {
   }
 
   const isStudentProfile = profile.role === 'student';
-  const ownCccd = sensitiveInfo?.cccd ?? profile.cccd ?? null;
-  const ownCccdIssuedDate = sensitiveInfo?.cccd_issued_date ?? profile.cccd_issued_date ?? null;
+  const ownCccd = sensitiveInfo?.cccd ?? null;
+  const ownCccdIssuedDate = sensitiveInfo?.cccd_issued_date ?? null;
 
   const infoItems: Array<{
     label: string;

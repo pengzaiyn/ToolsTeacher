@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const TOKEN_MAX_AGE_MS = 20_000; // Hiệu lực tối đa 20 giây (mã xoay mỗi 15 giây)
-const CLOCK_DRIFT_TOLERANCE_MS = 2_500;
+const TOKEN_MAX_AGE_MS = 20_000; // Thời hạn chuẩn hiển thị trên bảng (xoay mỗi 15 giây)
+const NETWORK_LAG_GRACE_MS = 10_000; // Ân hạn thêm 10s cho mạng 3G/4G giảng đường lag + thời gian mở trình duyệt từ Camera gốc (tổng cửa sổ chấp nhận 30s: nhận cả mã hiện tại lẫn mã vừa nhảy xong)
+const CLOCK_DRIFT_TOLERANCE_MS = 3_000;
 const DEFAULT_SESSION_DURATION_MINUTES = 90;
 
 const cors = {
@@ -412,12 +413,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Kiểm tra 1: Thời hạn 20 giây của mã QR
+    // Kiểm tra 1: Thời hạn của mã QR (chấp nhận cả mã đang hiện trên bảng 15s lẫn mã vừa xoay xong đang bay trên mạng 3G/4G)
     const nowMs = Date.now();
     const ageMs = nowMs - parsed.ts;
-    if (ageMs < -CLOCK_DRIFT_TOLERANCE_MS || ageMs > TOKEN_MAX_AGE_MS + CLOCK_DRIFT_TOLERANCE_MS) {
+    if (ageMs < -CLOCK_DRIFT_TOLERANCE_MS || ageMs > TOKEN_MAX_AGE_MS + NETWORK_LAG_GRACE_MS) {
       return fail(
-        "Mã QR đã hết hạn (quá 20 giây), vui lòng nhìn lên bảng quét mã mới!",
+        "Mã QR đã hết hạn, vui lòng nhìn lên bảng quét mã mới!",
         410,
         "QR_EXPIRED"
       );
@@ -507,12 +508,17 @@ Deno.serve(async (req: Request) => {
     }
 
     // Kiểm tra 5: Chống 1 thiết bị đăng nhập nhiều nick điểm danh hộ & chống replay
+    // Lưu ý: Cả lớp dùng chung Wi-Fi trường sẽ có cùng clientIp (NAT), nên:
+    // - Chỉ chặn cứng (Bài 2) khi trùng mã định danh thiết bị thực (deviceId lưu trên máy >= 16 ký tự).
+    // - Nếu trình duyệt chặn localStorage (không có deviceId riêng) mà trùng IP + User-Agent cùng dòng máy,
+    //   chỉ gắn cờ cảnh báo mềm (Bài 1 - Soft-flag) vào ghi chú để giảng viên kiểm tra, tuyệt đối không chặn nhầm Wi-Fi trường!
     const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
     const clientIp = forwardedFor.split(",")[0]?.trim() || "unknown";
     const userAgent = (req.headers.get("user-agent") ?? "unknown").slice(0, 300);
-    const deviceHash = deviceId
-      ? await sha256Hex(`${deviceId}::${userAgent}`)
-      : await sha256Hex(`${clientIp}::${userAgent}`);
+    const hasUniqueDeviceToken = deviceId.length >= 16 && deviceId !== "web-client";
+    const deviceHash = hasUniqueDeviceToken
+      ? await sha256Hex(`dev::${deviceId}::${userAgent}`)
+      : await sha256Hex(`ipua::${clientIp}::${userAgent}`);
 
     const { data: sameDeviceRow } = await admin
       .from("attendance_qr_used_tokens")
@@ -523,12 +529,16 @@ Deno.serve(async (req: Request) => {
       .limit(1)
       .maybeSingle();
 
+    let softSuspiciousFlag = false;
     if (sameDeviceRow) {
-      return fail(
-        "Thiết bị này đã điểm danh cho một tài khoản khác trong buổi học này (chống điểm danh hộ)!",
-        403,
-        "DEVICE_ALREADY_USED"
-      );
+      if (hasUniqueDeviceToken) {
+        return fail(
+          "Thiết bị này đã điểm danh cho một tài khoản khác trong buổi học này (chống điểm danh hộ)!",
+          403,
+          "DEVICE_ALREADY_USED"
+        );
+      }
+      softSuspiciousFlag = true;
     }
 
     const tokenHash = await sha256Hex(`${parsed.sig}::${user.id}`);
@@ -558,12 +568,17 @@ Deno.serve(async (req: Request) => {
     const status: "present" | "late" =
       Number.isFinite(startedMs) && nowMs - startedMs > lateThresholdMs ? "late" : "present";
 
+    const baseNote = status === "late" ? "Quét QR động (Đi muộn)" : "Quét QR động";
+    const finalNote = softSuspiciousFlag
+      ? `${baseNote} · [Cảnh báo: Trùng mạng & dòng máy, cần kiểm tra]`
+      : baseNote;
+
     const { error: recErr } = await admin.from("attendance_records").upsert(
       {
         session_id: qrSession.session_id,
         student_id: user.id,
         status,
-        note: status === "late" ? "Quét QR động (Đi muộn)" : "Quét QR động",
+        note: finalNote,
         marked_by: qrSession.teacher_id,
         checkin_time: nowIso,
         checkin_method: "qr",

@@ -12,6 +12,7 @@ interface TableProps<T> {
   columns: TableColumn<T>[];
   data: T[];
   rowKey: (row: T, index: number) => string;
+  rowClassName?: (row: T, index: number) => string | undefined;
   caption?: string;
   pageSize?: number;
   disablePagination?: boolean;
@@ -21,6 +22,7 @@ export function Table<T>({
   columns,
   data,
   rowKey,
+  rowClassName,
   caption,
   pageSize = 10,
   disablePagination = false,
@@ -68,10 +70,15 @@ export function Table<T>({
           <tbody className="divide-y divide-line">
             {visibleRows.map((row, idx) => {
               const globalIdx = startIndex + idx;
+              const customRowClass = rowClassName?.(row, globalIdx);
               return (
                 <tr
                   key={rowKey(row, globalIdx)}
-                  className="transition-colors hover:bg-surface-page"
+                  className={
+                    customRowClass
+                      ? `transition-colors ${customRowClass}`
+                      : 'transition-colors hover:bg-surface-page'
+                  }
                 >
                   {columns.map((col) => (
                     <td

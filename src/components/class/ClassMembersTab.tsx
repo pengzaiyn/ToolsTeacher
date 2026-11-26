@@ -92,10 +92,7 @@ export function ClassMembersTab({
         if (!error && data) {
           setDetailSensitive(data);
         } else {
-          setDetailSensitive({
-            cccd: detailStudent.cccd ?? null,
-            cccd_issued_date: detailStudent.cccd_issued_date ?? null,
-          });
+          setDetailSensitive(null);
         }
       });
     return () => {

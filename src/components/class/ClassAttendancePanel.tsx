@@ -605,9 +605,21 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
       header: 'Sinh viên',
       render: (row) => (
         <div className="flex flex-col">
-          <span className="font-semibold text-ink-primary">{row.fullName}</span>
+          <span
+            className={`font-semibold ${
+              row.isWarning ? 'font-bold text-status-dangerText' : 'text-ink-primary'
+            }`}
+          >
+            {row.fullName}
+          </span>
           {row.studentCode && (
-            <span className="text-xs text-ink-muted">{row.studentCode}</span>
+            <span
+              className={`text-xs ${
+                row.isWarning ? 'font-medium text-status-dangerText/80' : 'text-ink-muted'
+              }`}
+            >
+              {row.studentCode}
+            </span>
           )}
         </div>
       ),
@@ -787,6 +799,11 @@ export function ClassAttendancePanel({ classItem, canManage }: ClassAttendancePa
             columns={summaryColumns}
             data={filteredSummaries}
             rowKey={(r) => r.studentId}
+            rowClassName={(r) =>
+              r.isWarning
+                ? 'bg-status-dangerBg/60 hover:bg-status-dangerBg text-status-dangerText'
+                : undefined
+            }
             caption="Tổng hợp chuyên cần cả lớp"
           />
         </div>

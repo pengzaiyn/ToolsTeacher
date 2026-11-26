@@ -198,27 +198,8 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const rawCisToken = (Deno.env.get("CIS_API_TOKEN") ?? "").trim().replace(/^["']|["']$/g, "");
   const cisToken = rawCisToken.replace(/^bearer\s+/i, "").trim();
+  const cronSecret = (Deno.env.get("CRON_SECRET") ?? "").trim();
   const cisBaseUrl = (Deno.env.get("CIS_API_BASE_URL") ?? DEFAULT_CIS_BASE_URL).replace(/\/+$/, "");
-
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const {
-    data: { user },
-  } = await userClient.auth.getUser();
-  if (!user) return fail("Bạn cần đăng nhập", 401);
-
-  const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-  const { data: me } = await admin
-    .from("profiles")
-    .select("role, is_active")
-    .eq("id", user.id)
-    .single();
-
-  if (!me || me.role !== "admin" || !me.is_active) {
-    return fail("Chỉ hiệu trưởng mới có quyền đồng bộ dữ liệu CIS", 403);
-  }
 
   let body: Record<string, unknown> = {};
   try {
@@ -228,6 +209,37 @@ Deno.serve(async (req: Request) => {
   }
 
   const action = String(body.action ?? "");
+  const incomingCronKey = (req.headers.get("x-cron-secret") ?? "").trim();
+  const isAuthorizedCron =
+    action === "cron_sync" &&
+    Boolean(incomingCronKey) &&
+    ((cronSecret && incomingCronKey === cronSecret) ||
+      (cisToken && incomingCronKey === cisToken));
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  let callerUserId: string | null = null;
+  if (!isAuthorizedCron) {
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
+    if (!user) return fail("Bạn cần đăng nhập", 401);
+
+    const { data: me } = await admin
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", user.id)
+      .single();
+
+    if (!me || me.role !== "admin" || !me.is_active) {
+      return fail("Chỉ hiệu trưởng mới có quyền đồng bộ dữ liệu CIS", 403);
+    }
+    callerUserId = user.id;
+  }
 
   if (action === "status") {
     const { data: state } = await admin
@@ -650,12 +662,173 @@ Deno.serve(async (req: Request) => {
       last_updated_since: nextSyncMarker,
       last_status: "OK",
       last_summary: finalSummary,
-      updated_by: user.id,
+      updated_by: callerUserId,
     });
 
     return json({
       ok: true,
       classesCreated: Number(classesCreated ?? 0),
+      summary: finalSummary,
+      lastUpdatedSince: nextSyncMarker,
+    });
+  }
+
+  // 5. Cron Job tự động đồng bộ ban đêm (02:00 sáng giờ VN): tự động kéo các bản ghi mới, tạo SV mới & xếp lớp
+  if (action === "cron_sync") {
+    if (!isAuthorizedCron) {
+      return fail("Không có quyền chạy cron_sync", 401);
+    }
+
+    const { data: state } = await admin
+      .from("cis_sync_state")
+      .select("last_updated_since")
+      .eq("id", 1)
+      .maybeSingle();
+
+    const updatedSince = state?.last_updated_since ?? null;
+    let cursor: string | null = null;
+    let pagesFetched = 0;
+    let fetchedCount = 0;
+    let matchedCount = 0;
+    let updatedCount = 0;
+    let createdCount = 0;
+    let skippedNotOnWeb = 0;
+    let errorCount = 0;
+    let newestUpdatedAt: string | null = updatedSince;
+    let serverTime: string | null = null;
+
+    // Quét tối đa 15 trang/đêm (7.500 hồ sơ)
+    while (pagesFetched < 15) {
+      const qs = new URLSearchParams({ limit: "500" });
+      if (cursor) qs.set("cursor", cursor);
+      if (updatedSince) qs.set("updated_since", updatedSince);
+
+      const res = await callCis(`/students?${qs.toString()}`);
+      if (!res.ok) return fail(res.message, res.status, res.code);
+
+      const records = (Array.isArray(res.payload?.data) ? res.payload.data : []) as CisStudentRecord[];
+      if (!serverTime && typeof res.payload?.meta?.server_time === "string") {
+        serverTime = res.payload.meta.server_time;
+      }
+      const nextCursor =
+        typeof res.payload?.pagination?.next_cursor === "string" && res.payload.pagination.next_cursor
+          ? res.payload.pagination.next_cursor
+          : null;
+
+      pagesFetched += 1;
+      fetchedCount += records.length;
+
+      const rawCodes = Array.from(
+        new Set(records.map((r) => String(r.maSinhVien ?? "").trim()).filter(Boolean))
+      );
+
+      const studentIdByCode = new Map<string, string>();
+      for (let i = 0; i < rawCodes.length; i += 150) {
+        const slice = rawCodes.slice(i, i + 150);
+        const { data: matchedRows } = await admin
+          .from("profiles")
+          .select("id, student_code")
+          .eq("role", "student")
+          .in("student_code", slice);
+        for (const row of matchedRows ?? []) {
+          const key = String(row.student_code ?? "").trim().toLowerCase();
+          if (key) studentIdByCode.set(key, row.id);
+        }
+      }
+
+      const updates: Array<{ id: string; patch: Record<string, string | null> }> = [];
+      const sensitiveRows: Array<{
+        student_id: string;
+        cccd: string | null;
+        cccd_issued_date: string | null;
+        updated_at: string;
+      }> = [];
+      const toCreate: CisStudentRecord[] = [];
+      const seenCreateCodes = new Set<string>();
+
+      for (const rec of records) {
+        const codeKey = String(rec.maSinhVien ?? "").trim().toLowerCase();
+        const recUpdatedAt = normalizeIsoTimestamp(rec.updatedAt);
+        if (recUpdatedAt && (!newestUpdatedAt || recUpdatedAt > newestUpdatedAt)) {
+          newestUpdatedAt = recUpdatedAt;
+        }
+        if (!codeKey) continue;
+        const profileId = studentIdByCode.get(codeKey);
+        if (!profileId) {
+          if (!seenCreateCodes.has(codeKey)) {
+            seenCreateCodes.add(codeKey);
+            toCreate.push(rec);
+          }
+          continue;
+        }
+        matchedCount += 1;
+        const patch = buildProfilePatch(rec);
+        if (Object.keys(patch).length > 0) {
+          updates.push({ id: profileId, patch });
+        }
+        const sensitive = buildSensitiveRow(profileId, rec);
+        if (sensitive) sensitiveRows.push(sensitive);
+      }
+
+      for (let i = 0; i < updates.length; i += 25) {
+        const batch = updates.slice(i, i + 25);
+        const results = await Promise.all(
+          batch.map(({ id, patch }) => admin.from("profiles").update(patch).eq("id", id))
+        );
+        for (const r of results) {
+          if (r.error) errorCount += 1;
+          else updatedCount += 1;
+        }
+      }
+
+      for (let i = 0; i < sensitiveRows.length; i += 200) {
+        await admin
+          .from("student_sensitive_profiles")
+          .upsert(sensitiveRows.slice(i, i + 200), { onConflict: "student_id" });
+      }
+
+      for (let i = 0; i < toCreate.length; i += 5) {
+        const batch = toCreate.slice(i, i + 5);
+        const results = await Promise.all(batch.map((rec) => createStudentFromCis(rec)));
+        for (const created of results) {
+          if (created.ok) createdCount += 1;
+          else {
+            errorCount += 1;
+            skippedNotOnWeb += 1;
+          }
+        }
+      }
+
+      if (!nextCursor) break;
+      cursor = nextCursor;
+    }
+
+    const { data: classesCreated } = await admin.rpc("sync_system_classes");
+    const nextSyncMarker = newestUpdatedAt ?? serverTime ?? new Date().toISOString();
+    const finalSummary = {
+      mode: "incremental",
+      pagesFetched,
+      fetchedCount,
+      matchedCount,
+      updatedCount,
+      createdCount,
+      skippedNotOnWeb,
+      errorCount,
+      classesCreated: Number(classesCreated ?? 0),
+      serverTime,
+    };
+
+    await admin.from("cis_sync_state").upsert({
+      id: 1,
+      last_synced_at: new Date().toISOString(),
+      last_updated_since: nextSyncMarker,
+      last_status: "CRON_OK",
+      last_summary: finalSummary,
+      updated_by: null,
+    });
+
+    return json({
+      ok: true,
       summary: finalSummary,
       lastUpdatedSince: nextSyncMarker,
     });

@@ -157,8 +157,6 @@ export interface Enrollment {
         | 'date_of_birth'
         | 'place_of_birth'
         | 'phone'
-        | 'cccd'
-        | 'cccd_issued_date'
         | 'cis_updated_at'
         | 'avatar_url'
       >
