@@ -177,9 +177,10 @@ export function Profile() {
     toggle?: { revealed: boolean; onToggle: () => void };
   }> = isStudentProfile
     ? [
+        { label: 'Họ và tên', value: profile.full_name },
+        { label: 'Mã sinh viên', value: profile.student_code || '—' },
         { label: 'Email', value: profile.email },
         { label: 'Vai trò', value: ROLE_LABELS[profile.role] },
-        { label: 'Mã sinh viên', value: profile.student_code || '—' },
         { label: 'Lớp học', value: profile.class_name || '—' },
         { label: 'Khóa học', value: profile.cohort || '—' },
         { label: 'Khoa', value: profile.faculty || '—' },
@@ -380,25 +381,27 @@ export function Profile() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="rounded-xl border border-line bg-surface-card p-6">
-            <h2 className="mb-4 text-base font-bold text-ink-primary">Cập nhật họ tên</h2>
-            <form onSubmit={handleUpdateName} className="flex flex-col gap-4">
-              <Input
-                label="Họ và tên"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                hint="Các thông tin như email, mã sinh viên, lớp do nhà trường quản lý."
-              />
-              <div>
-                <Button type="submit" variant="navy" loading={savingName}>
-                  <Save className="h-4 w-4" aria-hidden="true" />
-                  <span>Lưu thay đổi</span>
-                </Button>
-              </div>
-            </form>
-          </section>
+        <div className={`grid grid-cols-1 gap-6 ${!isStudentProfile ? 'lg:grid-cols-2' : ''}`}>
+          {!isStudentProfile && (
+            <section className="rounded-xl border border-line bg-surface-card p-6">
+              <h2 className="mb-4 text-base font-bold text-ink-primary">Cập nhật họ tên</h2>
+              <form onSubmit={handleUpdateName} className="flex flex-col gap-4">
+                <Input
+                  label="Họ và tên"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  hint="Các thông tin như email, vai trò do nhà trường quản lý."
+                />
+                <div>
+                  <Button type="submit" variant="navy" loading={savingName}>
+                    <Save className="h-4 w-4" aria-hidden="true" />
+                    <span>Lưu thay đổi</span>
+                  </Button>
+                </div>
+              </form>
+            </section>
+          )}
 
           <section className="rounded-xl border border-line bg-surface-card p-6">
             <h2 className="mb-4 text-base font-bold text-ink-primary">Đổi mật khẩu</h2>
