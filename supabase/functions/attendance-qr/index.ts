@@ -407,7 +407,7 @@ Deno.serve(async (req: Request) => {
     const parsed = parseTokenPayload(rawToken);
     if (!parsed) {
       return fail(
-        "Mã QR không hợp lệ hoặc không thuộc hệ thống điểm danh AVC Connect.",
+        "Mã QR không hợp lệ hoặc không thuộc hệ thống điểm danh APC Connect.",
         400,
         "INVALID_QR"
       );

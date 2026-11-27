@@ -1,9 +1,33 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, Download, Sparkles } from 'lucide-react';
+import {
+  CheckCircle2,
+  Crown,
+  Download,
+  ExternalLink,
+  SlidersHorizontal,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { formatClassActionError, formatDateTimeVi, openPrivateBucketFile } from '@/lib/classStorage';
+import {
+  findStudentAssignmentGroup,
+  resolveStudentScoreFromGrade,
+} from '@/lib/assignmentGroups';
+import {
+  formatClassActionError,
+  formatDateTimeVi,
+  getPrivateBucketSignedUrl,
+  isImageStoragePath,
+  openPrivateBucketFile,
+} from '@/lib/classStorage';
 import { supabase } from '@/lib/supabase';
-import type { Assignment, AssignmentKey, Grade, Submission } from '@/types/database';
+import type {
+  Assignment,
+  AssignmentGroup,
+  AssignmentKey,
+  Grade,
+  Submission,
+} from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -38,11 +62,15 @@ export function AssignmentGradingModal({
   const [loading, setLoading] = useState(false);
 
   const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
+  const [activeGroup, setActiveGroup] = useState<AssignmentGroup | null>(null);
   const [scoreInput, setScoreInput] = useState('');
+  const [customMemberMode, setCustomMemberMode] = useState(false);
+  const [memberScoreInputs, setMemberScoreInputs] = useState<Record<string, string>>({});
   const [feedbackInput, setFeedbackInput] = useState('');
   const [savingGrade, setSavingGrade] = useState(false);
   const [autoGrading, setAutoGrading] = useState(false);
   const [openingFile, setOpeningFile] = useState(false);
+  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!assignment) return;
@@ -78,18 +106,104 @@ export function AssignmentGradingModal({
 
   useEffect(() => {
     setActiveSubmission(null);
+    setActiveGroup(null);
     if (assignment) {
       void loadData();
     }
   }, [assignment, loadData]);
 
-  function openSubmission(sub: Submission) {
+  useEffect(() => {
+    let mounted = true;
+    const path = activeSubmission?.file_url;
+    if (!path || !isImageStoragePath(path)) {
+      setActiveImageUrl(null);
+      return;
+    }
+    setActiveImageUrl(null);
+    getPrivateBucketSignedUrl('submissions', path, 600)
+      .then((url) => {
+        if (mounted) setActiveImageUrl(url);
+      })
+      .catch(() => {
+        if (mounted) setActiveImageUrl(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeSubmission?.file_url]);
+
+  function openSubmission(sub: Submission | null, group: AssignmentGroup | null = null) {
     setActiveSubmission(sub);
+    const resolvedGroup =
+      group ?? (assignment && sub ? findStudentAssignmentGroup(assignment, sub.student_id) : null);
+    setActiveGroup(resolvedGroup);
+
+    if (!sub) {
+      setScoreInput('');
+      setFeedbackInput('');
+      setCustomMemberMode(false);
+      setMemberScoreInputs({});
+      return;
+    }
+
     const existing = unwrapGrade(sub);
-    setScoreInput(
-      existing?.score !== null && existing?.score !== undefined ? String(existing.score) : ''
-    );
+    const baseStr =
+      existing?.score !== null && existing?.score !== undefined ? String(existing.score) : '';
+    setScoreInput(baseStr);
     setFeedbackInput(existing?.feedback ?? '');
+
+    if (resolvedGroup) {
+      const nextInputs: Record<string, string> = {};
+      let hasDifferentMemberScore = false;
+      resolvedGroup.members.forEach((m) => {
+        const resolved = resolveStudentScoreFromGrade(existing, m.student_id);
+        nextInputs[m.student_id] = resolved !== null ? String(resolved) : baseStr;
+        if (
+          existing?.score !== null &&
+          existing?.score !== undefined &&
+          resolved !== null &&
+          resolved !== Number(existing.score)
+        ) {
+          hasDifferentMemberScore = true;
+        }
+      });
+      setMemberScoreInputs(nextInputs);
+      setCustomMemberMode(hasDifferentMemberScore);
+    } else {
+      setMemberScoreInputs({});
+      setCustomMemberMode(false);
+    }
+  }
+
+  function handleLeaderScoreChange(nextVal: string) {
+    const prevBase = scoreInput;
+    setScoreInput(nextVal);
+    if (activeGroup) {
+      setMemberScoreInputs((prev) => {
+        const copy = { ...prev };
+        activeGroup.members.forEach((m) => {
+          if (
+            !customMemberMode ||
+            m.student_id === activeGroup.leader_id ||
+            copy[m.student_id] === undefined ||
+            copy[m.student_id] === '' ||
+            copy[m.student_id] === prevBase
+          ) {
+            copy[m.student_id] = nextVal;
+          }
+        });
+        return copy;
+      });
+    }
+  }
+
+  function resetAllMembersToLeaderScore() {
+    if (!activeGroup) return;
+    const synced: Record<string, string> = {};
+    activeGroup.members.forEach((m) => {
+      synced[m.student_id] = scoreInput;
+    });
+    setMemberScoreInputs(synced);
   }
 
   function computeMcqScore(sub: Submission): { score: number; correctCount: number } | null {
@@ -165,17 +279,45 @@ export function AssignmentGradingModal({
     if (!assignment || !activeSubmission || !user) return;
 
     const numScore = Number(scoreInput);
-    if (scoreInput.trim() === '' || Number.isNaN(numScore) || numScore < 0 || numScore > assignment.max_score) {
+    if (
+      scoreInput.trim() === '' ||
+      Number.isNaN(numScore) ||
+      numScore < 0 ||
+      numScore > assignment.max_score
+    ) {
       toast.error(`Điểm phải nằm trong khoảng từ 0 đến ${assignment.max_score}`);
       return;
     }
+
+    const memberScoresPayload: Record<string, number> = {};
+    if (assignment.work_mode === 'group' && activeGroup) {
+      for (const m of activeGroup.members) {
+        const raw = customMemberMode
+          ? (memberScoreInputs[m.student_id] ?? scoreInput).trim()
+          : scoreInput.trim();
+        const val = raw === '' ? numScore : Number(raw);
+        if (Number.isNaN(val) || val < 0 || val > assignment.max_score) {
+          toast.error(
+            `Điểm của ${m.full_name} phải nằm trong khoảng từ 0 đến ${assignment.max_score}`
+          );
+          return;
+        }
+        memberScoresPayload[m.student_id] = val;
+      }
+    }
+
+    const finalLeaderScore =
+      activeGroup && memberScoresPayload[activeGroup.leader_id] !== undefined
+        ? memberScoresPayload[activeGroup.leader_id]
+        : numScore;
 
     setSavingGrade(true);
     try {
       const { error: gErr } = await supabase.from('grades').upsert(
         {
           submission_id: activeSubmission.id,
-          score: numScore,
+          score: finalLeaderScore,
+          member_scores: memberScoresPayload,
           feedback: feedbackInput.trim() || null,
           graded_by: user.id,
           is_ai: false,
@@ -191,7 +333,11 @@ export function AssignmentGradingModal({
         .eq('id', activeSubmission.id);
       if (sErr) throw new Error(sErr.message);
 
-      toast.success(`Đã lưu điểm cho ${activeSubmission.student?.full_name ?? 'sinh viên'}`);
+      toast.success(
+        activeGroup
+          ? `Đã lưu điểm cho ${activeGroup.name}`
+          : `Đã lưu điểm cho ${activeSubmission.student?.full_name ?? 'sinh viên'}`
+      );
       await loadData();
       await onUpdated();
     } catch (err) {
@@ -214,6 +360,11 @@ export function AssignmentGradingModal({
 
   if (!assignment) return null;
 
+  const isGroupWork =
+    assignment.work_mode === 'group' &&
+    Array.isArray(assignment.groups) &&
+    assignment.groups.length > 0;
+
   const pendingMcqCount =
     assignment.type === 'multiple_choice'
       ? submissions.filter((s) => s.status === 'pending').length
@@ -224,12 +375,19 @@ export function AssignmentGradingModal({
       open={Boolean(assignment)}
       onClose={onClose}
       title={`Bài nộp: ${assignment.title}`}
-      size="lg"
+      size="xl"
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="navy">Đã nộp: {submissions.length}</Badge>
+            <Badge tone={assignment.work_mode === 'group' ? 'red' : 'navy'}>
+              {assignment.work_mode === 'group' ? 'Làm theo nhóm' : 'Làm cá nhân'}
+            </Badge>
+            <Badge tone="navy">
+              {isGroupWork
+                ? `Đã nộp: ${submissions.length}/${assignment.groups!.length} nhóm`
+                : `Đã nộp: ${submissions.length}`}
+            </Badge>
             <Badge tone="neutral">Điểm tối đa: {assignment.max_score}</Badge>
           </div>
           {canGrade && pendingMcqCount > 0 && answerKey && (
@@ -253,63 +411,159 @@ export function AssignmentGradingModal({
 
         {loading ? (
           <LoadingState message="Đang tải danh sách bài nộp..." />
-        ) : submissions.length === 0 ? (
+        ) : !isGroupWork && submissions.length === 0 ? (
           <EmptyState
             icon={CheckCircle2}
             title="Chưa có sinh viên nào nộp bài"
             description="Bài làm của sinh viên sẽ xuất hiện tại đây sau khi nộp."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex max-h-96 flex-col divide-y divide-line overflow-y-auto rounded-xl border border-line">
-              {submissions.map((sub) => {
-                const g = unwrapGrade(sub);
-                const selected = activeSubmission?.id === sub.id;
-                return (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={() => openSubmission(sub)}
-                    className={`flex items-center justify-between gap-2 p-4 text-left transition-colors ${
-                      selected ? 'bg-brand-navySoft' : 'hover:bg-surface-page'
-                    }`}
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-ink-primary">
-                        {sub.student?.full_name || '—'}
-                      </span>
-                      <span className="text-xs font-normal text-ink-muted">
-                        {sub.student?.student_code || sub.student?.email} •{' '}
-                        {formatDateTimeVi(sub.submitted_at)}
-                      </span>
-                    </div>
-                    {sub.status === 'graded' && g ? (
-                      <Badge tone="success">
-                        {g.score}/{assignment.max_score}
-                      </Badge>
-                    ) : (
-                      <Badge tone="warning">Chờ chấm</Badge>
-                    )}
-                  </button>
-                );
-              })}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="flex max-h-[60vh] flex-col divide-y divide-line overflow-y-auto rounded-xl border border-line">
+              {isGroupWork
+                ? assignment.groups!.map((group) => {
+                    const leaderSub =
+                      submissions.find((s) => s.student_id === group.leader_id) ?? null;
+                    const g = leaderSub ? unwrapGrade(leaderSub) : null;
+                    const leaderMember = group.members.find(
+                      (m) => m.student_id === group.leader_id
+                    );
+                    const selected = activeGroup?.id === group.id;
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => openSubmission(leaderSub, group)}
+                        className={`flex items-center justify-between gap-2 p-4 text-left transition-colors ${
+                          selected ? 'bg-brand-navySoft' : 'hover:bg-surface-page'
+                        }`}
+                      >
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-sm font-bold text-ink-primary">
+                            {group.name} ({group.members.length} SV)
+                          </span>
+                          <span className="truncate text-xs font-normal text-ink-muted">
+                            Trưởng nhóm: {leaderMember?.full_name ?? '—'}
+                          </span>
+                          {leaderSub && (
+                            <span className="text-[11px] font-normal text-ink-muted">
+                              Nộp lúc: {formatDateTimeVi(leaderSub.submitted_at)}
+                            </span>
+                          )}
+                        </div>
+                        {!leaderSub ? (
+                          <Badge tone="neutral">Chưa nộp</Badge>
+                        ) : leaderSub.status === 'graded' && g ? (
+                          <Badge tone="success">
+                            {g.score}/{assignment.max_score}
+                          </Badge>
+                        ) : (
+                          <Badge tone="warning">Chờ chấm</Badge>
+                        )}
+                      </button>
+                    );
+                  })
+                : submissions.map((sub) => {
+                    const g = unwrapGrade(sub);
+                    const selected = activeSubmission?.id === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => openSubmission(sub, null)}
+                        className={`flex items-center justify-between gap-2 p-4 text-left transition-colors ${
+                          selected ? 'bg-brand-navySoft' : 'hover:bg-surface-page'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-ink-primary">
+                            {sub.student?.full_name || '—'}
+                          </span>
+                          <span className="text-xs font-normal text-ink-muted">
+                            {sub.student?.student_code || sub.student?.email} •{' '}
+                            {formatDateTimeVi(sub.submitted_at)}
+                          </span>
+                        </div>
+                        {sub.status === 'graded' && g ? (
+                          <Badge tone="success">
+                            {g.score}/{assignment.max_score}
+                          </Badge>
+                        ) : (
+                          <Badge tone="warning">Chờ chấm</Badge>
+                        )}
+                      </button>
+                    );
+                  })}
             </div>
 
             <div className="rounded-xl border border-line bg-surface-page p-4">
-              {!activeSubmission ? (
+              {!activeSubmission && !activeGroup ? (
                 <p className="py-8 text-center text-sm font-normal text-ink-muted">
-                  Chọn một sinh viên ở danh sách bên trái để xem bài làm và chấm điểm.
+                  {isGroupWork
+                    ? 'Chọn một nhóm ở danh sách bên trái để xem bài nộp và chấm điểm.'
+                    : 'Chọn một sinh viên ở danh sách bên trái để xem bài làm và chấm điểm.'}
                 </p>
-              ) : (
+              ) : activeGroup && !activeSubmission ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                    <span className="text-base font-bold text-brand-navy">{activeGroup.name}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeGroup.members.map((m) => {
+                      const isLeader = m.student_id === activeGroup.leader_id;
+                      return (
+                        <span
+                          key={m.student_id}
+                          className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs ${
+                            isLeader
+                              ? 'border-amber-400 bg-amber-50 font-bold text-brand-navy'
+                              : 'border-line bg-surface-card text-ink-secondary'
+                          }`}
+                        >
+                          {isLeader && <Crown className="h-3 w-3 text-amber-600" aria-hidden="true" />}
+                          <span>{m.full_name}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <p className="rounded-lg border border-line bg-surface-card p-4 text-xs text-ink-muted">
+                    Trưởng nhóm của {activeGroup.name} hiện chưa nộp bài.
+                  </p>
+                </div>
+              ) : activeSubmission ? (
                 <div className="flex flex-col gap-4">
                   <div>
                     <p className="text-base font-bold text-brand-navy">
-                      {activeSubmission.student?.full_name}
+                      {activeGroup
+                        ? `${activeGroup.name} · Trưởng nhóm: ${activeSubmission.student?.full_name ?? ''}`
+                        : activeSubmission.student?.full_name}
                     </p>
                     <p className="text-xs font-normal text-ink-muted">
                       Nộp lúc: {formatDateTimeVi(activeSubmission.submitted_at)}
                     </p>
                   </div>
+
+                  {activeGroup && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeGroup.members.map((m) => {
+                        const isLeader = m.student_id === activeGroup.leader_id;
+                        return (
+                          <span
+                            key={m.student_id}
+                            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] ${
+                              isLeader
+                                ? 'border-amber-400 bg-amber-50 font-bold text-brand-navy dark:bg-amber-950/30'
+                                : 'border-line bg-surface-card text-ink-secondary'
+                            }`}
+                          >
+                            {isLeader && <Crown className="h-3 w-3 text-amber-600" aria-hidden="true" />}
+                            <span>{m.full_name}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {assignment.type === 'multiple_choice' ? (
                     <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
@@ -340,10 +594,26 @@ export function AssignmentGradingModal({
                       })}
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2 rounded-lg bg-surface-card p-4">
+                    <div className="flex flex-col gap-3 rounded-lg bg-surface-card p-4">
+                      {activeImageUrl && (
+                        <div className="overflow-hidden rounded-lg border border-line bg-surface-page p-2">
+                          <a
+                            href={activeImageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <img
+                              src={activeImageUrl}
+                              alt={`Bài nộp của ${activeSubmission.student?.full_name ?? 'nhóm'}`}
+                              className="max-h-[420px] w-full rounded object-contain"
+                            />
+                          </a>
+                        </div>
+                      )}
                       {typeof activeSubmission.answers?.text === 'string' &&
                         activeSubmission.answers.text && (
-                          <p className="whitespace-pre-line text-sm font-normal text-ink-primary">
+                          <p className="whitespace-pre-line break-words [overflow-wrap:anywhere] text-sm font-normal text-ink-primary">
                             {activeSubmission.answers.text}
                           </p>
                         )}
@@ -355,8 +625,12 @@ export function AssignmentGradingModal({
                             loading={openingFile}
                             onClick={() => handleOpenSubmittedFile(activeSubmission.file_url!)}
                           >
-                            <Download className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-                            <span>Tải file bài làm</span>
+                            {activeImageUrl ? (
+                              <ExternalLink className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                            ) : (
+                              <Download className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                            )}
+                            <span>{activeImageUrl ? 'Mở ảnh kích thước gốc' : 'Tải file bài làm'}</span>
                           </Button>
                         </div>
                       )}
@@ -366,15 +640,89 @@ export function AssignmentGradingModal({
                   {canGrade ? (
                     <form onSubmit={handleSaveGrade} className="flex flex-col gap-4 border-t border-line pt-4">
                       <Input
-                        label={`Điểm (0 – ${assignment.max_score})`}
+                        label={
+                          activeGroup
+                            ? `Điểm Trưởng nhóm / Cả nhóm (0 – ${assignment.max_score})`
+                            : `Điểm (0 – ${assignment.max_score})`
+                        }
                         type="number"
                         step="0.25"
                         min={0}
                         max={assignment.max_score}
                         value={scoreInput}
-                        onChange={(e) => setScoreInput(e.target.value)}
+                        onChange={(e) => handleLeaderScoreChange(e.target.value)}
                         required
                       />
+
+                      {activeGroup && (
+                        <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-card p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-ink-primary">
+                              {customMemberMode
+                                ? 'Đang nhập điểm riêng từng thành viên'
+                                : 'Mặc định: Cả nhóm nhận bằng điểm Trưởng nhóm'}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                if (customMemberMode) {
+                                  resetAllMembersToLeaderScore();
+                                  setCustomMemberMode(false);
+                                } else {
+                                  resetAllMembersToLeaderScore();
+                                  setCustomMemberMode(true);
+                                }
+                              }}
+                            >
+                              <SlidersHorizontal className="h-3.5 w-3.5 text-brand-navy" aria-hidden="true" />
+                              <span>
+                                {customMemberMode ? 'Dùng chung điểm nhóm' : 'Chấm riêng từng bạn'}
+                              </span>
+                            </Button>
+                          </div>
+
+                          {customMemberMode && (
+                            <div className="mt-1 flex flex-col gap-2">
+                              {activeGroup.members.map((m) => {
+                                const isLeader = m.student_id === activeGroup.leader_id;
+                                const val = memberScoreInputs[m.student_id] ?? scoreInput;
+                                return (
+                                  <div
+                                    key={m.student_id}
+                                    className="flex items-center justify-between gap-2 rounded border border-line bg-surface-page px-2.5 py-1.5 text-xs"
+                                  >
+                                    <span className="truncate font-medium text-ink-primary">
+                                      {m.full_name}
+                                      {isLeader ? ' (Trưởng nhóm)' : ''}
+                                    </span>
+                                    <input
+                                      type="number"
+                                      step="0.25"
+                                      min={0}
+                                      max={assignment.max_score}
+                                      value={val}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setMemberScoreInputs((prev) => ({
+                                          ...prev,
+                                          [m.student_id]: v,
+                                        }));
+                                        if (isLeader) {
+                                          setScoreInput(v);
+                                        }
+                                      }}
+                                      className="h-8 w-20 rounded border border-line-strong bg-surface-card px-2 text-right text-xs font-bold text-brand-navy focus:border-brand-navy focus:outline-none"
+                                      required
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex flex-col gap-2">
                         <label
                           htmlFor="grade-feedback"
@@ -407,7 +755,7 @@ export function AssignmentGradingModal({
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -415,4 +763,3 @@ export function AssignmentGradingModal({
     </Modal>
   );
 }
-

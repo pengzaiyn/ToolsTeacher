@@ -176,6 +176,21 @@ export interface Material {
 
 export type AssignmentType = 'multiple_choice' | 'essay' | 'short_answer' | 'file_upload';
 
+export type AssignmentWorkMode = 'individual' | 'group';
+
+export interface AssignmentGroupMember {
+  student_id: string;
+  full_name: string;
+  student_code: string | null;
+}
+
+export interface AssignmentGroup {
+  id: string;
+  name: string;
+  leader_id: string;
+  members: AssignmentGroupMember[];
+}
+
 export interface McqQuestion {
   id: string;
   prompt: string;
@@ -189,6 +204,8 @@ export interface Assignment {
   title: string;
   description: string | null;
   type: AssignmentType;
+  work_mode?: AssignmentWorkMode;
+  groups?: AssignmentGroup[];
   questions: McqQuestion[];
   max_score: number;
   ai_grading: boolean;
@@ -208,6 +225,7 @@ export interface Grade {
   id: string;
   submission_id: string;
   score: number | null;
+  member_scores?: Record<string, number> | null;
   feedback: string | null;
   graded_by: string | null;
   ai_score: number | null;

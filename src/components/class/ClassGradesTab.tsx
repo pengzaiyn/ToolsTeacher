@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FileCheck2, FileSpreadsheet } from 'lucide-react';
+import {
+  findStudentAssignmentGroup,
+  resolveStudentScoreFromGrade,
+} from '@/lib/assignmentGroups';
 import { supabase } from '@/lib/supabase';
-import type { CollegeClass, GradeRow } from '@/types/database';
+import type {
+  AssignmentGroup,
+  AssignmentWorkMode,
+  CollegeClass,
+  Grade,
+  GradeRow,
+} from '@/types/database';
 import { ClassGradebookPanel } from '@/components/class/ClassGradebookPanel';
 import { GradeTable } from '@/components/GradeTable';
 import { Button } from '@/components/ui/Button';
@@ -10,17 +20,16 @@ import { useToast } from '@/components/ui/Toast';
 
 interface SubmissionGradeQueryRow {
   id: string;
+  student_id: string;
   student: { full_name: string; student_code: string | null } | null;
-  assignment: { title: string; max_score: number; class_id: string } | null;
-  grade:
-    | {
-        id: string;
-        score: number | null;
-        feedback: string | null;
-        graded_at: string | null;
-        is_ai: boolean;
-      }[]
-    | null;
+  assignment: {
+    title: string;
+    max_score: number;
+    class_id: string;
+    work_mode?: AssignmentWorkMode;
+    groups?: AssignmentGroup[];
+  } | null;
+  grade: Grade[] | Grade | null;
 }
 
 export function ClassGradesTab({
@@ -41,7 +50,7 @@ export function ClassGradesTab({
       const { data, error } = await supabase
         .from('submissions')
         .select(
-          'id, student:profiles!submissions_student_id_fkey(full_name, student_code), assignment:assignments!inner(title, max_score, class_id), grade:grades(id, score, feedback, graded_at, is_ai)'
+          'id, student_id, student:profiles!submissions_student_id_fkey(full_name, student_code), assignment:assignments!inner(title, max_score, class_id, work_mode, groups), grade:grades(*)'
         )
         .eq('assignment.class_id', classItem.id)
         .returns<SubmissionGradeQueryRow[]>();
@@ -52,18 +61,40 @@ export function ClassGradesTab({
       (data ?? []).forEach((item) => {
         const g = Array.isArray(item.grade) ? item.grade[0] : item.grade;
         if (!g) return;
-        mapped.push({
-          id: g.id,
-          submission_id: item.id,
-          score: g.score,
-          feedback: g.feedback,
-          graded_at: g.graded_at,
-          is_ai: g.is_ai,
-          student_name: item.student?.full_name,
-          student_code: item.student?.student_code,
-          assignment_title: item.assignment?.title,
-          max_score: item.assignment?.max_score,
-        });
+        const group =
+          item.assignment?.work_mode === 'group'
+            ? findStudentAssignmentGroup(item.assignment, item.student_id)
+            : null;
+
+        if (group && group.members.length > 0) {
+          group.members.forEach((member) => {
+            mapped.push({
+              id: `${g.id}_${member.student_id}`,
+              submission_id: item.id,
+              score: resolveStudentScoreFromGrade(g, member.student_id),
+              feedback: g.feedback,
+              graded_at: g.graded_at,
+              is_ai: g.is_ai,
+              student_name: `${member.full_name} (${group.name})`,
+              student_code: member.student_code,
+              assignment_title: item.assignment?.title,
+              max_score: item.assignment?.max_score,
+            });
+          });
+        } else {
+          mapped.push({
+            id: g.id,
+            submission_id: item.id,
+            score: g.score,
+            feedback: g.feedback,
+            graded_at: g.graded_at,
+            is_ai: g.is_ai,
+            student_name: item.student?.full_name,
+            student_code: item.student?.student_code,
+            assignment_title: item.assignment?.title,
+            max_score: item.assignment?.max_score,
+          });
+        }
       });
 
       setRows(mapped);

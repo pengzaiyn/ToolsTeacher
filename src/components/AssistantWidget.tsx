@@ -123,7 +123,7 @@ function createWelcomeMessage(
       id: 'welcome',
       role: 'assistant',
       content:
-        'Chào bạn! Mình là Trợ lý AI của AVC Connect. Bạn cần hướng dẫn đăng nhập, xác minh CAPTCHA, lấy lại mật khẩu qua email hay tìm hiểu các tính năng của trường thì cứ nhắn cho mình nhé.',
+        'Chào bạn! Mình là Trợ lý AI của APC Connect. Bạn cần hướng dẫn đăng nhập, xác minh CAPTCHA, lấy lại mật khẩu qua email hay tìm hiểu các tính năng của trường thì cứ nhắn cho mình nhé.',
     };
   }
 
@@ -131,14 +131,14 @@ function createWelcomeMessage(
     return {
       id: 'welcome',
       role: 'assistant',
-      content: `Chào ${fullName}! Mình là Trợ lý AI của AVC Connect. Bạn cần xem thời khóa biểu, kiểm tra bài tập hay hỏi cách dùng mục nào trên web thì cứ nhắn cho mình nhé.`,
+      content: `Chào ${fullName}! Mình là Trợ lý AI của APC Connect. Bạn cần xem thời khóa biểu, kiểm tra bài tập hay hỏi cách dùng mục nào trên web thì cứ nhắn cho mình nhé.`,
     };
   }
 
   return {
     id: 'welcome',
     role: 'assistant',
-    content: `Em chào ${fullName} (${roleLabel}) ạ! Em là Trợ lý AI của AVC Connect. Thầy/cô cần hỗ trợ thao tác hay hỏi bất kỳ chức năng nào trên hệ thống cứ nhắn cho em ạ.`,
+    content: `Em chào ${fullName} (${roleLabel}) ạ! Em là Trợ lý AI của APC Connect. Thầy/cô cần hỗ trợ thao tác hay hỏi bất kỳ chức năng nào trên hệ thống cứ nhắn cho em ạ.`,
   };
 }
 
@@ -494,13 +494,13 @@ export function AssistantWidget() {
                   onClick={handleOpenFromLauncher}
                   className="min-w-0 text-left text-xs font-semibold text-ink-primary transition-colors hover:text-brand-navy focus-visible:outline-none focus-visible:underline sm:text-sm"
                 >
-                  Bạn có thắc mắc gì hãy hỏi AI AVC
+                  Bạn có thắc mắc gì hãy hỏi AI APC
                 </button>
                 <button
                   type="button"
                   data-no-drag="true"
                   onClick={() => setCalloutDismissed(true)}
-                  aria-label="Ẩn thông báo gợi ý hỏi AI AVC"
+                  aria-label="Ẩn thông báo gợi ý hỏi AI APC"
                   title="Ẩn gợi ý"
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-subtle hover:text-ink-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy"
                 >
@@ -514,9 +514,9 @@ export function AssistantWidget() {
             ref={robotButtonRef}
             type="button"
             onClick={handleOpenFromLauncher}
-            aria-label="Mở Trợ lý AI AVC Connect"
+            aria-label="Mở Trợ lý AI APC Connect"
             aria-expanded={open}
-            title="Kéo để di chuyển · Bấm để trò chuyện với Trợ lý AI AVC Connect"
+            title="Kéo để di chuyển · Bấm để trò chuyện với Trợ lý AI APC Connect"
             className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy focus-visible:ring-offset-2 ${
               isDragging
                 ? 'cursor-grabbing'
@@ -550,7 +550,7 @@ export function AssistantWidget() {
               </div>
               <div className="min-w-0">
                 <h2 id="avc-assistant-title" className="truncate text-sm font-bold leading-tight">
-                  Trợ lý AVC Connect
+                  Trợ lý APC Connect
                 </h2>
                 <p className="truncate text-xs font-normal text-white/80">
                   {activeSource === 'gemini'

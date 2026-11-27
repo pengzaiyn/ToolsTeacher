@@ -39,24 +39,44 @@ export function formatDateTimeVi(iso?: string | null): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-export async function openPrivateBucketFile(
+const IMAGE_EXT_REGEX = /\.(jpe?g|png|webp|gif|bmp|svg|heic|heif|avif)(?:$|\?)/i;
+
+export function isImageStoragePath(pathOrName?: string | null): boolean {
+  if (!pathOrName) return false;
+  return IMAGE_EXT_REGEX.test(pathOrName.trim());
+}
+
+export function isImageFile(file: Pick<File, 'name' | 'type'>): boolean {
+  if (file.type && file.type.toLowerCase().startsWith('image/')) return true;
+  return isImageStoragePath(file.name);
+}
+
+export async function getPrivateBucketSignedUrl(
   bucket: 'materials' | 'submissions',
-  pathOrUrl: string
-): Promise<void> {
+  pathOrUrl: string,
+  expiresInSeconds = 600
+): Promise<string> {
   if (/^https?:\/\//i.test(pathOrUrl)) {
-    window.open(pathOrUrl, '_blank', 'noopener,noreferrer');
-    return;
+    return pathOrUrl;
   }
 
   const { data, error } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(pathOrUrl, 300);
+    .createSignedUrl(pathOrUrl, expiresInSeconds);
 
   if (error || !data?.signedUrl) {
     throw new Error('Không tạo được liên kết tải file, vui lòng thử lại');
   }
 
-  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  return data.signedUrl;
+}
+
+export async function openPrivateBucketFile(
+  bucket: 'materials' | 'submissions',
+  pathOrUrl: string
+): Promise<void> {
+  const signedUrl = await getPrivateBucketSignedUrl(bucket, pathOrUrl, 300);
+  window.open(signedUrl, '_blank', 'noopener,noreferrer');
 }
 
 export function formatClassActionError(err: unknown, fallback: string): string {
@@ -70,7 +90,7 @@ export function formatClassActionError(err: unknown, fallback: string): string {
     return 'CSDL Supabase chưa cho phép để trống giáo viên phụ trách. Vui lòng chạy migration supabase/migrations/20261115000002_nullable_class_teacher.sql trong SQL Editor.';
   }
   if (lower.includes('row-level security') || lower.includes('violates row-level security')) {
-    return 'CSDL Supabase chưa chạy đủ migration phân quyền Hiệu trưởng (20261115000001 và 20261115000003).';
+    return 'Thao tác bị từ chối (có thể đã hết thời gian nộp bài hoặc bạn không có quyền thực hiện).';
   }
   return message;
 }

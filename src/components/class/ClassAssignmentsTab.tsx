@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardList, Eye, Plus, Trash2 } from 'lucide-react';
+import { ClipboardList, Crown, Eye, Plus, Trash2, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
+import {
+  findStudentAssignmentGroup,
+  resolveStudentEffectiveSubmission,
+  resolveStudentScoreFromGrade,
+} from '@/lib/assignmentGroups';
 import { formatClassActionError, formatDateTimeVi } from '@/lib/classStorage';
+import { isAssignmentPastDue } from '@/lib/submissionDeadline';
 import { supabase } from '@/lib/supabase';
 import type { Assignment, AssignmentType, Grade, Submission } from '@/types/database';
 import { AssignmentCreateModal } from '@/components/class/AssignmentCreateModal';
@@ -21,11 +27,10 @@ interface ClassAssignmentsTabProps {
   isStudentView: boolean;
 }
 
-const TYPE_BADGE: Record<AssignmentType, { label: string; tone: BadgeTone }> = {
+const LEGACY_TYPE_BADGE: Partial<Record<AssignmentType, { label: string; tone: BadgeTone }>> = {
   multiple_choice: { label: 'Trắc nghiệm', tone: 'navy' },
   essay: { label: 'Tự luận', tone: 'neutral' },
   short_answer: { label: 'Trả lời ngắn', tone: 'neutral' },
-  file_upload: { label: 'Nộp file', tone: 'red' },
 };
 
 export function ClassAssignmentsTab({
@@ -65,8 +70,9 @@ export function ClassAssignmentsTab({
         if (isStudentView && user && list.length > 0) {
           const { data: subData, error: sErr } = await supabase
             .from('submissions')
-            .select('*, grade:grades(*)')
-            .eq('student_id', user.id)
+            .select(
+              '*, student:profiles!submissions_student_id_fkey(id, full_name, email, student_code), grade:grades(*)'
+            )
             .in(
               'assignment_id',
               list.map((a) => a.id)
@@ -74,8 +80,14 @@ export function ClassAssignmentsTab({
             .returns<Submission[]>();
 
           if (sErr) throw new Error(sErr.message);
+          const allSubs = subData ?? [];
           const map = new Map<string, Submission>();
-          (subData ?? []).forEach((s) => map.set(s.assignment_id, s));
+          list.forEach((assign) => {
+            const effective = resolveStudentEffectiveSubmission(assign, user.id, allSubs);
+            if (effective) {
+              map.set(assign.id, effective);
+            }
+          });
           setMySubmissions(map);
         } else {
           setMySubmissions(new Map());
@@ -144,36 +156,77 @@ export function ClassAssignmentsTab({
           title="Chưa có bài tập nào"
           description={
             canManage
-              ? 'Giao bài tập trắc nghiệm, tự luận hoặc nộp file cho sinh viên trong lớp.'
+              ? 'Giao bài tập cá nhân hoặc bài tập nhóm cho sinh viên trong lớp.'
               : 'Lớp học chưa có bài tập nào.'
           }
         />
       ) : (
         <div className="flex flex-col gap-4">
           {assignments.map((item) => {
-            const typeMeta = TYPE_BADGE[item.type];
+            const legacyMeta = LEGACY_TYPE_BADGE[item.type];
+            const isGroupWork = item.work_mode === 'group';
+            const myGroup =
+              isStudentView && isGroupWork ? findStudentAssignmentGroup(item, user?.id) : null;
+            const isLeader = Boolean(myGroup && user?.id && myGroup.leader_id === user.id);
             const mySub = mySubmissions.get(item.id) ?? null;
+            const pastDue = isAssignmentPastDue(item.due_date);
             const myGrade: Grade | null = mySub?.grade
               ? Array.isArray(mySub.grade)
                 ? mySub.grade[0] ?? null
                 : mySub.grade
               : null;
+            const resolvedScore = resolveStudentScoreFromGrade(myGrade, user?.id);
+
+            let studentBtnLabel = 'Làm / Nộp bài';
+            if (isGroupWork) {
+              if (isLeader) {
+                studentBtnLabel = mySub
+                  ? pastDue
+                    ? 'Xem bài nhóm'
+                    : 'Xem / Sửa bài nhóm'
+                  : pastDue
+                    ? 'Đã hết hạn nộp'
+                    : 'Nộp bài nhóm';
+              } else {
+                studentBtnLabel = 'Xem bài nhóm';
+              }
+            } else {
+              studentBtnLabel = mySub
+                ? pastDue
+                  ? 'Xem bài làm'
+                  : 'Xem / Sửa bài nộp'
+                : pastDue
+                  ? 'Đã hết hạn nộp'
+                  : 'Làm / Nộp bài';
+            }
 
             return (
               <article
                 key={item.id}
                 className="flex flex-col justify-between gap-4 rounded-xl border border-line bg-surface-card p-6 sm:flex-row sm:items-center"
               >
-                <div className="flex flex-col gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-bold text-ink-primary">{item.title}</h3>
-                    <Badge tone={typeMeta.tone}>{typeMeta.label}</Badge>
+                    <h3 className="break-words text-base font-bold text-ink-primary">{item.title}</h3>
+                    <Badge tone={isGroupWork ? 'red' : 'navy'}>
+                      {isGroupWork ? 'Làm theo nhóm' : 'Làm cá nhân'}
+                    </Badge>
+                    {!isStudentView && isGroupWork && Array.isArray(item.groups) && item.groups.length > 0 && (
+                      <Badge tone="neutral">{item.groups.length} nhóm</Badge>
+                    )}
+                    {isStudentView && myGroup && (
+                      <Badge tone={isLeader ? 'navy' : 'neutral'}>
+                        {isLeader ? `${myGroup.name} · Trưởng nhóm` : `${myGroup.name} · Thành viên`}
+                      </Badge>
+                    )}
+                    {legacyMeta && <Badge tone={legacyMeta.tone}>{legacyMeta.label}</Badge>}
                     <Badge tone="neutral">Tối đa: {item.max_score}đ</Badge>
+                    {pastDue && <Badge tone="red">Đã hết hạn</Badge>}
                     {isStudentView && (
                       mySub ? (
-                        mySub.status === 'graded' && myGrade ? (
+                        mySub.status === 'graded' && resolvedScore !== null ? (
                           <Badge tone="success">
-                            Điểm: {myGrade.score}/{item.max_score}
+                            Điểm: {resolvedScore}/{item.max_score}
                           </Badge>
                         ) : (
                           <Badge tone="warning">Đã nộp — Chờ chấm</Badge>
@@ -184,7 +237,7 @@ export function ClassAssignmentsTab({
                     )}
                   </div>
                   {item.description && (
-                    <p className="line-clamp-2 text-sm font-normal text-ink-secondary">
+                    <p className="line-clamp-2 break-words [overflow-wrap:anywhere] text-sm font-normal text-ink-secondary">
                       {item.description}
                     </p>
                   )}
@@ -197,11 +250,19 @@ export function ClassAssignmentsTab({
                   {isStudentView ? (
                     <Button
                       size="sm"
-                      variant={mySub ? 'secondary' : 'primary'}
+                      variant={
+                        mySub || pastDue || (isGroupWork && !isLeader) ? 'secondary' : 'primary'
+                      }
                       onClick={() => setStudentTarget(item)}
                     >
-                      <Eye className="h-4 w-4" aria-hidden="true" />
-                      <span>{mySub ? 'Xem bài làm' : 'Làm / Nộp bài'}</span>
+                      {isGroupWork && isLeader && !mySub && !pastDue ? (
+                        <Crown className="h-4 w-4" aria-hidden="true" />
+                      ) : isGroupWork && !isLeader ? (
+                        <Users className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      <span>{studentBtnLabel}</span>
                     </Button>
                   ) : (
                     <>
@@ -265,4 +326,3 @@ export function ClassAssignmentsTab({
     </div>
   );
 }
-

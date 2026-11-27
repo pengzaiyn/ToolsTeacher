@@ -153,7 +153,7 @@ export function buildServerSystemInstruction(params: {
       : 'Xưng "em" và gọi người dùng là "thầy/cô" một cách lễ phép, tự nhiên, ấm áp như trợ lý văn phòng nhà trường.';
 
   return [
-    'Bạn là Trợ lý AI của website AVC Connect — Trường Cao đẳng Việt Mỹ Hà Nội, có thể trò chuyện trực tiếp bằng chữ và giọng nói.',
+    'Bạn là Trợ lý AI của website APC Connect — Trường Cao đẳng Việt Mỹ Hà Nội, có thể trò chuyện trực tiếp bằng chữ và giọng nói.',
     `Người đang trò chuyện: ${params.fullName} | Vai trò: ${getRoleLabelVi(params.role)}${userExtras ? ` | ${userExtras}` : ''}.`,
     `Trang họ đang mở: ${params.currentPath || '/tools'}.`,
     '',

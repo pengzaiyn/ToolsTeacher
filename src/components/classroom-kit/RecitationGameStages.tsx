@@ -1,7 +1,177 @@
 import { useLayoutEffect, useRef } from 'react';
-import { HelpCircle, RotateCw, Shuffle, Sparkles } from 'lucide-react';
+import { RotateCw, Shuffle, Sparkles } from 'lucide-react';
 import type { KitStudent } from '@/lib/classroomKit';
 import { Button } from '@/components/ui/Button';
+
+function MysteryCardBackSvg({
+  number,
+  highlighted,
+}: {
+  number: number;
+  highlighted: boolean;
+}) {
+  const padded = number < 10 ? `0${number}` : String(number);
+  return (
+    <svg
+      viewBox="0 0 160 228"
+      className="h-full w-full select-none drop-shadow-sm"
+      role="img"
+      aria-label={`Thẻ bí ẩn số ${number}`}
+    >
+      {/* Viền ngoài lá bài */}
+      <rect
+        x="2"
+        y="2"
+        width="156"
+        height="224"
+        rx="14"
+        className={
+          highlighted
+            ? 'fill-amber-200 stroke-brand-red'
+            : 'fill-surface-card stroke-amber-300/90'
+        }
+        strokeWidth="2.5"
+      />
+
+      {/* Nền chính huyền bí */}
+      <rect
+        x="8"
+        y="8"
+        width="144"
+        height="212"
+        rx="10"
+        className={highlighted ? 'fill-brand-red' : 'fill-brand-navy'}
+      />
+
+      {/* Khung chỉ vàng kép bên trong */}
+      <rect
+        x="15"
+        y="15"
+        width="130"
+        height="198"
+        rx="7"
+        fill="none"
+        className="stroke-amber-300/55"
+        strokeWidth="1.2"
+      />
+      <rect
+        x="20"
+        y="20"
+        width="120"
+        height="188"
+        rx="5"
+        fill="none"
+        strokeDasharray="3 3"
+        className="stroke-amber-200/35"
+        strokeWidth="1"
+      />
+
+      {/* Họa tiết thoi chiêm tinh & tia chéo mờ */}
+      <line x1="22" y1="22" x2="138" y2="206" className="stroke-white/10" strokeWidth="1" />
+      <line x1="138" y1="22" x2="22" y2="206" className="stroke-white/10" strokeWidth="1" />
+      <polygon
+        points="80,28 134,114 80,200 26,114"
+        className="fill-white/5 stroke-amber-300/40"
+        strokeWidth="1.2"
+      />
+
+      {/* Dấu sao 4 góc khung trong */}
+      <circle cx="24" cy="24" r="2" className="fill-amber-300/75" />
+      <circle cx="136" cy="24" r="2" className="fill-amber-300/75" />
+      <circle cx="24" cy="204" r="2" className="fill-amber-300/75" />
+      <circle cx="136" cy="204" r="2" className="fill-amber-300/75" />
+
+      {/* Biểu tượng trăng khuyết / sao đỉnh và đáy thoi */}
+      <polygon
+        points="80,38 83,45 90,48 83,51 80,58 77,51 70,48 77,45"
+        className="fill-amber-300/85"
+      />
+      <polygon
+        points="80,170 83,177 90,180 83,183 80,190 77,183 70,180 77,177"
+        className="fill-amber-300/85"
+      />
+
+      {/* Vòng cổ ngữ đồng tâm ở tâm lá bài */}
+      <circle
+        cx="80"
+        cy="114"
+        r="46"
+        fill="none"
+        strokeDasharray="5 3"
+        className="stroke-amber-300/75"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="80"
+        cy="114"
+        r="39"
+        fill="none"
+        className="stroke-white/25"
+        strokeWidth="1"
+      />
+
+      {/* Ngôi sao la bàn 8 cánh bao quanh ấn số */}
+      <polygon
+        points="80,62 88,96 122,84 96,108 132,114 96,120 122,144 88,132 80,166 72,132 38,144 64,120 28,114 64,108 38,84 72,96"
+        className="fill-amber-300/80"
+      />
+
+      {/* Huy hiệu tròn trung tâm in số thứ tự */}
+      <circle
+        cx="80"
+        cy="114"
+        r="27"
+        className={
+          highlighted
+            ? 'fill-brand-navy stroke-amber-300'
+            : 'fill-brand-red stroke-amber-300'
+        }
+        strokeWidth="2.5"
+      />
+      <circle
+        cx="80"
+        cy="114"
+        r="22"
+        fill="none"
+        className="stroke-white/40"
+        strokeWidth="1"
+      />
+      <text
+        x="80"
+        y="115"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={number >= 100 ? '19' : '24'}
+        fontWeight="800"
+        letterSpacing="0.5"
+        className="fill-white"
+      >
+        {padded}
+      </text>
+
+      {/* Số chỉ mục ở 2 góc chéo giống bộ bài thật */}
+      <text
+        x="24"
+        y="38"
+        fontSize="13"
+        fontWeight="800"
+        className="fill-amber-300"
+      >
+        #{number}
+      </text>
+      <text
+        x="136"
+        y="198"
+        textAnchor="end"
+        fontSize="13"
+        fontWeight="800"
+        className="fill-amber-300"
+      >
+        #{number}
+      </text>
+    </svg>
+  );
+}
 
 function formatWheelLabel(fullName: string, total: number): string {
   const clean = fullName.trim().replace(/\s+/g, ' ');
@@ -292,16 +462,18 @@ export function MysteryCardsStage({
 
   const gridColsClass =
     cards.length === 1
-      ? 'mx-auto w-full max-w-xs grid-cols-1'
+      ? 'mx-auto w-full max-w-[180px] grid-cols-1'
       : cards.length === 2
-        ? 'mx-auto w-full max-w-lg grid-cols-2'
+        ? 'mx-auto w-full max-w-[376px] grid-cols-2'
         : cards.length === 3
-          ? 'grid-cols-2 sm:grid-cols-3'
-          : isDense
-            ? 'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8'
-            : isCompact
-              ? 'grid-cols-3 sm:grid-cols-5 lg:grid-cols-6'
-              : 'grid-cols-2 sm:grid-cols-4';
+          ? 'mx-auto w-full max-w-[560px] grid-cols-3'
+          : cards.length <= 8
+            ? 'mx-auto w-full max-w-3xl grid-cols-2 sm:grid-cols-4'
+            : isDense
+              ? 'grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-9'
+              : isCompact
+                ? 'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7'
+                : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6';
 
   return (
     <div className="flex flex-col gap-4">
@@ -370,22 +542,16 @@ export function MysteryCardsStage({
                 type="button"
                 disabled={!canPick || drawing || shuffling || isRevealed}
                 onClick={() => onPickCard(student)}
-                className={`relative flex min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border text-center ${
-                  isDense
-                    ? 'min-h-[68px] gap-1 p-2'
-                    : isCompact
-                      ? 'min-h-[84px] gap-1.5 p-2.5'
-                      : 'min-h-[112px] gap-2 p-4'
+                className={`group relative aspect-[5/7] w-full min-w-0 overflow-hidden rounded-xl text-center ${
+                  shuffling ? 'shadow-md' : 'transition-transform duration-200'
                 } ${
-                  shuffling ? 'shadow-md' : 'transition-all'
-                } ${
-                  isCurrent
-                    ? 'border-2 border-brand-red bg-brand-redSoft text-brand-navy shadow-sm'
-                    : isDone
-                      ? 'border-line bg-surface-subtle text-ink-secondary'
-                      : isHighlighted
-                        ? 'border-2 border-brand-red bg-brand-red text-white shadow-md'
-                        : 'border-brand-navy/20 bg-brand-navy text-white hover:-translate-y-0.5 hover:bg-brand-navyHover disabled:cursor-not-allowed disabled:opacity-80'
+                  isRevealed
+                    ? isCurrent
+                      ? 'flex flex-col items-center justify-center gap-1.5 border-2 border-brand-red bg-brand-redSoft p-2.5 text-brand-navy shadow-sm'
+                      : 'flex flex-col items-center justify-center gap-1 border border-line bg-surface-subtle p-2 text-ink-secondary'
+                    : isHighlighted
+                      ? '-translate-y-1 scale-[1.03] shadow-lg ring-2 ring-brand-red'
+                      : 'hover:-translate-y-1 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-80'
                 }`}
               >
                 {isRevealed ? (
@@ -400,8 +566,8 @@ export function MysteryCardsStage({
                       {isCurrent ? `#${idx + 1} · Đang gọi` : `#${idx + 1} · Đã gọi`}
                     </span>
                     <span
-                      className={`line-clamp-2 break-words font-bold leading-snug ${
-                        isDense ? 'text-xs' : 'text-sm'
+                      className={`line-clamp-3 break-words font-bold leading-snug ${
+                        isDense ? 'text-[11px]' : 'text-sm'
                       } ${
                         isCurrent ? 'text-brand-navy' : 'text-ink-secondary'
                       }`}
@@ -409,31 +575,13 @@ export function MysteryCardsStage({
                       {student.name}
                     </span>
                     {student.code && !isDense && (
-                      <span className="max-w-full truncate text-xs font-normal tabular-nums text-ink-muted">
+                      <span className="max-w-full truncate text-[11px] font-normal tabular-nums text-ink-muted">
                         {student.code}
                       </span>
                     )}
                   </>
                 ) : (
-                  <>
-                    <div
-                      className={`flex items-center justify-center rounded-full bg-white/15 ${
-                        isDense ? 'h-6 w-6' : 'h-8 w-8'
-                      }`}
-                    >
-                      <HelpCircle
-                        className={isDense ? 'h-3.5 w-3.5 text-white' : 'h-4 w-4 text-white'}
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <span
-                      className={`whitespace-nowrap font-bold ${
-                        isDense ? 'text-xs' : isCompact ? 'text-sm' : 'text-base'
-                      }`}
-                    >
-                      Thẻ #{idx + 1}
-                    </span>
-                  </>
+                  <MysteryCardBackSvg number={idx + 1} highlighted={isHighlighted} />
                 )}
               </button>
             );

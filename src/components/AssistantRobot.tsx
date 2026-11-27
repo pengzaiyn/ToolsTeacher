@@ -8,7 +8,7 @@ interface AssistantRobotProps {
 }
 
 /**
- * Biểu tượng Robot AVC Connect bằng SVG sử dụng token màu dự án, có cử động vẫy tay, bước chân, nháy mắt, ăng-ten và miệng nói chuyện.
+ * Biểu tượng Robot APC Connect bằng SVG sử dụng token màu dự án, có cử động vẫy tay, bước chân, nháy mắt, ăng-ten và miệng nói chuyện.
  */
 export function AssistantRobot({
   size = 'lg',

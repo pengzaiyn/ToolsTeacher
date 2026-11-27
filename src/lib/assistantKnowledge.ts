@@ -541,7 +541,7 @@ export function getSuggestedQuestions(role: AssistantAudienceRole, currentPath: 
 
   const overviewPrompt =
     role === 'guest'
-      ? 'Website AVC Connect có những chức năng nào?'
+      ? 'Website APC Connect có những chức năng nào?'
       : 'Website này có những chức năng nào dành cho tôi?';
   suggestions.push(overviewPrompt);
 
@@ -709,7 +709,7 @@ function buildSmallTalkReply(
 
   if (THANKS_PATTERNS.some((p) => normalized.includes(p))) {
     return {
-      reply: `Không có gì đâu ${user}! Giúp được ${user} là ${self} vui rồi. Nếu còn vướng chỗ nào trên AVC Connect thì cứ nói tiếp với ${self} ${politeEnd}.`,
+      reply: `Không có gì đâu ${user}! Giúp được ${user} là ${self} vui rồi. Nếu còn vướng chỗ nào trên APC Connect thì cứ nói tiếp với ${self} ${politeEnd}.`,
       actions: defaultActions,
       matchedTopicIds: currentTopic ? [currentTopic.id] : [],
     };
@@ -728,7 +728,7 @@ function buildSmallTalkReply(
 
   if (IDENTITY_PATTERNS.some((p) => normalized.includes(p)) && !isOverviewQuery(normalized)) {
     return {
-      reply: `Mình là Trợ lý AI của AVC Connect, người bạn đồng hành nhỏ trên màn hình của ${user} đây! ${self.charAt(0).toUpperCase()}${self.slice(1)} có thể tra cứu nhanh dữ liệu lớp học, sĩ số, thông báo, lịch học và hướng dẫn mọi tính năng trên website theo đúng tài khoản của ${user}. ${user.charAt(0).toUpperCase()}${user.slice(1)} thử hỏi ${self} một câu xem sao ${politeEnd}!`,
+      reply: `Mình là Trợ lý AI của APC Connect, người bạn đồng hành nhỏ trên màn hình của ${user} đây! ${self.charAt(0).toUpperCase()}${self.slice(1)} có thể tra cứu nhanh dữ liệu lớp học, sĩ số, thông báo, lịch học và hướng dẫn mọi tính năng trên website theo đúng tài khoản của ${user}. ${user.charAt(0).toUpperCase()}${user.slice(1)} thử hỏi ${self} một câu xem sao ${politeEnd}!`,
       actions: defaultActions,
       matchedTopicIds: currentTopic ? [currentTopic.id] : [],
     };
@@ -737,7 +737,7 @@ function buildSmallTalkReply(
   if (shortGreeting || GREETING_PATTERNS.some((p) => normalized.includes(p))) {
     const contextHint = currentTopic
       ? `Hiện ${user} đang ở mục ${currentTopic.title}, cần ${self} hỗ trợ gì về phần này hay tra cứu lớp học cứ nhắn cho ${self} ${politeEnd}!`
-      : `Hôm nay ${user} muốn ${self} giúp việc gì trên AVC Connect nào? Cứ nhắn tự nhiên cho ${self} ${politeEnd}.`;
+      : `Hôm nay ${user} muốn ${self} giúp việc gì trên APC Connect nào? Cứ nhắn tự nhiên cho ${self} ${politeEnd}.`;
 
     return {
       reply: `Chào ${user}! Rất vui được nói chuyện với ${user}. ${contextHint}`,
@@ -779,7 +779,7 @@ export function answerWithLocalKnowledge(
 
   if (!normalized) {
     return {
-      reply: `Chào ${user}, ${self} đang lắng nghe đây! ${user.charAt(0).toUpperCase()}${user.slice(1)} muốn hỏi về tính năng nào trên AVC Connect cứ nói với ${self} ${politeEnd}.`,
+      reply: `Chào ${user}, ${self} đang lắng nghe đây! ${user.charAt(0).toUpperCase()}${user.slice(1)} muốn hỏi về tính năng nào trên APC Connect cứ nói với ${self} ${politeEnd}.`,
       actions: (currentTopic ? [currentTopic] : visible.slice(0, 2))
         .filter((topic) => isActionAllowedForRole(topic, role, currentPath))
         .map(toAction),
@@ -802,7 +802,7 @@ export function answerWithLocalKnowledge(
 
     const intro =
       role === 'guest'
-        ? `AVC Connect là cổng công cụ dành cho Trường Cao đẳng Việt Mỹ Hà Nội. Sau khi đăng nhập bằng tài khoản nhà trường cấp, bạn có thể dùng các tính năng như: ${highlightTitles}.`
+        ? `APC Connect là cổng công cụ dành cho Trường Cao đẳng Việt Mỹ Hà Nội. Sau khi đăng nhập bằng tài khoản nhà trường cấp, bạn có thể dùng các tính năng như: ${highlightTitles}.`
         : `Với tài khoản ${role === 'admin' ? 'Hiệu trưởng' : role === 'teacher' ? 'Giáo viên' : 'Sinh viên'}, ${user} có thể sử dụng đầy đủ các phần: ${highlightTitles}.`;
 
     return {
@@ -849,7 +849,7 @@ export function answerWithLocalKnowledge(
       .map(toAction);
     const replyText =
       role === 'guest'
-        ? `Nghe câu này ${self} chưa chắc mình đã hiểu đúng ý bạn lắm. Bạn đang cần hỏi về đăng nhập, mã CAPTCHA, quên mật khẩu qua email hay tính năng nào trên AVC Connect thì nói cụ thể thêm chút để ${self} hỗ trợ ngay nhé.`
+        ? `Nghe câu này ${self} chưa chắc mình đã hiểu đúng ý bạn lắm. Bạn đang cần hỏi về đăng nhập, mã CAPTCHA, quên mật khẩu qua email hay tính năng nào trên APC Connect thì nói cụ thể thêm chút để ${self} hỗ trợ ngay nhé.`
         : `Câu này ${self} chưa bắt đúng phần ${user} đang cần tìm trên web. ${user.charAt(0).toUpperCase()}${user.slice(1)} nói rõ hơn một chút (ví dụ xem thời khóa biểu, tải file Excel, quản lý lớp hay đổi giao diện) hoặc bấm thử lối tắt bên dưới ${politeEnd}.`;
 
     return {

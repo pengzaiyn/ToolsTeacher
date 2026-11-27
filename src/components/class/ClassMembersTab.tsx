@@ -50,6 +50,7 @@ export function ClassMembersTab({
   const toast = useToast();
 
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [memberSearch, setMemberSearch] = useState('');
   const [classmates, setClassmates] = useState<ClassmateRow[]>([]);
   const [classmateSearch, setClassmateSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -465,6 +466,22 @@ export function ClassMembersTab({
     },
   ];
 
+  const filteredEnrollments = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    if (!q) return enrollments;
+    return enrollments.filter((enr) => {
+      const s = enr.student;
+      if (!s) return false;
+      return (
+        s.full_name.toLowerCase().includes(q) ||
+        (s.student_code ?? '').toLowerCase().includes(q) ||
+        (s.email ?? '').toLowerCase().includes(q) ||
+        (s.class_name ?? '').toLowerCase().includes(q) ||
+        (s.phone ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [enrollments, memberSearch]);
+
   if (isStudentView) {
     return (
       <div className="flex flex-col gap-4">
@@ -517,44 +534,67 @@ export function ClassMembersTab({
           <h2 className="text-lg font-bold text-ink-primary">Sinh viên trong lớp</h2>
           <Badge tone="navy">{enrollments.length} sinh viên</Badge>
         </div>
-        {canManage && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setShowPhones((v) => !v)}
-            >
-              {showPhones ? (
-                <EyeOff className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4 text-brand-navy" aria-hidden="true" />
-              )}
-              <span>{showPhones ? 'Ẩn SĐT' : 'Hiện SĐT'}</span>
-            </Button>
-            <Button variant="primary" onClick={() => setAddOpen(true)}>
-              <UserPlus className="h-4 w-4" aria-hidden="true" />
-              <span>Thêm sinh viên</span>
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {enrollments.length > 0 && (
+            <div className="relative w-full sm:w-72">
+              <Search
+                className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-ink-muted"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                placeholder="Tìm sinh viên theo tên hoặc mã SV..."
+                className="h-9 w-full rounded-lg border border-line-strong bg-surface-card pl-9 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
+              />
+            </div>
+          )}
+          {canManage && (
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowPhones((v) => !v)}
+              >
+                {showPhones ? (
+                  <EyeOff className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4 text-brand-navy" aria-hidden="true" />
+                )}
+                <span>{showPhones ? 'Ẩn SĐT' : 'Hiện SĐT'}</span>
+              </Button>
+              <Button variant="primary" onClick={() => setAddOpen(true)}>
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                <span>Thêm sinh viên</span>
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (
         <LoadingState message="Đang tải danh sách thành viên..." />
-      ) : enrollments.length === 0 ? (
+      ) : filteredEnrollments.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="Chưa có sinh viên nào trong lớp"
+          title={
+            enrollments.length > 0
+              ? 'Không tìm thấy sinh viên phù hợp'
+              : 'Chưa có sinh viên nào trong lớp'
+          }
           description={
-            canManage
-              ? 'Thêm từng sinh viên hoặc thêm nhanh cả lớp hành chính.'
-              : 'Lớp học này chưa có sinh viên nào được ghi danh.'
+            enrollments.length > 0
+              ? 'Thử nhập từ khóa tên, mã sinh viên hoặc lớp khác.'
+              : canManage
+                ? 'Thêm từng sinh viên hoặc thêm nhanh cả lớp hành chính.'
+                : 'Lớp học này chưa có sinh viên nào được ghi danh.'
           }
         />
       ) : (
         <Table
           columns={columns}
-          data={enrollments}
+          data={filteredEnrollments}
           rowKey={(row) => row.id}
           caption="Danh sách sinh viên trong lớp"
         />

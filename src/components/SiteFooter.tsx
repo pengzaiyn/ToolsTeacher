@@ -18,7 +18,7 @@ export function SiteFooter() {
         <div className="u418-main">
           {/* Cột trái: Logo trường + tên Trường */}
           <div className="u418-brand">
-            <Link className="u418-logo" to="/tools" aria-label="Trang chủ AVC Connect">
+            <Link className="u418-logo" to="/tools" aria-label="Trang chủ APC Connect">
               <img
                 src="/logo-light.png"
                 alt="Trường Cao đẳng Việt Mỹ Hà Nội"

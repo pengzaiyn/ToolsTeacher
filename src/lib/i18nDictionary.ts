@@ -8,7 +8,7 @@ interface TranslationPair {
 const SCHOOL_NAME = 'Trường Cao đẳng Việt Mỹ Hà Nội';
 
 /**
- * Từ điển dịch chuẩn cho toàn bộ giao diện AVC Connect (VI -> EN / ZH).
+ * Từ điển dịch chuẩn cho toàn bộ giao diện APC Connect (VI -> EN / ZH).
  * Giữ nguyên tên chính thức "Trường Cao đẳng Việt Mỹ Hà Nội" trong mọi ngôn ngữ.
  */
 export const PHRASE_DICT: Record<string, TranslationPair> = {
@@ -98,9 +98,13 @@ export const PHRASE_DICT: Record<string, TranslationPair> = {
     en: 'New school announcements will appear here.',
     zh: '学校最新通知将显示在此处。',
   },
-  'Bạn có thắc mắc gì hãy hỏi AI AVC': {
-    en: 'Have a question? Ask AI AVC',
-    zh: '有疑问？问问 AI AVC',
+  'Bạn có thắc mắc gì hãy hỏi AI APC': {
+    en: 'Have a question? Ask AI APC',
+    zh: '有疑问？问问 AI APC',
+  },
+  'Trợ lý APC Connect': {
+    en: 'APC Connect Assistant',
+    zh: 'APC Connect 助手',
   },
 
   // Thời khóa biểu
@@ -451,6 +455,122 @@ export const PHRASE_DICT: Record<string, TranslationPair> = {
   'Hướng camera điện thoại lên màn hình máy chiếu của giảng viên': {
     en: "Point your phone camera at the instructor's projector screen",
     zh: '将手机摄像头对准教师的投影屏幕',
+  },
+  'Đã hết hạn': { en: 'Past Due', zh: '已截止' },
+  'Đã hết hạn nộp': { en: 'Past Due', zh: '已过提交时间' },
+  'Xem / Sửa bài nộp': { en: 'View / Edit Submission', zh: '查看 / 修改作业' },
+  'Chỉnh sửa & Nộp lại': { en: 'Edit & Resubmit', zh: '修改并重新提交' },
+  'Lưu & Nộp lại': { en: 'Save & Resubmit', zh: '保存并重新提交' },
+  'Hủy bài nộp': { en: 'Cancel Submission', zh: '撤回作业' },
+  'Xem file cũ': { en: 'View Current File', zh: '查看当前文件' },
+  'Xác nhận nộp lại': { en: 'Confirm Resubmit', zh: '确认重新提交' },
+  'Xác nhận nộp lại bài': { en: 'Confirm Resubmission', zh: '确认重新提交作业' },
+  'Xác nhận hủy bài nộp': { en: 'Confirm Cancel Submission', zh: '确认撤回并删除' },
+  'Hủy và xóa bài đã nộp': { en: 'Cancel & Delete Submission', zh: '撤回并删除已交作业' },
+  'Còn trong thời gian nộp bài — bạn vẫn có thể chỉnh sửa nộp lại hoặc hủy bài đã nộp.': {
+    en: 'Submission window is still open — you can edit & resubmit or cancel your submission.',
+    zh: '仍在提交时间内 — 您仍可修改重交或撤回已提交的作业。',
+  },
+  'Đã hết thời gian nộp bài — không thể chỉnh sửa hoặc hủy bài nộp.': {
+    en: 'Submission deadline has passed — editing or canceling is locked.',
+    zh: '已过提交截止时间 — 无法修改或撤回作业。',
+  },
+  'Đã hết thời gian nộp bài mà giảng viên cài đặt. Bạn không thể nộp bài mới.': {
+    en: 'The instructor-set deadline has passed. New submissions are closed.',
+    zh: '教师设置的截止时间已过，无法继续提交作业。',
+  },
+  'Bạn vẫn có thể chỉnh sửa, nộp lại hoặc hủy bài nộp trước thời hạn giảng viên cài đặt. Khi hết hạn, bài làm sẽ được khóa. Bạn chắc chắn muốn nộp?': {
+    en: 'You can still edit, resubmit, or cancel your work before the instructor-set deadline. Once expired, it will be locked. Submit now?',
+    zh: '在教师设置的截止时间前，您仍可修改、重交或撤回作业；截止后将锁定。确认提交吗？',
+  },
+  'Sau khi nộp, bạn vẫn có thể chỉnh sửa, nộp lại hoặc hủy bài nộp bất cứ lúc nào. Bạn chắc chắn muốn nộp?': {
+    en: 'After submitting, you can still edit, resubmit, or cancel your submission anytime. Submit now?',
+    zh: '提交后您仍可随时修改、重交或撤回作业。确认提交吗？',
+  },
+  'Bài nộp hiện tại của bạn sẽ bị xóa để bạn có thể làm lại từ đầu (chỉ thực hiện được khi còn thời hạn nộp bài). Bạn chắc chắn muốn hủy bài nộp?': {
+    en: 'Your current submission will be deleted so you can start over (only allowed before the deadline). Cancel submission?',
+    zh: '当前提交的作业将被删除以便重新作答（仅限截止时间前）。确认撤回作业吗？',
+  },
+  'Hình thức làm bài': { en: 'Work Mode', zh: '作业形式' },
+  'Làm cá nhân': { en: 'Individual Work', zh: '个人作业' },
+  'Làm theo nhóm': { en: 'Group Work', zh: '小组作业' },
+  'Giao bài tập cá nhân hoặc bài tập nhóm cho sinh viên trong lớp.': {
+    en: 'Assign individual or group coursework to students in the class.',
+    zh: '为班级学生布置个人或小组作业。',
+  },
+  'Ảnh bài làm': { en: 'Work Image', zh: '作业图片' },
+  'Xem ảnh cũ': { en: 'View Current Image', zh: '查看当前图片' },
+  'Mở ảnh kích thước gốc': { en: 'Open Full-Size Image', zh: '打开原图查看' },
+  'Tối đa 25 MB · Hỗ trợ ảnh JPG, PNG, WEBP, HEIC...': {
+    en: 'Max 25 MB · Supports JPG, PNG, WEBP, HEIC images...',
+    zh: '最大 25 MB · 支持 JPG、PNG、WEBP、HEIC 等图片...',
+  },
+  'Thành viên nhóm / Ghi chú thêm (tùy chọn)': {
+    en: 'Group Members / Additional Note (optional)',
+    zh: '小组成员 / 附加说明（可选）',
+  },
+  'Ghi họ tên / MSV các thành viên trong nhóm hoặc lời nhắn gửi giáo viên...': {
+    en: 'List group members (Full name / Student ID) or leave a note for the instructor...',
+    zh: '填写小组成员姓名/学号或给教师的留言...',
+  },
+  'Vui lòng tải lên ảnh bài làm để nộp': {
+    en: 'Please upload an image of your work to submit',
+    zh: '请上传作业图片后再提交',
+  },
+  'Vui lòng chỉ chọn tệp hình ảnh (JPG, PNG, WEBP, HEIC...)': {
+    en: 'Please select an image file only (JPG, PNG, WEBP, HEIC...)',
+    zh: '请仅选择图片文件（JPG、PNG、WEBP、HEIC...）',
+  },
+  'Ảnh nộp vượt quá giới hạn 25 MB': {
+    en: 'Uploaded image exceeds the 25 MB limit',
+    zh: '上传的图片超过 25 MB 限制',
+  },
+  'Theo số nhóm': { en: 'By Group Count', zh: '按小组数量' },
+  'Theo số SV / nhóm': { en: 'By Group Size', zh: '按每组人数' },
+  'Số nhóm muốn chia': { en: 'Number of Groups', zh: '分组数量' },
+  'Số SV mỗi nhóm': { en: 'Students per Group', zh: '每组学生数' },
+  'Chia nhóm ngay': { en: 'Split Groups Now', zh: '立即分组' },
+  'Xáo trộn chia lại': { en: 'Shuffle & Resplit', zh: '重新随机分组' },
+  'Chọn random trưởng nhóm': { en: 'Randomize Group Leaders', zh: '随机指定组长' },
+  'Trưởng nhóm': { en: 'Group Leader', zh: '组长' },
+  'Nộp bài nhóm': { en: 'Submit for Group', zh: '提交小组作业' },
+  'Nộp bài cho nhóm': { en: 'Submit Group Work', zh: '提交小组作业' },
+  'Xem bài nhóm': { en: 'View Group Work', zh: '查看小组作业' },
+  'Xem / Sửa bài nhóm': { en: 'View / Edit Group Work', zh: '查看 / 修改小组作业' },
+  'Ảnh bài làm của nhóm': { en: 'Group Work Image', zh: '小组作业图片' },
+  'Bạn là Trưởng nhóm (Đại diện nộp bài)': {
+    en: 'You are the Group Leader (Submitter)',
+    zh: '您是组长（代表小组提交）',
+  },
+  'Bạn là Thành viên (Không phải nộp riêng)': {
+    en: 'You are a Member (No separate submission needed)',
+    zh: '您是组员（无需单独提交）',
+  },
+  'Các thành viên trong nhóm không cần nộp bài riêng. Ngay khi Trưởng nhóm tải ảnh bài làm lên, bạn có thể xem bài nộp và điểm số của nhóm tại đây.': {
+    en: 'Group members do not need to submit separately. Once the Group Leader uploads the work image, you can view the submission and your score here.',
+    zh: '小组成员无需单独提交。组长上传作业图片后，您可在此查看提交内容与成绩。',
+  },
+  'Mặc định: Cả nhóm nhận bằng điểm Trưởng nhóm': {
+    en: 'Default: All members receive the Group Leader score',
+    zh: '默认：全组与组长同分',
+  },
+  'Đang nhập điểm riêng từng thành viên': {
+    en: 'Customizing individual member scores',
+    zh: '正在单独设置各成员分数',
+  },
+  'Chấm riêng từng bạn': { en: 'Score Per Member', zh: '按成员单独打分' },
+  'Dùng chung điểm nhóm': { en: 'Use Same Group Score', zh: '恢复全组同分' },
+  'Chọn một nhóm ở danh sách bên trái để xem bài nộp và chấm điểm.': {
+    en: 'Select a group on the left to view its submission and grade.',
+    zh: '请在左侧选择一个小组以查看作业并评分。',
+  },
+  'Tìm sinh viên theo tên hoặc mã SV...': {
+    en: 'Search students by name or student ID...',
+    zh: '按姓名或学号搜索学生...',
+  },
+  'Không tìm thấy sinh viên phù hợp': {
+    en: 'No matching students found',
+    zh: '未找到匹配的学生',
   },
 };
 

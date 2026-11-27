@@ -5,7 +5,7 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   children: ReactNode;
   footer?: ReactNode;
 }
@@ -14,6 +14,7 @@ const SIZE_CLASSES = {
   sm: 'max-w-md',
   md: 'max-w-lg',
   lg: 'max-w-2xl',
+  xl: 'max-w-5xl',
 };
 
 export function Modal({ open, onClose, title, size = 'md', children, footer }: ModalProps) {
@@ -40,8 +41,8 @@ export function Modal({ open, onClose, title, size = 'md', children, footer }: M
         className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl border border-line bg-surface-card shadow-xl ${SIZE_CLASSES[size]}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 id="modal-title" className="text-lg font-bold text-ink-primary">
+        <div className="flex items-center justify-between gap-4 border-b border-line px-6 py-4">
+          <h2 id="modal-title" className="min-w-0 break-words text-lg font-bold text-ink-primary">
             {title}
           </h2>
           <button

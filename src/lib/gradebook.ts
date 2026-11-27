@@ -1,4 +1,8 @@
 import type { StudentAttendanceSummary } from '@/lib/attendance';
+import {
+  findStudentAssignmentGroup,
+  resolveStudentScoreFromGrade,
+} from '@/lib/assignmentGroups';
 import type {
   Assignment,
   ClassGradebookSettings,
@@ -106,10 +110,18 @@ export function buildClassGradebook(
     let gradedAssignmentsCount = 0;
 
     assignments.forEach((assignment) => {
-      const sub = subByKey.get(`${enr.student_id}:${assignment.id}`);
+      let sub = subByKey.get(`${enr.student_id}:${assignment.id}`);
+      if (!sub && assignment.work_mode === 'group') {
+        const group = findStudentAssignmentGroup(assignment, enr.student_id);
+        if (group) {
+          sub = subByKey.get(`${group.leader_id}:${assignment.id}`);
+        }
+      }
       const grade = sub ? unwrapSubmissionGrade(sub) : null;
       const rawScore =
-        sub && sub.status === 'graded' && grade && grade.score !== null ? Number(grade.score) : null;
+        sub && sub.status === 'graded'
+          ? resolveStudentScoreFromGrade(grade, enr.student_id)
+          : null;
       const maxScore = assignment.max_score > 0 ? assignment.max_score : 10;
       const score10 =
         rawScore !== null
